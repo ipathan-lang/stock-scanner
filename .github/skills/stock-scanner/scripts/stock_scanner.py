@@ -130,11 +130,10 @@ def market_trend_ok():
 def main():
     print("\n🔍 Running Large Cap Bullish Scanner...\n")
 
-    if not market_trend_ok():
+    bearish = not market_trend_ok()
+    if bearish:
         print("⚠️  Market trend is BEARISH (S&P 500 below 20 EMA).")
-        print("    Avoid new long positions today.\n")
-        write_summary(["## ⚠️ Market is BEARISH", "S&P 500 is below its 20 EMA — avoid new long positions today."])
-        return
+        print("    Use caution — showing scan results anyway.\n")
 
     results = []
     for stock in STOCKS:
@@ -147,6 +146,8 @@ def main():
         write_summary(["## ❌ No data", "Could not fetch data for any stocks."])
         return
 
+    market_banner = ["## ⚠️ Market is BEARISH", "S&P 500 is below its 20 EMA — use caution with new long positions.", ""] if bearish else []
+
     df = pd.DataFrame(results).sort_values(by="Score", ascending=False)
 
     print("✅ All Stocks — Ranked by Bullish Score:\n")
@@ -158,7 +159,7 @@ def main():
     if top.empty:
         print(f"\n⚠️  No stocks scored ≥ {SCORE_THRESHOLD} today.")
         print("    Market may be extended. Watch the top of the list for Monday.")
-        write_summary([
+        write_summary(market_banner + [
             "## ⚠️ No qualifying stocks today",
             f"No stocks scored ≥ {SCORE_THRESHOLD}. Market may be extended.",
             "",
@@ -215,7 +216,7 @@ def main():
     print("\n⚠️  This is not financial advice. Always use risk management.\n")
 
     # --- GitHub Actions Job Summary ---
-    summary = [
+    summary = market_banner + [
         f"## 📈 Stock Scanner — {pd.Timestamp.today().strftime('%Y-%m-%d')}",
         "",
         f"**Capital:** ${CAPITAL:,.0f}  |  **Deploy (60%):** ${deploy_capital:,.0f}  |  **Reserve (40%):** ${reserve_capital:,.0f}",
