@@ -6,6 +6,7 @@
 # ================================
 
 import sys
+import os
 import subprocess
 
 # --- Auto-install missing packages ---
@@ -104,6 +105,14 @@ def analyze_stock(ticker):
     return None
 
 
+def write_summary(lines):
+    """Write markdown lines to GitHub Actions Job Summary if available."""
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
+
 def market_trend_ok():
     """Returns True if S&P 500 is above its 20 EMA (bullish market)."""
     try:
@@ -124,6 +133,7 @@ def main():
     if not market_trend_ok():
         print("⚠️  Market trend is BEARISH (S&P 500 below 20 EMA).")
         print("    Avoid new long positions today.\n")
+        write_summary(["## ⚠️ Market is BEARISH", "S&P 500 is below its 20 EMA — avoid new long positions today."])
         return
 
     results = []
@@ -134,6 +144,7 @@ def main():
 
     if not results:
         print("❌ Could not fetch data for any stocks.\n")
+        write_summary(["## ❌ No data", "Could not fetch data for any stocks."])
         return
 
     df = pd.DataFrame(results).sort_values(by="Score", ascending=False)
@@ -147,6 +158,17 @@ def main():
     if top.empty:
         print(f"\n⚠️  No stocks scored ≥ {SCORE_THRESHOLD} today.")
         print("    Market may be extended. Watch the top of the list for Monday.")
+        write_summary([
+            "## ⚠️ No qualifying stocks today",
+            f"No stocks scored ≥ {SCORE_THRESHOLD}. Market may be extended.",
+            "",
+            "### All Stocks — Ranked by Score",
+            "| Ticker | Score | Price | RSI | Position | MACD diff |",
+            "|--------|------:|------:|----:|---------:|----------:|",
+        ] + [
+            f"| {r['Ticker']} | {int(r['Score'])} | ${r['Price']:.2f} | {r['RSI']:.1f} | {r['Position']:.2f} | {r['MACD_diff']:.4f} |"
+            for _, r in df.iterrows()
+        ])
         return
 
     deploy_capital  = CAPITAL * DEPLOY_PCT
@@ -191,6 +213,52 @@ def main():
     print("   • Hold period:  1–3 trading days")
     print(f"{'─'*65}")
     print("\n⚠️  This is not financial advice. Always use risk management.\n")
+
+    # --- GitHub Actions Job Summary ---
+    summary = [
+        f"## 📈 Stock Scanner — {pd.Timestamp.today().strftime('%Y-%m-%d')}",
+        "",
+        f"**Capital:** ${CAPITAL:,.0f}  |  **Deploy (60%):** ${deploy_capital:,.0f}  |  **Reserve (40%):** ${reserve_capital:,.0f}",
+        "",
+        "### 🎯 Entry Positions",
+        "| Ticker | Score | Price | Entry $ | Shares | Stop | Target |",
+        "|--------|------:|------:|--------:|-------:|-----:|-------:|",
+    ]
+    for _, row in top.iterrows():
+        weight       = row["Score"] / total_score
+        entry_amount = deploy_capital * weight
+        shares       = int(entry_amount / row["Price"])
+        stop         = row["Price"] * 0.98
+        target       = row["Price"] * 1.035
+        summary.append(
+            f"| {row['Ticker']} | {int(row['Score'])} | ${row['Price']:.2f}"
+            f" | ${entry_amount:,.0f} | {shares} | ${stop:.2f} | ${target:.2f} |"
+        )
+    summary += [
+        "",
+        "### 🔄 Reserve / Average-Down Plan",
+        "| Ticker | Avg-Down Price | Reserve $ | Extra Shares |",
+        "|--------|---------------:|----------:|-------------:|",
+    ]
+    for _, row in top.iterrows():
+        avg_price  = row["Price"] * 0.97
+        avg_shares = int(reserve_per_position / avg_price)
+        summary.append(
+            f"| {row['Ticker']} | ${avg_price:.2f} | ${reserve_per_position:,.0f} | {avg_shares} |"
+        )
+    summary += [
+        "",
+        "### 📊 All Stocks — Ranked by Score",
+        "| Ticker | Score | Price | RSI | Position | MACD diff |",
+        "|--------|------:|------:|----:|---------:|----------:|",
+    ]
+    for _, r in df.iterrows():
+        summary.append(
+            f"| {r['Ticker']} | {int(r['Score'])} | ${r['Price']:.2f}"
+            f" | {r['RSI']:.1f} | {r['Position']:.2f} | {r['MACD_diff']:.4f} |"
+        )
+    summary.append("\n> ⚠️ Not financial advice. Always use risk management.")
+    write_summary(summary)
 
 
 if __name__ == "__main__":
