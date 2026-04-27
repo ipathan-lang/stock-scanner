@@ -42,11 +42,64 @@ STOCKS = [
 ]
 
 # --- SCORING ---
-# Each condition adds points; max score = 10
+# Each condition adds points; max score = 14 (10 technical + 4 earnings)
 # Score >= 4 → included in allocation plan
 SCORE_THRESHOLD = 4
 
 # --- FUNCTIONS ---
+
+def get_earnings_data(ticker):
+    """
+    Returns dict with:
+      earnings_in_days  : int or None  (days until next earnings; None if unknown)
+      last_eps_surprise : float or None (actual - estimate; positive = beat)
+      last_eps_beat     : bool          (True if last earnings beat estimate)
+    """
+    try:
+        t = yf.Ticker(ticker)
+
+        # --- Next earnings date ---
+        earnings_in_days = None
+        cal = t.calendar
+        if cal is not None and not cal.empty:
+            # calendar is a DataFrame with dates as columns; first column = next event
+            earnings_date = cal.iloc[0, 0] if hasattr(cal.iloc[0, 0], 'date') else None
+            if earnings_date:
+                delta = (pd.Timestamp(earnings_date).date() - pd.Timestamp.today().date()).days
+                earnings_in_days = delta
+        else:
+            # Fallback: earnings_dates property
+            ed = t.earnings_dates
+            if ed is not None and not ed.empty:
+                future = ed[ed.index > pd.Timestamp.today()]
+                if not future.empty:
+                    earnings_in_days = (future.index[-1].date() - pd.Timestamp.today().date()).days
+
+        # --- Last earnings EPS surprise ---
+        last_eps_beat = False
+        last_eps_surprise = None
+        ed = t.earnings_dates
+        if ed is not None and not ed.empty:
+            past = ed[
+                (ed.index <= pd.Timestamp.today()) &
+                ed["EPS Actual"].notna() &
+                ed["EPS Estimate"].notna()
+            ]
+            if not past.empty:
+                last = past.iloc[0]  # most recent past earnings
+                actual   = float(last["EPS Actual"])
+                estimate = float(last["EPS Estimate"])
+                last_eps_surprise = round(actual - estimate, 4)
+                last_eps_beat = actual > estimate
+
+        return {
+            "earnings_in_days" : earnings_in_days,
+            "last_eps_surprise": last_eps_surprise,
+            "last_eps_beat"    : last_eps_beat,
+        }
+    except Exception as e:
+        return {"earnings_in_days": None, "last_eps_surprise": None, "last_eps_beat": False}
+
 
 def analyze_stock(ticker):
     try:
@@ -85,7 +138,7 @@ def analyze_stock(ticker):
         price     = float(latest["Close"])
         ema20     = float(latest["EMA20"])
 
-        # --- Scoring (max 10) ---
+        # --- Scoring (max 10 technical + 4 earnings = 14) ---
         score = 0
         if position < 0.5:      score += 2   # lower half of weekly range
         if 30 < rsi < 65:       score += 2   # RSI not overbought/oversold
@@ -94,13 +147,33 @@ def analyze_stock(ticker):
         if position < 0.35:     score += 1   # bonus: deep dip
         if 35 < rsi < 55:       score += 1   # bonus: RSI recovery zone
 
+        # --- Earnings filters (+4 pts) ---
+        edata = get_earnings_data(ticker)
+        days_to_earnings = edata["earnings_in_days"]
+        last_beat        = edata["last_eps_beat"]
+        eps_surprise     = edata["last_eps_surprise"]
+
+        earnings_soon = (
+            days_to_earnings is not None and 0 <= days_to_earnings <= 5
+        )
+
+        # Skip stocks where last earnings were a miss
+        if edata["last_eps_surprise"] is not None and not last_beat:
+            return None  # last earnings were bad — exclude
+
+        if last_beat:        score += 2   # last earnings beat estimate
+        if earnings_soon:    score += 2   # earnings coming in next 5 days
+
         return {
-            "Ticker"   : ticker,
-            "Price"    : round(price, 2),
-            "RSI"      : round(rsi, 2),
-            "Position" : round(position, 2),
-            "MACD_diff": round(macd_diff, 4),
-            "Score"    : score
+            "Ticker"         : ticker,
+            "Price"          : round(price, 2),
+            "RSI"            : round(rsi, 2),
+            "Position"       : round(position, 2),
+            "MACD_diff"      : round(macd_diff, 4),
+            "Score"          : score,
+            "EPS_Surprise"   : eps_surprise,
+            "Earnings_In"    : days_to_earnings,
+            "Earnings_Soon"  : earnings_soon,
         }
 
     except Exception as e:
@@ -179,8 +252,12 @@ def main():
 
     df = pd.DataFrame(results).sort_values(by="Score", ascending=False)
 
-    print("✅ All Stocks — Ranked by Bullish Score:\n")
-    print(df.to_string(index=False))
+    # Format earnings columns for display
+    df["EPS_Beat"]   = df["last_eps_beat"].map({True: "✅", False: "❌"}) if "last_eps_beat" in df.columns else "?"
+    display_cols = ["Ticker", "Price", "RSI", "Position", "MACD_diff", "Score", "EPS_Surprise", "Earnings_In"]
+
+    print("✅ All Stocks — Ranked by Bullish Score (earnings-filtered):\n")
+    print(df[display_cols].to_string(index=False))
 
     # --- Allocation Plan ---
     top = df[df["Score"] >= SCORE_THRESHOLD].head(MAX_POSITIONS)
@@ -251,8 +328,8 @@ def main():
         f"**Capital:** ${CAPITAL:,.0f}  |  **Deploy (60%):** ${deploy_capital:,.0f}  |  **Reserve (40%):** ${reserve_capital:,.0f}",
         "",
         "### 🎯 Entry Positions",
-        "| Ticker | Score | Price | Entry $ | Shares | Stop | Target |",
-        "|--------|------:|------:|--------:|-------:|-----:|-------:|",
+        "| Ticker | Score | Price | Entry $ | Shares | Stop | Target | EPS Surprise | Earnings In |",
+        "|--------|------:|------:|--------:|-------:|-----:|-------:|-------------:|:-----------:|",
     ]
     for _, row in top.iterrows():
         weight       = row["Score"] / total_score
@@ -262,7 +339,9 @@ def main():
         target       = row["Price"] * 1.035
         summary.append(
             f"| {row['Ticker']} | {int(row['Score'])} | ${row['Price']:.2f}"
-            f" | ${entry_amount:,.0f} | {shares} | ${stop:.2f} | ${target:.2f} |"
+            f" | ${entry_amount:,.0f} | {shares} | ${stop:.2f} | ${target:.2f}"
+            f" | {'+' if (row['EPS_Surprise'] or 0) >= 0 else ''}{row['EPS_Surprise'] if row['EPS_Surprise'] is not None else 'N/A'}"
+            f" | {row['Earnings_In'] if row['Earnings_In'] is not None else 'N/A'} |"
         )
     summary += [
         "",
@@ -279,13 +358,18 @@ def main():
     summary += [
         "",
         "### 📊 All Stocks — Ranked by Score",
-        "| Ticker | Score | Price | RSI | Position | MACD diff |",
-        "|--------|------:|------:|----:|---------:|----------:|",
+        "| Ticker | Score | Price | RSI | Position | MACD diff | EPS Surprise | Earnings In |",
+        "|--------|------:|------:|----:|---------:|----------:|-------------:|:-----------:|",
     ]
     for _, r in df.iterrows():
+        eps  = r['EPS_Surprise']
+        eday = r['Earnings_In']
+        soon = " 🔔" if r.get('Earnings_Soon') else ""
         summary.append(
             f"| {r['Ticker']} | {int(r['Score'])} | ${r['Price']:.2f}"
-            f" | {r['RSI']:.1f} | {r['Position']:.2f} | {r['MACD_diff']:.4f} |"
+            f" | {r['RSI']:.1f} | {r['Position']:.2f} | {r['MACD_diff']:.4f}"
+            f" | {('+' if (eps or 0) >= 0 else '') + str(eps) if eps is not None else 'N/A'}"
+            f" | {str(eday) + ' days' + soon if eday is not None else 'N/A'} |"
         )
     summary.append("\n> ⚠️ Not financial advice. Always use risk management.")
     write_summary(summary)
@@ -301,10 +385,15 @@ def main():
         shares       = int(entry_amount / row["Price"])
         stop         = row["Price"] * 0.98
         target       = row["Price"] * 1.035
+        eps  = row['EPS_Surprise']
+        eday = row['Earnings_In']
+        soon_flag = " 🔔" if row.get('Earnings_Soon') else ""
         entry_rows += (
             f"<tr><td>{row['Ticker']}</td><td>{int(row['Score'])}</td>"
             f"<td>${row['Price']:.2f}</td><td>${entry_amount:,.0f}</td>"
-            f"<td>{shares}</td><td>${stop:.2f}</td><td>${target:.2f}</td></tr>"
+            f"<td>{shares}</td><td>${stop:.2f}</td><td>${target:.2f}</td>"
+            f"<td>{('+' if (eps or 0) >= 0 else '') + str(eps) if eps is not None else 'N/A'}</td>"
+            f"<td>{str(eday) + 'd' + soon_flag if eday is not None else 'N/A'}</td></tr>"
         )
 
     reserve_rows = ""
@@ -318,10 +407,15 @@ def main():
 
     all_rows = ""
     for _, r in df.iterrows():
+        eps  = r['EPS_Surprise']
+        eday = r['Earnings_In']
+        soon_flag = " 🔔" if r.get('Earnings_Soon') else ""
         all_rows += (
             f"<tr><td>{r['Ticker']}</td><td>{int(r['Score'])}</td>"
             f"<td>${r['Price']:.2f}</td><td>{r['RSI']:.1f}</td>"
-            f"<td>{r['Position']:.2f}</td><td>{r['MACD_diff']:.4f}</td></tr>"
+            f"<td>{r['Position']:.2f}</td><td>{r['MACD_diff']:.4f}</td>"
+            f"<td>{('+' if (eps or 0) >= 0 else '') + str(eps) if eps is not None else 'N/A'}</td>"
+            f"<td>{str(eday) + 'd' + soon_flag if eday is not None else 'N/A'}</td></tr>"
         )
 
     th = "style='background:#1a1a2e;color:#fff;padding:6px 12px;text-align:right'"
@@ -342,6 +436,7 @@ def main():
         <th {th} style='text-align:left'>Ticker</th>
         <th {th}>Score</th><th {th}>Price</th><th {th}>Entry $</th>
         <th {th}>Shares</th><th {th}>Stop</th><th {th}>Target</th>
+        <th {th}>EPS Surprise</th><th {th}>Earnings In</th>
       </tr>
       {entry_rows.replace('<td>', f'<td {td}>').replace('<td>{', f'<td {tdl}>')}
     </table>
@@ -361,6 +456,7 @@ def main():
         <th {th} style='text-align:left'>Ticker</th>
         <th {th}>Score</th><th {th}>Price</th><th {th}>RSI</th>
         <th {th}>Position</th><th {th}>MACD diff</th>
+        <th {th}>EPS Surprise</th><th {th}>Earnings In</th>
       </tr>
       {all_rows.replace('<td>', f'<td {td}>').replace('<td>{', f'<td {tdl}>')}
     </table>
