@@ -2,7 +2,10 @@ name: Daily Stock Scan
 
 on:
   schedule:
-    - cron: '30 13 * * 1-5'   # 9:30 AM EST, Mon–Fri (market open)
+    # TEST WINDOW: every 5 minutes from 7:00 AM to 7:00 PM US Eastern
+    # GitHub cron is UTC. These expressions map to 11:00-23:00 UTC during EDT.
+    - cron: '*/5 11-22 * * *'
+    - cron: '0 23 * * *'
   workflow_dispatch:            # allows manual run from GitHub Actions tab
 
 jobs:

@@ -196,9 +196,18 @@ def send_email(subject, html_body):
     recipients = os.environ.get("EMAIL_RECIPIENTS", "")  # comma-separated
 
     if not sender or not password or not recipients:
-        return  # silently skip if not configured
+        missing = []
+        if not sender:
+            missing.append("EMAIL_SENDER")
+        if not password:
+            missing.append("EMAIL_PASSWORD")
+        if not recipients:
+            missing.append("EMAIL_RECIPIENTS")
+        print(f"⚠️  Email skipped: missing secret(s): {', '.join(missing)}")
+        return
 
     to_list = [r.strip() for r in recipients.split(",") if r.strip()]
+    print(f"📨 Email config loaded. Recipients: {len(to_list)}")
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
