@@ -283,13 +283,13 @@ def main():
     n               = len(top)
     total_score     = top["Score"].sum()
 
-    print(f"\n{'─'*65}")
+    print(f"\n{'─'*80}")
     print(f"💼 Capital Plan: ${CAPITAL:,.0f} total")
     print(f"   ├─ Deploy now  (60%): ${deploy_capital:,.0f}  →  {n} position(s)")
     print(f"   └─ Reserve     (40%): ${reserve_capital:,.0f}  →  average down on dips")
-    print(f"{'─'*65}")
-    print(f"\n{'Ticker':<8} {'Score':>5} {'Price':>8} {'Entry $':>12} {'Shares':>7} {'Stop':>9} {'Target':>9}")
-    print("─" * 65)
+    print(f"{'─'*80}")
+    print(f"\n{'Ticker(Code)':<12} {'Score':>5} {'Price':>8} {'Entry $':>12} {'Shares':>7} {'Stop (Stop loss)':>17} {'Target':>9}")
+    print("─" * 80)
 
     for _, row in top.iterrows():
         weight       = row["Score"] / total_score
@@ -297,8 +297,8 @@ def main():
         shares       = int(entry_amount / row["Price"])
         stop         = row["Price"] * 0.98    # -2%
         target       = row["Price"] * 1.035   # +3.5%
-        print(f"{row['Ticker']:<8} {int(row['Score']):>5} {row['Price']:>8.2f}"
-              f" {entry_amount:>12,.0f} {shares:>7} {stop:>9.2f} {target:>9.2f}")
+        print(f"{row['Ticker']:<12} {int(row['Score']):>5} {row['Price']:>8.2f}"
+              f" {entry_amount:>12,.0f} {shares:>7} {stop:>17.2f} {target:>9.2f}")
 
     # --- Reserve breakdown ---
     reserve_per_position = reserve_capital / n
@@ -328,8 +328,8 @@ def main():
         f"**Capital:** ${CAPITAL:,.0f}  |  **Deploy (60%):** ${deploy_capital:,.0f}  |  **Reserve (40%):** ${reserve_capital:,.0f}",
         "",
         "### 🎯 Entry Positions",
-        "| Ticker | Score | Price | Entry $ | Shares | Stop | Target | EPS Surprise | Earnings In |",
-        "|--------|------:|------:|--------:|-------:|-----:|-------:|-------------:|:-----------:|",
+        "| Ticker(Code) | Score | Price | Entry $ | Shares | Stop (Stop loss) | Target | EPS Surprise | Earnings In |",
+        "|--------------|------:|------:|--------:|-------:|----------------:|-------:|-------------:|:-----------:|",
     ]
     for _, row in top.iterrows():
         weight       = row["Score"] / total_score
@@ -340,8 +340,8 @@ def main():
         summary.append(
             f"| {row['Ticker']} | {int(row['Score'])} | ${row['Price']:.2f}"
             f" | ${entry_amount:,.0f} | {shares} | ${stop:.2f} | ${target:.2f}"
-            f" | {'+' if (row['EPS_Surprise'] or 0) >= 0 else ''}{row['EPS_Surprise'] if row['EPS_Surprise'] is not None else 'N/A'}"
-            f" | {row['Earnings_In'] if row['Earnings_In'] is not None else 'N/A'} |"
+            f" | {('+' if (row['EPS_Surprise'] or 0) >= 0 else '') + str(row['EPS_Surprise']) if row['EPS_Surprise'] is not None else 'N/A'}"
+            f" | {str(row['Earnings_In']) + ' days' + (' 🔔' if row.get('Earnings_Soon') else '') if row['Earnings_In'] is not None else 'N/A'} |"
         )
     summary += [
         "",
@@ -433,9 +433,9 @@ def main():
     <h3>🎯 Entry Positions</h3>
     <table style='border-collapse:collapse;width:100%'>
       <tr>
-        <th {th} style='text-align:left'>Ticker</th>
+        <th {th} style='text-align:left'>Ticker(Code)</th>
         <th {th}>Score</th><th {th}>Price</th><th {th}>Entry $</th>
-        <th {th}>Shares</th><th {th}>Stop</th><th {th}>Target</th>
+        <th {th}>Shares</th><th {th}>Stop (Stop loss)</th><th {th}>Target</th>
         <th {th}>EPS Surprise</th><th {th}>Earnings In</th>
       </tr>
       {entry_rows.replace('<td>', f'<td {td}>').replace('<td>{', f'<td {tdl}>')}
