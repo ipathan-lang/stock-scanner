@@ -24,4 +24,8 @@ jobs:
         run: pip install yfinance pandas ta
 
       - name: Run stock scanner
+        env:
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
         run: python .github/skills/stock-scanner/scripts/stock_scanner.py
