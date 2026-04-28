@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Atlas Swing Scanner</title>
+  <title>IntelliMarket Analyst - Personal AI Trading Assistant</title>
   <!-- data files: docs/data/portfolio.json, docs/data/watchlist.json -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
@@ -373,13 +373,84 @@
       .sim-k { min-width: calc(50% - 8px); }
       .tw { border-radius: 16px; }
     }
+
+    /* ════════ NEW AI FEATURES ════════ */
+    .sentiment-bar {
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-weight: 600;
+      text-align: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .sentiment-bullish { background: linear-gradient(135deg, rgba(21, 127, 99, 0.15), rgba(21, 127, 99, 0.05)); border-color: var(--green); color: var(--green); }
+    .sentiment-bearish { background: linear-gradient(135deg, rgba(197, 81, 75, 0.15), rgba(197, 81, 75, 0.05)); border-color: var(--red); color: var(--red); }
+    .sentiment-neutral { background: var(--surface2); border-color: var(--border); color: var(--text); }
+
+    .news-impact-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 860px) {
+      .news-impact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    .news-impact-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+    .news-impact-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(15, 39, 64, .08);
+    }
+    .news-impact-title {
+      font-weight: 700;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+    .news-impact-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .news-impact-sentiment {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .impact-positive { background: rgba(21, 127, 99, 0.1); color: var(--green); }
+    .impact-negative { background: rgba(197, 81, 75, 0.1); color: var(--red); }
+    .impact-neutral { background: var(--surface3); color: var(--muted); }
+
+    .asset-type-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      margin-left: 6px;
+      background: var(--surface3);
+      color: var(--muted);
+      vertical-align: middle;
+    }
+    .asset-etf { background: rgba(30, 99, 217, 0.1); color: var(--blue); }
+    .asset-metal { background: rgba(184, 132, 26, 0.1); color: var(--yellow); }
+    .asset-crypto { background: rgba(15, 118, 110, 0.1); color: var(--teal); }
   </style>
 </head>
 <body>
 
 <!-- ════════════════════════════════════ HEADER ════════════════════════════════════ -->
 <header>
-  <h1>Atlas Swing Scanner</h1>
+  <h1>🤖 IntelliMarket Analyst</h1>
   <div class="hctl">
     <input id="add-input" type="text" placeholder="Add ticker e.g. NVDA" maxlength="10" />
     <button class="btn-p" onclick="addWatch()">+ Add Stock</button>
@@ -394,9 +465,9 @@
 
   <section class="hero-grid">
     <article class="hero-card primary">
-      <div class="hero-kicker">Mobile-First Market Intelligence</div>
-      <div class="hero-title">See the cleanest bullish setups first.</div>
-      <p class="hero-subcopy">The app now separates bullish setup quality from bearish pressure, then ranks every stock from strongest upside profile to weakest so the watchlist reads like a decision screen instead of a raw data dump.</p>
+      <div class="hero-kicker">🧠 AI-Powered Market Intelligence</div>
+      <div class="hero-title">Your personal AI trading assistant monitoring markets 24/7</div>
+      <p class="hero-subcopy">IntelliMarket Analyst combines technical analysis, news sentiment, and market context to provide intelligent buy/sell recommendations. Supports stocks, ETFs, and metals with real-time AI decisions in test mode.</p>
       <div class="hero-meta" id="hero-meta">Loading ranked market context...</div>
       <div class="hero-stats" id="hero-stats">
         <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
@@ -406,7 +477,8 @@
 
     <article class="hero-card secondary">
       <section>
-        <h2>Session Snapshot</h2>
+        <h2>📊 AI Market Pulse</h2>
+        <div id="market-sentiment-bar" class="sentiment-bar" style="display:none;margin-bottom:12px;"></div>
         <div id="overview-grid" class="overview-grid">
           <div class="overview-card"><small>Watchlist</small><strong>--</strong></div>
           <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
@@ -430,6 +502,7 @@
       💼 My Portfolio
       <button class="btn-sm" onclick="openModal()">+ Add Position</button>
       <button class="btn-sm" onclick="toggleTestMode()" id="test-mode-btn">Test Mode: OFF</button>
+      <button class="btn-sm" onclick="toggleAutoRefresh()" id="auto-refresh-btn" style="display:none;">🔄 Auto-Refresh: OFF</button>
     </h2>
     <div class="tw">
       <table>
@@ -457,6 +530,12 @@
     <div class="coach-grid" id="coach-grid">
       <div class="empty" style="padding:24px">Loading guidance...</div>
     </div>
+  </section>
+
+  <!-- NEWS IMPACT ANALYSIS -->
+  <section id="news-impact-sec" style="display:none;">
+    <h2>📰 Market News Impact Analysis</h2>
+    <div id="news-impact-grid" class="news-impact-grid"></div>
   </section>
 
   <!-- WATCHLIST -->
@@ -630,6 +709,10 @@ let S = {
   marketBull: null,
   marketTrends: [],
   testMode  : false,
+  autoRefresh: false,
+  autoRefreshInterval: null,
+  newsImpact: [],
+  marketSentiment: null,
   sim: {
     started      : false,
     enabled      : true,
@@ -960,6 +1043,111 @@ async function fetchStock(ticker) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  AI NEWS IMPACT & MARKET SENTIMENT
+// ══════════════════════════════════════════════════════════════
+function analyzeNewsImpact(ticker, headlines) {
+  if (!headlines || !headlines.length) return [];
+  
+  const positiveKeywords = ['surge', 'beat', 'growth', 'bullish', 'gain', 'rally', 'strong', 'positive', 'upgrade', 'breakout', 'profit', 'record', 'success'];
+  const negativeKeywords = ['fall', 'drop', 'miss', 'bearish', 'loss', 'decline', 'weak', 'negative', 'downgrade', 'concern', 'warning', 'crisis', 'plunge'];
+  
+  return headlines.map(h => {
+    const title = (h.title || '').toLowerCase();
+    const posCount = positiveKeywords.filter(kw => title.includes(kw)).length;
+    const negCount = negativeKeywords.filter(kw => title.includes(kw)).length;
+    
+    let sentiment = 'neutral';
+    let score = 0;
+    if (posCount > negCount) { sentiment = 'positive'; score = posCount - negCount; }
+    else if (negCount > posCount) { sentiment = 'negative'; score = negCount - posCount; }
+    
+    return { ticker, title: h.title, url: h.link, sentiment, score, source: h.publisher };
+  });
+}
+
+function calculateMarketSentiment() {
+  // Aggregate all news impact from watchlist
+  S.newsImpact = [];
+  S.watchlist.forEach(ticker => {
+    const d = S.data[ticker];
+    if (d && !d.err && d.headlines) {
+      const impact = analyzeNewsImpact(ticker, d.headlines);
+      S.newsImpact.push(...impact);
+    }
+  });
+  
+  // Calculate overall market sentiment
+  const totalScore = S.newsImpact.reduce((sum, item) => {
+    return sum + (item.sentiment === 'positive' ? item.score : item.sentiment === 'negative' ? -item.score : 0);
+  }, 0);
+  
+  if (S.newsImpact.length === 0) {
+    S.marketSentiment = null;
+  } else {
+    const avgScore = totalScore / S.newsImpact.length;
+    if (avgScore > 0.5) S.marketSentiment = 'bullish';
+    else if (avgScore < -0.5) S.marketSentiment = 'bearish';
+    else S.marketSentiment = 'neutral';
+  }
+}
+
+function renderNewsImpact() {
+  const section = document.getElementById('news-impact-sec');
+  const grid = document.getElementById('news-impact-grid');
+  if (!section || !grid) return;
+  
+  if (!S.newsImpact || S.newsImpact.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  
+  section.style.display = 'block';
+  
+  // Show top 6 most impactful news items
+  const topNews = [...S.newsImpact]
+    .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+    .slice(0, 6);
+  
+  grid.innerHTML = topNews.map(item => `
+    <div class="news-impact-card">
+      <div class="news-impact-title">${esc(item.title)}</div>
+      <div class="news-impact-meta">
+        <strong>${esc(item.ticker)}</strong> • ${esc(item.source || 'News Source')}
+      </div>
+      <span class="news-impact-sentiment impact-${item.sentiment}">
+        ${item.sentiment === 'positive' ? '📈' : item.sentiment === 'negative' ? '📉' : '➡️'} 
+        ${item.sentiment.toUpperCase()} (Score: ${Math.abs(item.score)})
+      </span>
+      ${item.url ? `<div style="margin-top:8px"><a href="${esc(item.url)}" target="_blank" style="font-size:0.7rem;color:var(--blue);">Read more →</a></div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderMarketSentimentBar() {
+  const bar = document.getElementById('market-sentiment-bar');
+  if (!bar) return;
+  
+  if (!S.marketSentiment) {
+    bar.style.display = 'none';
+    return;
+  }
+  
+  bar.style.display = 'block';
+  bar.className = 'sentiment-bar';
+  
+  if (S.marketSentiment === 'bullish') {
+    bar.classList.add('sentiment-bullish');
+    bar.textContent = '📈 Market Sentiment: BULLISH - News flow is positive across watchlist';
+  } else if (S.marketSentiment === 'bearish') {
+    bar.classList.add('sentiment-bearish');
+    bar.textContent = '📉 Market Sentiment: BEARISH - News flow shows concern across watchlist';
+  } else {
+    bar.classList.add('sentiment-neutral');
+    bar.textContent = '➡️ Market Sentiment: NEUTRAL - Mixed signals across watchlist';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 //  SIGNAL / PREDICTION HELPERS
 // ══════════════════════════════════════════════════════════════
 function signal(d) {
@@ -1118,6 +1306,14 @@ function renderRankings(loading) {
     const sig = signal(d);
     const pred = prediction(d);
     const detailId = `detail-${d.ticker}`;
+    
+    // Asset type badge
+    let assetBadge = '';
+    if (d.assetType && d.assetType !== 'Stock') {
+      const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
+      assetBadge = `<span class="asset-type-badge ${badgeClass}">${d.assetType}</span>`;
+    }
+    
     const newsHtml = (d.headlines?.length)
       ? d.headlines.map(h => `<div style="font-size:0.75rem;padding:6px 0;border-bottom:1px dashed var(--border)"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
       : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
@@ -1127,7 +1323,7 @@ function renderRankings(loading) {
           <div class="rank-id">
             <span class="rank-no">#${index + 1}</span>
             <div>
-              <div class="rank-symbol">${d.ticker} <span style="font-size:0.7rem;color:var(--muted)">${d.assetType||'Stock'}</span></div>
+              <div class="rank-symbol">${d.ticker} ${assetBadge}</div>
               <div class="rank-price">$${d.price.toFixed(2)} · ${d.change >= 0 ? '+' : ''}${d.changePct.toFixed(2)}%</div>
             </div>
           </div>
@@ -1178,6 +1374,13 @@ function wRow(ticker, d, loading) {
   const mc   = d.macdDiff > 0 ? 'pos' : 'neg';
   const rc   = d.rsi > 70 ? 'neg' : d.rsi < 30 ? 'pos' : '';
 
+  // Asset type badge
+  let assetBadge = '';
+  if (d.assetType && d.assetType !== 'Stock') {
+    const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
+    assetBadge = `<span class="asset-type-badge ${badgeClass}">${d.assetType}</span>`;
+  }
+
   let earnCell = 'N/A';
   if (d.daysToEarnings !== null) {
     if (d.daysToEarnings < 0)      earnCell = `${fmtDate(d.nextEarnings)} (passed)`;
@@ -1195,7 +1398,7 @@ function wRow(ticker, d, loading) {
   }
 
   return `<tr id="wr-${ticker}">
-    <td class="tcell">${ticker}</td>
+    <td class="tcell">${ticker}${assetBadge}</td>
     <td><b>$${d.price.toFixed(2)}</b></td>
     <td><span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span></td>
     <td><span class="badge ${sig.cls}">${sig.label}</span></td>
@@ -1216,9 +1419,17 @@ function wRow(ticker, d, loading) {
 
 function pRow(pos, d, loading) {
   const { ticker, shares, buyPrice } = pos;
+  
+  // Asset type badge
+  let assetBadge = '';
+  if (d && !d.err && d.assetType && d.assetType !== 'Stock') {
+    const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
+    assetBadge = `<span class="asset-type-badge ${badgeClass}">${d.assetType}</span>`;
+  }
+  
   if (loading || !d)
     return `<tr id="pr-${ticker}">
-      <td class="tcell">${ticker}</td><td>${shares}</td><td>$${(+buyPrice).toFixed(2)}</td>
+      <td class="tcell">${ticker}${assetBadge}</td><td>${shares}</td><td>$${(+buyPrice).toFixed(2)}</td>
       ${'<td><span class="sk"></span></td>'.repeat(5)}
       <td><button class="btn-del btn-sm" onclick="rmPos('${ticker}')">✕</button></td>
     </tr>`;
@@ -1232,7 +1443,7 @@ function pRow(pos, d, loading) {
   const act  = action(d, buyPrice);
 
   return `<tr id="pr-${ticker}">
-    <td class="tcell">${ticker}</td>
+    <td class="tcell">${ticker}${assetBadge}</td>
     <td contenteditable="true" onblur="updatePosShares('${ticker}', this)">${shares}</td>
     <td contenteditable="true" onblur="updatePosBuyPrice('${ticker}', this)">$${(+buyPrice).toFixed(2)}</td>
     <td><b>${cur ? '$'+cur.toFixed(2) : '—'}</b></td>
@@ -1275,6 +1486,11 @@ function renderAll(loading) {
   // Simple guidance + simulator
   renderCoachBoard(loading);
   renderSim();
+  
+  // AI Features: News Impact & Market Sentiment
+  calculateMarketSentiment();
+  renderMarketSentimentBar();
+  renderNewsImpact();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1791,7 +2007,43 @@ function updatePosBuyPrice(ticker, newVal) {
 
 function toggleTestMode() {
   S.testMode = !S.testMode;
+  const autoBtn = document.getElementById('auto-refresh-btn');
+  if (autoBtn) {
+    autoBtn.style.display = S.testMode ? 'inline-block' : 'none';
+    if (!S.testMode && S.autoRefresh) {
+      toggleAutoRefresh(); // turn off auto-refresh when exiting test mode
+    }
+  }
   renderAll(false);
+}
+
+function toggleAutoRefresh() {
+  S.autoRefresh = !S.autoRefresh;
+  const btn = document.getElementById('auto-refresh-btn');
+  if (!btn) return;
+  
+  if (S.autoRefresh) {
+    btn.textContent = '🔄 Auto-Refresh: ON';
+    btn.style.background = 'linear-gradient(135deg, var(--green), var(--teal))';
+    btn.style.color = 'white';
+    // Run simulation and refresh every 10 seconds in test mode
+    S.autoRefreshInterval = setInterval(() => {
+      if (S.testMode && S.autoRefresh) {
+        simRunCycle();
+        renderAll(false);
+      } else {
+        toggleAutoRefresh(); // stop if conditions changed
+      }
+    }, 10000);
+  } else {
+    btn.textContent = '🔄 Auto-Refresh: OFF';
+    btn.style.background = '';
+    btn.style.color = '';
+    if (S.autoRefreshInterval) {
+      clearInterval(S.autoRefreshInterval);
+      S.autoRefreshInterval = null;
+    }
+  }
 }
 
 function toggleDetails(id) {
