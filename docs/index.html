@@ -1274,20 +1274,57 @@ function score(closes, highs, lows) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  UTILITY FUNCTIONS
+// ══════════════════════════════════════════════════════════════
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ══════════════════════════════════════════════════════════════
 //  API / FETCHING
 // ══════════════════════════════════════════════════════════════
 async function fetchJ(url) {
+  // Try multiple proxies with timeout
   const proxies = [
+    u => u, // Try direct first (Yahoo sometimes allows it)
+    u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, // Returns JSON wrapped
     u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
   ];
-  for (const p of proxies) {
+  
+  let lastError;
+  for (let i = 0; i < proxies.length; i++) {
+    const p = proxies[i];
     try {
-      const r = await fetch(p(url), {signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined});
-      if (!r.ok) continue;
-      return await r.json();
-    } catch(e) { continue; }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const r = await fetch(p(url), { 
+        signal: controller.signal,
+        headers: i === 0 ? {} : {'Accept': 'application/json'} // Direct call needs no special headers
+      });
+      clearTimeout(timeoutId);
+      
+      if (!r.ok) {
+        lastError = `HTTP ${r.status} from proxy ${i}`;
+        continue;
+      }
+      
+      const data = await r.json();
+      // If using allorigins.win, unwrap the response
+      return (data.contents && typeof data.contents === 'string') ? JSON.parse(data.contents) : data;
+    } catch(e) { 
+      lastError = e.message || e;
+      continue; 
+    }
   }
+  console.warn('All proxies failed for:', url, '- Last error:', lastError);
   throw new Error('All proxies failed for: ' + url);
 }
 function detectAssetType(ticker) {
