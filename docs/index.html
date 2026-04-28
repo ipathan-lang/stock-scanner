@@ -1030,6 +1030,17 @@
 
 <script>
 // ══════════════════════════════════════════════════════════════
+//  POLYFILLS
+// ══════════════════════════════════════════════════════════════
+// Polyfill for requestIdleCallback (for older browsers)
+window.requestIdleCallback = window.requestIdleCallback || function(cb) {
+  const start = Date.now();
+  return setTimeout(() => {
+    cb({ didTimeout: false, timeRemaining: () => Math.max(0, 50 - (Date.now() - start)) });
+  }, 1);
+};
+
+// ══════════════════════════════════════════════════════════════
 //  CONFIGURATION
 // ══════════════════════════════════════════════════════════════
 let CONFIG = {
@@ -1088,6 +1099,7 @@ let S = {
   watchlist : [],
   portfolio : [],   // [{ticker, shares, buyPrice, note?}]
   data      : {},   // {ticker: stockObj | {err:true}}
+  dataCache : {},   // Cache with timestamps {ticker: {data, ts}}
   busy      : false,
   seeded    : false,
   marketBull: null,
@@ -1097,6 +1109,7 @@ let S = {
   autoRefreshInterval: null,
   newsImpact: [],
   marketSentiment: null,
+  renderQueue: null, // Debounce renders
   sim: {
     started      : false,
     enabled      : true,
@@ -1350,15 +1363,23 @@ function detectAssetType(ticker) {
   return 'Stock';
 }
 
-async function fetchStock(ticker) {
+async function fetchStock(ticker, skipExtras = false) {
+  // Check cache first (5 minute TTL)
+  const cached = S.dataCache[ticker];
+  if (cached && Date.now() - cached.ts < 300000) {
+    return cached.data;
+  }
+
   const chartUrl   = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
-  const summaryUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2CearningsHistory`;
-  const newsUrl    = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
+  
+  // Only fetch summary/news for portfolio stocks or when explicitly needed
+  const summaryUrl = skipExtras ? null : `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2CearningsHistory`;
+  const newsUrl    = skipExtras ? null : `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
   const [chart, summary, news] = await Promise.all([
     fetchJ(chartUrl),
-    fetchJ(summaryUrl).catch(() => null),
-    fetchJ(newsUrl).catch(() => null)
+    summaryUrl ? fetchJ(summaryUrl).catch(() => null) : Promise.resolve(null),
+    newsUrl ? fetchJ(newsUrl).catch(() => null) : Promise.resolve(null)
   ]);
 
   const res = chart.chart?.result?.[0];
@@ -1448,6 +1469,9 @@ async function fetchStock(ticker) {
     catalystScore += 1;
     catalystDrivers.push('Upcoming earnings can act as a catalyst');
   }
+
+  // Cache the result
+  const result = {
   if (changePct >= 1.5) {
     catalystScore += 1;
     catalystDrivers.push('Price is already attracting fresh buyers');
@@ -1467,8 +1491,12 @@ async function fetchStock(ticker) {
 
   const assetType = detectAssetType(ticker);
 
-  return { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
+  const result = { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
            nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate, headlines, assetType };
+  
+  // Cache with timestamp (5 minute TTL)
+  S.dataCache[ticker] = { data: result, ts: Date.now() };
+  return result;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2207,27 +2235,34 @@ function renderAll(loading) {
   const tmBtn = document.getElementById('test-mode-btn');
   if (tmBtn) tmBtn.textContent = S.testMode ? '✅ Test Mode: ON' : 'Test Mode: OFF';
 
+  // Critical above-the-fold content first
   renderOverview();
   renderStrategyPanel();
   renderRankings(loading);
 
-  // Insights
-  renderInsights(loading);
-
-  // Simple guidance + simulator
-  renderCoachBoard(loading);
-  renderSim();
+  // Get active tab to prioritize rendering
+  const activeTab = localStorage.getItem('ss_activeTab') || 'overview';
   
-  // AI Features: News Impact & Market Sentiment
-  calculateMarketSentiment();
-  renderMarketSentimentBar();
-  renderNewsImpact();
+  // Render active tab content immediately
+  if (activeTab === 'portfolio') {
+    renderInsights(loading);
+  } else if (activeTab === 'testlab') {
+    renderSim();
+  } else if (activeTab === 'analysis') {
+    renderCoachBoard(loading);
+  }
   
-  // Congressional Trading Intelligence
-  renderCongressionalTrades();
-  
-  // Golden Hour Trading
-  renderGoldenHour();
+  // Lazy load other tabs when user switches to them
+  // AI Features only if on intelligence tab
+  if (activeTab === 'intelligence') {
+    requestIdleCallback(() => {
+      calculateMarketSentiment();
+      renderMarketSentimentBar();
+      renderNewsImpact();
+      renderCongressionalTrades();
+      renderGoldenHour();
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2814,9 +2849,25 @@ function renderSim() {
 // ══════════════════════════════════════════════════════════════
 //  REFRESH
 // ══════════════════════════════════════════════════════════════
-async function loadOne(ticker) {
-  try { S.data[ticker] = await fetchStock(ticker); }
-  catch(e) { S.data[ticker] = { err: true }; }
+async function loadOne(ticker, skipExtras = false) {
+  try { 
+    S.data[ticker] = await fetchStock(ticker, skipExtras); 
+  }
+  catch(e) { 
+    // Keep cached data if available, otherwise mark as error
+    if (!S.data[ticker]) {
+      S.data[ticker] = { err: true, ticker }; 
+    }
+  }
+}
+
+// Debounced render to avoid excessive re-renders
+function debouncedRender() {
+  if (S.renderQueue) clearTimeout(S.renderQueue);
+  S.renderQueue = setTimeout(() => {
+    renderAll(false);
+    S.renderQueue = null;
+  }, 100);
 }
 
 async function refreshAll() {
@@ -2827,12 +2878,27 @@ async function refreshAll() {
   btn.disabled = true;
 
   const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
-  renderAll(true);
+  
+  // Show cached data immediately for instant feedback
+  renderAll(false);
 
+  // Fetch critical stocks first (portfolio + market trends)
+  const criticalTickers = [...new Set([
+    ...S.portfolio.map(p => p.ticker),
+    ...CONFIG.marketTrends.map(m => m.ticker)
+  ])];
+
+  // Load critical stocks with full data
+  await Promise.allSettled(criticalTickers.map(t => loadOne(t, false)));
+  
+  // Update UI with critical data
+  debouncedRender();
+
+  // Fetch market trends
   const marketTrendResults = await Promise.all(
     CONFIG.marketTrends.map(async ({ ticker, label }) => {
       try {
-        const trend = await fetchStock(ticker);
+        const trend = S.data[ticker] || await fetchStock(ticker, true);
         return { ...trend, ticker, label, mode: marketMode(trend) };
       } catch (e) {
         return null;
@@ -2852,7 +2918,17 @@ async function refreshAll() {
     S.marketBull = null;
   }
 
-  await Promise.allSettled(allTickers.map(t => loadOne(t)));
+  debouncedRender();
+
+  // Load remaining watchlist stocks in background (lightweight, no extras)
+  const remainingTickers = allTickers.filter(t => !criticalTickers.includes(t));
+  
+  // Load in smaller batches to avoid overwhelming the browser
+  for (let i = 0; i < remainingTickers.length; i += 3) {
+    const batch = remainingTickers.slice(i, i + 3);
+    await Promise.allSettled(batch.map(t => loadOne(t, true)));
+    debouncedRender();
+  }
 
   simRunCycle(false);
   renderAll(false);
@@ -3133,6 +3209,23 @@ function switchTab(tabName) {
   
   // Store active tab in localStorage
   localStorage.setItem('ss_activeTab', tabName);
+  
+  // Lazy load tab-specific content
+  requestIdleCallback(() => {
+    if (tabName === 'portfolio') {
+      renderInsights(false);
+    } else if (tabName === 'testlab') {
+      renderSim();
+    } else if (tabName === 'analysis') {
+      renderCoachBoard(false);
+    } else if (tabName === 'intelligence') {
+      calculateMarketSentiment();
+      renderMarketSentimentBar();
+      renderNewsImpact();
+      renderCongressionalTrades();
+      renderGoldenHour();
+    }
+  });
 }
 
 // Load active tab on page load
