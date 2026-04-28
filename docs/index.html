@@ -846,8 +846,7 @@ async function fetchStock(ticker) {
   const [chart, summary, news] = await Promise.all([
     fetchJ(chartUrl),
     fetchJ(summaryUrl).catch(() => null),
-    fetchJ(newsl),
-    fetchJ(summaryUrl).catch(() => null)
+    fetchJ(newsUrl).catch(() => null)
   ]);
 
   const res = chart.chart?.result?.[0];
@@ -934,6 +933,18 @@ async function fetchStock(ticker) {
     catalystDrivers.push('Recent EPS beat supports momentum follow-through');
   }
   if (daysToEarnings !== null && daysToEarnings >= 0 && daysToEarnings <= 5) {
+    catalystScore += 1;
+    catalystDrivers.push('Upcoming earnings can act as a catalyst');
+  }
+  if (changePct >= 1.5) {
+    catalystScore += 1;
+    catalystDrivers.push('Price is already attracting fresh buyers');
+  }
+
+  const netScore = ind.bullishScore + catalystScore - bearishScore;
+  const conviction = clamp(Math.round(((netScore + 9) / 22) * 100), 0, 100);
+  const sortScore = netScore * 100 + ind.bullishScore * 10 - bearishScore;
+
   // ── News ──
   const headlines = [];
   if (news?.news) {
@@ -945,19 +956,7 @@ async function fetchStock(ticker) {
   const assetType = detectAssetType(ticker);
 
   return { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
-           nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate, headlines, assetTyp
-  }
-  if (changePct >= 1.5) {
-    catalystScore += 1;
-    catalystDrivers.push('Price is already attracting fresh buyers');
-  }
-
-  const netScore = ind.bullishScore + catalystScore - bearishScore;
-  const conviction = clamp(Math.round(((netScore + 9) / 22) * 100), 0, 100);
-  const sortScore = netScore * 100 + ind.bullishScore * 10 - bearishScore;
-
-  return { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
-           nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate };
+           nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate, headlines, assetType };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1108,7 +1107,17 @@ function renderRankings(loading) {
     el.innerHTML = `<div class="empty">Ranking watchlist by bullish and bearish pressure...</div>`;
     return;
   }
-const detailId = `detail-${d.ticker}`;
+
+  const ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean));
+  if (!ranked.length) {
+    el.innerHTML = `<div class="empty">Add a ticker to build the ranked board.</div>`;
+    return;
+  }
+
+  el.innerHTML = ranked.map((d, index) => {
+    const sig = signal(d);
+    const pred = prediction(d);
+    const detailId = `detail-${d.ticker}`;
     const newsHtml = (d.headlines?.length)
       ? d.headlines.map(h => `<div style="font-size:0.75rem;padding:6px 0;border-bottom:1px dashed var(--border)"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
       : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
@@ -1145,17 +1154,7 @@ const detailId = `detail-${d.ticker}`;
           <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:10px">
             <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px;color:var(--ink)">📰 Recent News</div>
             ${newsHtml}
-          </div>metric"><span>Bull / Bear</span><span>${d.bullishScore} / ${d.bearishScore}</span></div>
-          <div class="rank-metric"><span>Conviction</span><span>${d.conviction}%</span></div>
-        </div>
-        <div class="rank-grid">
-          <div class="rank-metric"><span>RSI</span><span>${d.rsi.toFixed(1)}</span></div>
-          <div class="rank-metric"><span>MACD Diff</span><span>${d.macdDiff.toFixed(4)}</span></div>
-          <div class="rank-metric"><span>Weekly Position</span><span>${(d.position * 100).toFixed(0)}%</span></div>
-        </div>
-        <div class="rank-reasons">
-          <div class="reason-pill"><strong>Outlook:</strong> ${pred.text}</div>
-          ${rankReasons(d)}
+          </div>
         </div>
       </article>`;
   }).join('');
@@ -1234,13 +1233,26 @@ function pRow(pos, d, loading) {
 
   return `<tr id="pr-${ticker}">
     <td class="tcell">${ticker}</td>
-    <td>${shares}</td>
-    <td>$${(+buyPrice).toFixed(2)}</td>
+    <td contenteditable="true" onblur="updatePosShares('${ticker}', this)">${shares}</td>
+    <td contenteditable="true" onblur="updatePosBuyPrice('${ticker}', this)">$${(+buyPrice).toFixed(2)}</td>
     <td><b>${cur ? '$'+cur.toFixed(2) : '—'}</b></td>
     <td><span class="${pc}">${ps}$${pnlT.toFixed(2)}</span></td>
     <td><span class="${pc}">${ps}${pnlP.toFixed(2)}%</span></td>
     <td><span class="badge ${sig.cls}">${sig.label}</span></td>
-    <td><span  (test mode vs real)
+    <td><span class="${act.cls}">${act.text}</span></td>
+    <td><button class="btn-del btn-sm" onclick="rmPos('${ticker}')">✕</button></td>
+  </tr>`;
+}
+
+function renderAll(loading) {
+  // Watchlist
+  const wb = document.getElementById('wb');
+  const rankedTickers = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean)).map(d => d.ticker);
+  wb.innerHTML = S.watchlist.length
+    ? (rankedTickers.length ? rankedTickers : S.watchlist).map(t => wRow(t, S.data[t], loading)).join('')
+    : `<tr><td colspan="16"><div class="empty">Add a ticker above to start tracking</div></td></tr>`;
+
+  // Portfolio (test mode vs real)
   const pb = document.getElementById('pb');
   const displayPortfolio = S.testMode 
     ? S.sim.positions.map(p => ({ ticker: p.ticker, shares: p.shares, buyPrice: p.buyPrice }))
@@ -1251,20 +1263,7 @@ function pRow(pos, d, loading) {
 
   // Update test mode button
   const tmBtn = document.getElementById('test-mode-btn');
-  if (tmBtn) tmBtn.textContent = S.testMode ? '✅ Test Mode: ON' : 'Test Mode: OFF'
-function renderAll(loading) {
-  // Watchlist
-  const wb = document.getElementById('wb');
-  const rankedTickers = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean)).map(d => d.ticker);
-  wb.innerHTML = S.watchlist.length
-    ? (rankedTickers.length ? rankedTickers : S.watchlist).map(t => wRow(t, S.data[t], loading)).join('')
-    : `<tr><td colspan="16"><div class="empty">Add a ticker above to start tracking</div></td></tr>`;
-
-  // Portfolio
-  const pb = document.getElementById('pb');
-  pb.innerHTML = S.portfolio.length
-    ? S.portfolio.map(p => pRow(p, S.data[p.ticker], loading)).join('')
-    : `<tr><td colspan="9"><div class="empty">No positions yet — click "+ Add Position" to track a stock you own</div></td></tr>`;
+  if (tmBtn) tmBtn.textContent = S.testMode ? '✅ Test Mode: ON' : 'Test Mode: OFF';
 
   renderOverview();
   renderStrategyPanel();
@@ -1690,7 +1689,7 @@ async function refreshAll() {
   if (S.busy) return;
   S.busy = true;
   const btn = document.getElementById('rbtn');
-  btCONFIG.marketTrends '<span class="spin">↻</span> Refreshing…';
+  btn.textContent = '🔄 Refreshing…';
   btn.disabled = true;
 
   const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
@@ -1773,13 +1772,13 @@ function addPosition() {
   S.portfolio.push({ ticker, shares, buyPrice });
   if (!S.watchlist.includes(ticker)) { S.watchlist.push(ticker); }
   save(); closeModal();
- 
+  loadConfig();
+}
 
 function updatePosShares(ticker, newVal) {
   const shares = parseFloat(newVal);
   if (isNaN(shares) || shares <= 0) { alert('Invalid shares value'); renderAll(false); return; }
   const pos = S.portfolio.find(p => p.ticker === ticker);
-  loadConfig();
   if (pos) { pos.shares = shares; save(); renderAll(false); }
 }
 
