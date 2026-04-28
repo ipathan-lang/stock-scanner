@@ -656,7 +656,7 @@ async function load() {
   // First visit: seed from data files
   if (!S.watchlist.length && !S.portfolio.length) {
     try {
-      const [wj, pj] = await Promise.all([CONFIG.defaultWatchlist
+      const [wj, pj] = await Promise.all([
         fetch('./data/watchlist.json').then(r => r.ok ? r.json() : null),
         fetch('./data/portfolio.json').then(r => r.ok ? r.json() : null)
       ]);
