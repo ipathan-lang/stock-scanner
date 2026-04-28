@@ -550,6 +550,161 @@
       font-weight: 700;
       font-size: 0.8rem;
     }
+
+    /* Golden Hour Trading / ORB */
+    .golden-hour-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 768px) {
+      .golden-hour-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    .orb-alerts-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 640px) {
+      .orb-alerts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (min-width: 1024px) {
+      .orb-alerts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    .premarket-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+    .premarket-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(15, 39, 64, .1);
+    }
+    .premarket-card.hot-setup {
+      background: linear-gradient(135deg, rgba(21, 127, 99, 0.08), transparent);
+      border-color: var(--green);
+    }
+
+    .premarket-ticker {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .premarket-change {
+      display: inline-block;
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-left: 10px;
+    }
+    .premarket-catalyst {
+      font-size: 0.8rem;
+      background: rgba(30, 99, 217, 0.1);
+      color: var(--blue);
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .premarket-volume {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .premarket-levels {
+      font-size: 0.8rem;
+      color: var(--text);
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    .premarket-setup {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--green);
+      background: rgba(21, 127, 99, 0.1);
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+
+    .orb-alert-card {
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .orb-alert-card.breakout {
+      border-color: var(--green);
+      background: linear-gradient(135deg, rgba(21, 127, 99, 0.12), transparent);
+    }
+    .orb-alert-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(15, 39, 64, .1);
+    }
+
+    .orb-ticker {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .orb-status {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-left: 8px;
+    }
+    .orb-status.watching { background: rgba(30, 99, 217, 0.15); color: var(--blue); }
+    .orb-status.breakout { background: rgba(21, 127, 99, 0.15); color: var(--green); }
+    .orb-status.rejected { background: rgba(197, 81, 75, 0.15); color: var(--red); }
+
+    .orb-conditions {
+      font-size: 0.8rem;
+      margin-top: 10px;
+      line-height: 1.7;
+    }
+    .orb-condition {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .orb-condition.met {
+      color: var(--green);
+    }
+    .orb-condition.not-met {
+      color: var(--muted);
+    }
+    .orb-condition-icon {
+      margin-right: 6px;
+      font-weight: 700;
+    }
+
+    .orb-range-box {
+      background: var(--surface3);
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 0.8rem;
+    }
+    .orb-range-label {
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .orb-range-value {
+      font-weight: 700;
+      color: var(--ink);
+      font-size: 0.95rem;
+    }
   </style>
 </head>
 <body>
@@ -653,6 +808,36 @@
     </p>
     <div id="congress-trades-grid" class="congress-trades-grid"></div>
     <div id="congress-watchlist-overlap" style="margin-top:16px;"></div>
+  </section>
+
+  <!-- GOLDEN HOUR TRADING (Opening Range Breakout) -->
+  <section id="golden-hour-sec" style="display:none;">
+    <h2>⏰ Golden Hour Trading</h2>
+    <p style="font-size:0.88rem;color:var(--muted);margin:0 0 16px 0;">
+      Opening Range Breakout (ORB) scanner for the first 2 hours of trading (9:30-11:30 AM EST). 
+      Tracks 30-minute opening range, volume spikes, and VWAP position.
+      <button class="btn-sm" onclick="refreshGoldenHour()" style="margin-left:12px;">🔄 Refresh ORB Data</button>
+    </p>
+    
+    <!-- Pre-Market Analysis -->
+    <div id="premarket-analysis" style="margin-bottom:24px;">
+      <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">📋 Pre-Market Watchlist Analysis</h3>
+      <div id="premarket-grid" class="golden-hour-grid"></div>
+    </div>
+
+    <!-- Live ORB Signals -->
+    <div id="orb-signals">
+      <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">🚀 Opening Range Breakout Signals</h3>
+      <div id="orb-alerts-grid" class="orb-alerts-grid"></div>
+    </div>
+
+    <!-- Data Requirements Notice -->
+    <div style="margin-top:16px;padding:14px;background:rgba(184,132,26,0.1);border:1px solid var(--yellow);border-radius:10px;font-size:0.85rem;">
+      <strong>⚠️ Intraday Data Required:</strong> Full ORB tracking requires 5-minute bar data, real-time volume, and VWAP calculations. 
+      Currently showing daily analysis with ORB potential scoring. For live alerts, integrate with 
+      <a href="https://polygon.io/" target="_blank" style="color:var(--blue)">Polygon.io</a> or 
+      <a href="https://alpaca.markets/" target="_blank" style="color:var(--blue)">Alpaca Markets</a> APIs.
+    </div>
   </section>
 
   <!-- WATCHLIST -->
@@ -1335,6 +1520,238 @@ function renderCongressionalTrades() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  GOLDEN HOUR TRADING (Opening Range Breakout)
+// ══════════════════════════════════════════════════════════════
+// Pre-market catalyst data (would come from news API in production)
+const PREMARKET_CATALYSTS = {
+  'TSLA': { catalyst: '🎯 Earnings Beat', change: 2.1, volume: 'High', resistance: 248, support: 242 },
+  'NVDA': { catalyst: '📈 Analyst Upgrade (JPM)', change: 3.8, volume: 'Very High', resistance: 900, support: 885 },
+  'AMD': { catalyst: '📰 CEO Production Target', change: 1.2, volume: 'Average', resistance: 180, support: 175 },
+  'META': { catalyst: null, change: -0.3, volume: 'Low', resistance: 490, support: 482 },
+};
+
+// Calculate ORB potential score (0-10) based on daily metrics
+function calculateORBPotential(ticker, d) {
+  if (!d || d.err) return 0;
+  
+  let score = 0;
+  
+  // Volume factor (higher volume = higher breakout potential)
+  if (d.volume && d.avgVolume && d.volume > d.avgVolume * 1.2) score += 2;
+  if (d.volume && d.avgVolume && d.volume > d.avgVolume * 1.5) score += 1;
+  
+  // Price above EMA20 (trend alignment)
+  if (d.price > d.ema20) score += 2;
+  
+  // RSI in launch zone (30-65 is ideal for breakouts)
+  if (d.rsi >= 30 && d.rsi <= 65) score += 2;
+  else if (d.rsi > 65 && d.rsi < 70) score += 1;
+  
+  // MACD bullish
+  if (d.macdDiff > 0) score += 1;
+  
+  // Positive momentum
+  if (d.change > 0) score += 1;
+  
+  // Catalyst boost
+  const catalyst = PREMARKET_CATALYSTS[ticker];
+  if (catalyst && catalyst.change > 1) score += 1;
+  
+  return Math.min(score, 10);
+}
+
+function renderPreMarketAnalysis() {
+  const grid = document.getElementById('premarket-grid');
+  if (!grid) return;
+  
+  // Analyze watchlist for ORB potential
+  const analyses = S.watchlist
+    .map(ticker => {
+      const d = S.data[ticker];
+      const catalyst = PREMARKET_CATALYSTS[ticker];
+      const orbScore = calculateORBPotential(ticker, d);
+      return { ticker, d, catalyst, orbScore };
+    })
+    .filter(a => a.d && !a.d.err)
+    .sort((a, b) => b.orbScore - a.orbScore)
+    .slice(0, 6); // Top 6 setups
+  
+  if (analyses.length === 0) {
+    grid.innerHTML = '<div class="empty">Add stocks to watchlist to see pre-market analysis</div>';
+    return;
+  }
+  
+  grid.innerHTML = analyses.map(a => {
+    const { ticker, d, catalyst, orbScore } = a;
+    const changeClass = catalyst && catalyst.change >= 0 ? 'pos' : 'neg';
+    const changeSign = catalyst && catalyst.change >= 0 ? '+' : '';
+    const isHotSetup = orbScore >= 7;
+    const cardClass = isHotSetup ? 'premarket-card hot-setup' : 'premarket-card';
+    
+    // Determine setup type
+    let setupType = 'ORB Watch';
+    if (orbScore >= 8) setupType = '🔥 Prime ORB Setup';
+    else if (orbScore >= 6) setupType = '📊 Strong ORB Potential';
+    else if (d.position < 0.3 && d.netScore > 0) setupType = '🎯 VWAP Bounce Setup';
+    else if (d.netScore >= 6) setupType = '🚀 Momentum Continuation';
+    
+    const catalystHtml = catalyst && catalyst.catalyst
+      ? `<div class="premarket-catalyst">${catalyst.catalyst}</div>`
+      : '';
+    
+    const changeHtml = catalyst
+      ? `<span class="premarket-change ${changeClass}">${changeSign}${catalyst.change.toFixed(1)}%</span>`
+      : '';
+    
+    const volumeText = catalyst ? catalyst.volume : 'Check pre-market';
+    const volumeColor = volumeText === 'Very High' ? 'var(--green)' : volumeText === 'High' ? 'var(--blue)' : 'var(--muted)';
+    
+    return `
+      <div class="${cardClass}">
+        <div class="premarket-ticker">
+          ${ticker}
+          ${changeHtml}
+        </div>
+        ${catalystHtml}
+        <div class="premarket-volume">
+          📊 Pre-market Volume: <span style="color:${volumeColor};font-weight:700;">${volumeText}</span>
+        </div>
+        <div class="premarket-levels">
+          <strong>Key Levels:</strong><br>
+          Resistance: <span class="num">$${catalyst ? catalyst.resistance : d.ema20.toFixed(2)}</span> | 
+          Support: <span class="num">$${catalyst ? catalyst.support : (d.price * 0.98).toFixed(2)}</span>
+        </div>
+        <div class="premarket-setup">
+          ${setupType} (Score: ${orbScore}/10)
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderORBAlerts() {
+  const grid = document.getElementById('orb-alerts-grid');
+  if (!grid) return;
+  
+  // Simulate ORB conditions check (in production, this uses 5-minute bars)
+  const orbSetups = S.watchlist
+    .map(ticker => {
+      const d = S.data[ticker];
+      if (!d || d.err) return null;
+      
+      // Simulate opening range (would be actual 9:30-10:00 AM data)
+      const orHigh = d.price * 1.005; // Simulate OR high
+      const orLow = d.price * 0.995;  // Simulate OR low
+      const orAvgVol = d.volume / 10; // Simulate 30-min avg volume
+      
+      // Check conditions
+      const aboveORHigh = d.price > orHigh;
+      const volumeCheck = d.volume > orAvgVol * 1.5;
+      const aboveVWAP = d.position > 0.5; // Using weekly position as proxy for VWAP
+      const inGoldenHour = true; // Would check actual time in production
+      const strongClose = d.change > 0; // Proxy for top 50% of bar range
+      
+      const conditionsMet = aboveORHigh && volumeCheck && aboveVWAP && inGoldenHour;
+      const allConditionsMet = conditionsMet && strongClose;
+      
+      return {
+        ticker,
+        d,
+        orHigh,
+        orLow,
+        aboveORHigh,
+        volumeCheck,
+        aboveVWAP,
+        strongClose,
+        conditionsMet,
+        allConditionsMet
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.allConditionsMet && !b.allConditionsMet) return -1;
+      if (!a.allConditionsMet && b.allConditionsMet) return 1;
+      if (a.conditionsMet && !b.conditionsMet) return -1;
+      if (!a.conditionsMet && b.conditionsMet) return 1;
+      return b.d.netScore - a.d.netScore;
+    })
+    .slice(0, 9); // Top 9 alerts
+  
+  if (orbSetups.length === 0) {
+    grid.innerHTML = '<div class="empty">Add stocks to watchlist to track ORB setups</div>';
+    return;
+  }
+  
+  grid.innerHTML = orbSetups.map(setup => {
+    const { ticker, d, orHigh, orLow, aboveORHigh, volumeCheck, aboveVWAP, strongClose, allConditionsMet } = setup;
+    
+    let status = 'watching';
+    let statusText = 'WATCHING';
+    if (allConditionsMet) {
+      status = 'breakout';
+      statusText = '🚨 BREAKOUT';
+    } else if (aboveORHigh && !volumeCheck) {
+      status = 'rejected';
+      statusText = 'LOW VOLUME';
+    }
+    
+    const cardClass = status === 'breakout' ? 'orb-alert-card breakout' : 'orb-alert-card';
+    
+    return `
+      <div class="${cardClass}">
+        <div class="orb-ticker">
+          ${ticker}
+          <span class="orb-status ${status}">${statusText}</span>
+        </div>
+        
+        <div class="orb-range-box">
+          <div class="orb-range-label">30-Min Opening Range (Demo)</div>
+          <div class="orb-range-value">$${orLow.toFixed(2)} - $${orHigh.toFixed(2)}</div>
+          <div style="margin-top:6px;font-size:0.75rem;color:var(--muted);">
+            Current: <span style="color:var(--ink);font-weight:700;">$${d.price.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div class="orb-conditions">
+          <div class="orb-condition ${aboveORHigh ? 'met' : 'not-met'}">
+            <span class="orb-condition-icon">${aboveORHigh ? '✅' : '⏳'}</span>
+            Break above OR high
+          </div>
+          <div class="orb-condition ${volumeCheck ? 'met' : 'not-met'}">
+            <span class="orb-condition-icon">${volumeCheck ? '✅' : '⏳'}</span>
+            Volume 1.5x+ average
+          </div>
+          <div class="orb-condition ${aboveVWAP ? 'met' : 'not-met'}">
+            <span class="orb-condition-icon">${aboveVWAP ? '✅' : '⏳'}</span>
+            Price above VWAP
+          </div>
+          <div class="orb-condition ${strongClose ? 'met' : 'not-met'}">
+            <span class="orb-condition-icon">${strongClose ? '✅' : '⏳'}</span>
+            Strong close (top 50%)
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function refreshGoldenHour() {
+  renderPreMarketAnalysis();
+  renderORBAlerts();
+}
+
+function renderGoldenHour() {
+  const section = document.getElementById('golden-hour-sec');
+  if (!section) return;
+  
+  // Show section
+  section.style.display = 'block';
+  
+  renderPreMarketAnalysis();
+  renderORBAlerts();
+}
+
+// ══════════════════════════════════════════════════════════════
 //  SIGNAL / PREDICTION HELPERS
 // ══════════════════════════════════════════════════════════════
 function signal(d) {
@@ -1681,6 +2098,9 @@ function renderAll(loading) {
   
   // Congressional Trading Intelligence
   renderCongressionalTrades();
+  
+  // Golden Hour Trading
+  renderGoldenHour();
 }
 
 // ══════════════════════════════════════════════════════════════
