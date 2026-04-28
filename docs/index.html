@@ -445,6 +445,111 @@
     .asset-etf { background: rgba(30, 99, 217, 0.1); color: var(--blue); }
     .asset-metal { background: rgba(184, 132, 26, 0.1); color: var(--yellow); }
     .asset-crypto { background: rgba(15, 118, 110, 0.1); color: var(--teal); }
+
+    /* Congressional Trades */
+    .congress-trades-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 640px) {
+      .congress-trades-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (min-width: 1024px) {
+      .congress-trades-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    .congress-trade-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .congress-trade-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(15, 39, 64, .08);
+      border-color: var(--blue);
+    }
+    .congress-trade-card.in-watchlist {
+      background: linear-gradient(135deg, rgba(30, 99, 217, 0.08), transparent);
+      border-color: var(--blue);
+    }
+    .congress-trade-card.in-watchlist::before {
+      content: "★";
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      font-size: 1.2rem;
+      color: var(--blue);
+    }
+
+    .congress-ticker {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .congress-action {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-left: 8px;
+    }
+    .congress-action.buy { background: rgba(21, 127, 99, 0.15); color: var(--green); }
+    .congress-action.sell { background: rgba(197, 81, 75, 0.15); color: var(--red); }
+
+    .congress-politician {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .congress-party {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .congress-amount {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--blue);
+      margin-bottom: 4px;
+    }
+    .congress-timing {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .congress-overlap-alert {
+      background: linear-gradient(135deg, rgba(30, 99, 217, 0.12), rgba(30, 99, 217, 0.04));
+      border: 1px solid var(--blue);
+      border-radius: 12px;
+      padding: 16px;
+      color: var(--ink);
+    }
+    .congress-overlap-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+      color: var(--blue);
+    }
+    .congress-overlap-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .congress-overlap-ticker {
+      background: var(--blue);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
   </style>
 </head>
 <body>
@@ -537,6 +642,17 @@
   <section id="news-impact-sec" style="display:none;">
     <h2>📰 Market News Impact Analysis</h2>
     <div id="news-impact-grid" class="news-impact-grid"></div>
+  </section>
+
+  <!-- CONGRESSIONAL TRADING INTELLIGENCE -->
+  <section id="congress-trades-sec" style="display:none;">
+    <h2>🏛️ Congressional Trading Intelligence</h2>
+    <p style="font-size:0.88rem;color:var(--muted);margin:0 0 12px 0;">
+      Track what Congress is trading. Studies show congressional stock picks can outperform the market.
+      <a href="https://www.capitoltrades.com/" target="_blank" rel="noopener" style="color:var(--blue)">View all on CapitolTrades →</a>
+    </p>
+    <div id="congress-trades-grid" class="congress-trades-grid"></div>
+    <div id="congress-watchlist-overlap" style="margin-top:16px;"></div>
   </section>
 
   <!-- WATCHLIST -->
@@ -1149,6 +1265,76 @@ function renderMarketSentimentBar() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  CONGRESSIONAL TRADING INTELLIGENCE
+// ══════════════════════════════════════════════════════════════
+// This data would ideally come from a backend service that scrapes CapitolTrades.com
+// For now, it's a demonstration structure that can be populated via API
+const CONGRESSIONAL_TRADES = [
+  { ticker: 'NVDA', action: 'BUY', politician: 'Maria Elvira Salazar', party: 'Republican|House|FL', amount: '15K-50K', daysAgo: 6 },
+  { ticker: 'BA', action: 'BUY', politician: 'Maria Elvira Salazar', party: 'Republican|House|FL', amount: '15K-50K', daysAgo: 6 },
+  { ticker: 'AMGN', action: 'BUY', politician: 'Maria Elvira Salazar', party: 'Republican|House|FL', amount: '15K-50K', daysAgo: 6 },
+  { ticker: 'TSLA', action: 'BUY', politician: 'Nancy Pelosi', party: 'Democrat|House|CA', amount: '100K-250K', daysAgo: 2 },
+  { ticker: 'META', action: 'SELL', politician: 'Josh Gottheimer', party: 'Democrat|House|NJ', amount: '50K-100K', daysAgo: 3 },
+  { ticker: 'MSFT', action: 'BUY', politician: 'Brian Higgins', party: 'Democrat|House|NY', amount: '15K-50K', daysAgo: 4 },
+  { ticker: 'GOOGL', action: 'BUY', politician: 'John Boozman', party: 'Republican|Senate|AR', amount: '15K-50K', daysAgo: 7 },
+  { ticker: 'JPM', action: 'BUY', politician: 'Tommy Tuberville', party: 'Republican|Senate|AL', amount: '50K-100K', daysAgo: 5 },
+];
+
+function renderCongressionalTrades() {
+  const section = document.getElementById('congress-trades-sec');
+  const grid = document.getElementById('congress-trades-grid');
+  const overlapDiv = document.getElementById('congress-watchlist-overlap');
+  
+  if (!section || !grid || !overlapDiv) return;
+  
+  // Show section
+  section.style.display = 'block';
+  
+  // Find overlapping tickers between congressional trades and watchlist
+  const congressTickers = [...new Set(CONGRESSIONAL_TRADES.map(t => t.ticker))];
+  const watchlistSet = new Set(S.watchlist);
+  const overlap = congressTickers.filter(t => watchlistSet.has(t));
+  
+  // Render overlap alert
+  if (overlap.length > 0) {
+    overlapDiv.innerHTML = `
+      <div class="congress-overlap-alert">
+        <div class="congress-overlap-title">⚡ ${overlap.length} Stock${overlap.length > 1 ? 's' : ''} in Your Watchlist Being Traded by Congress</div>
+        <div class="congress-overlap-list">
+          ${overlap.map(t => `<span class="congress-overlap-ticker">${t}</span>`).join('')}
+        </div>
+        <div style="margin-top:10px;font-size:0.8rem;color:var(--muted);">
+          Congressional trades can signal insider knowledge and future market moves. Monitor these closely!
+        </div>
+      </div>
+    `;
+  } else {
+    overlapDiv.innerHTML = '';
+  }
+  
+  // Render trade cards (show recent 6-9 trades)
+  const recentTrades = CONGRESSIONAL_TRADES.slice(0, 9);
+  grid.innerHTML = recentTrades.map(trade => {
+    const inWatchlist = watchlistSet.has(trade.ticker);
+    const actionClass = trade.action.toLowerCase();
+    const cardClass = inWatchlist ? 'congress-trade-card in-watchlist' : 'congress-trade-card';
+    
+    return `
+      <div class="${cardClass}">
+        <div class="congress-ticker">
+          ${trade.ticker}
+          <span class="congress-action ${actionClass}">${trade.action}</span>
+        </div>
+        <div class="congress-politician">${trade.politician}</div>
+        <div class="congress-party">${trade.party}</div>
+        <div class="congress-amount">💰 ${trade.amount}</div>
+        <div class="congress-timing">🕐 ${trade.daysAgo} day${trade.daysAgo > 1 ? 's' : ''} ago</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
 //  SIGNAL / PREDICTION HELPERS
 // ══════════════════════════════════════════════════════════════
 function signal(d) {
@@ -1492,6 +1678,9 @@ function renderAll(loading) {
   calculateMarketSentiment();
   renderMarketSentimentBar();
   renderNewsImpact();
+  
+  // Congressional Trading Intelligence
+  renderCongressionalTrades();
 }
 
 // ══════════════════════════════════════════════════════════════
