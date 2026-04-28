@@ -384,6 +384,7 @@
     <input id="add-input" type="text" placeholder="Add ticker e.g. NVDA" maxlength="10" />
     <button class="btn-p" onclick="addWatch()">+ Add Stock</button>
     <button onclick="refreshAll()" id="rbtn">🔄 Refresh</button>
+    <button onclick="openSettings()">⚙️ Settings</button>
     <span id="ts"></span>
   </div>
 </header>
@@ -428,6 +429,7 @@
     <h2>
       💼 My Portfolio
       <button class="btn-sm" onclick="openModal()">+ Add Position</button>
+      <button class="btn-sm" onclick="toggleTestMode()" id="test-mode-btn">Test Mode: OFF</button>
     </h2>
     <div class="tw">
       <table>
@@ -505,6 +507,7 @@
         <button onclick="simToggle()" id="sim-toggle">Pause</button>
         <button onclick="simRunNow()">Run Today</button>
         <button onclick="simReset()">Reset</button>
+        <button onclick="exportSimLog()">📥 Export JSON</button>
         <span id="sim-status" style="font-size:.77rem;color:var(--muted)"></span>
       </div>
       <div class="sim-kpi" id="sim-kpi"></div>
@@ -529,8 +532,7 @@
   </section>
 
 </main>
-
-<!-- ════════════════════════════════════ MODAL ════════════════════════════════════ -->
+S ════════════════════════════════════ -->
 <div class="ov" id="modal" onclick="modalBg(event)">
   <div class="modal">
     <h3>Add Portfolio Position</h3>
@@ -545,6 +547,35 @@
       <button onclick="closeModal()">Cancel</button>
       <button class="btn-p" onclick="addPosition()">Add Position</button>
     </div>
+  </div>
+</div>
+
+<div class="ov" id="settings-modal" onclick="settingsModalBg(event)">
+  <div class="modal" style="width:500px;max-width:94vw">
+    <h3>⚙️ Configuration</h3>
+    <p>Cus (user-configurable via settings modal)
+// ══════════════════════════════════════════════════════════════
+let CONFIG = {
+  defaultWatchlist: ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JPM'],
+  marketTrends: [
+    { ticker: 'SPY', label: 'S&P 500' },
+    { ticker: 'QQQ', label: 'Nasdaq 100' },
+    { ticker: 'IWM', label: 'Russell 2000' },
+    { ticker: 'XLK', label: 'Technology' },
+    { ticker: 'XLF', label: 'Financials' }
+  ]
+};
+
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem('ss_config');
+    if (saved) CONFIG = { ...CONFIG, ...JSON.parse(saved) };
+  } catch(e) {}
+}
+
+function saveConfig() {
+  localStorage.setItem('ss_config', JSON.stringify(CONFIG));
+}  </div>
   </div>
 </div>
 
@@ -583,7 +614,8 @@ const MODEL_SPEC = {
     ['Near-term earnings catalyst', '+1 when earnings are within 5 days'],
     ['Fresh strength', '+1 when day change is +1.5% or better']
   ]
-};
+};testMode  : false,
+  
 
 // ══════════════════════════════════════════════════════════════
 //  STATE
@@ -634,7 +666,7 @@ async function load() {
   // First visit: seed from data files
   if (!S.watchlist.length && !S.portfolio.length) {
     try {
-      const [wj, pj] = await Promise.all([
+      const [wj, pj] = await Promise.all([CONFIG.defaultWatchlist
         fetch('./data/watchlist.json').then(r => r.ok ? r.json() : null),
         fetch('./data/portfolio.json').then(r => r.ok ? r.json() : null)
       ]);
@@ -794,13 +826,25 @@ async function fetchJ(url) {
   }
   throw new Error('All proxies failed for: ' + url);
 }
+function detectAssetType(ticker) {
+  const etfs = ['SPY','QQQ','IWM','XLK','XLF','XLE','XLV','VTI','VOO','IVV','AGG','BND'];
+  const metals = ['GLD','SLV','GDX','GDXJ','COPX','USO','UNG'];
+  const crypto = ['BTC-USD','ETH-USD','DOGE-USD'];
+  if (etfs.includes(ticker)) return 'ETF';
+  if (metals.includes(ticker)) return 'Metal';
+  if (crypto.includes(ticker) || ticker.includes('-USD')) return 'Crypto';
+  return 'Stock';
+}
 
 async function fetchStock(ticker) {
   const chartUrl   = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
   const summaryUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2CearningsHistory`;
+  const newsUrl    = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
-  const [chart, summary] = await Promise.all([
+  const [chart, summary, news] = await Promise.all([
     fetchJ(chartUrl),
+    fetchJ(summaryUrl).catch(() => null),
+    fetchJ(newsl),
     fetchJ(summaryUrl).catch(() => null)
   ]);
 
@@ -888,8 +932,18 @@ async function fetchStock(ticker) {
     catalystDrivers.push('Recent EPS beat supports momentum follow-through');
   }
   if (daysToEarnings !== null && daysToEarnings >= 0 && daysToEarnings <= 5) {
-    catalystScore += 1;
-    catalystDrivers.push('Upcoming earnings can act as a catalyst');
+  // ── News ──
+  const headlines = [];
+  if (news?.news) {
+    news.news.slice(0, 3).forEach(n => {
+      if (n.title) headlines.push({ title: n.title, link: n.link, publisher: n.publisher, time: n.providerPublishTime });
+    });
+  }
+
+  const assetType = detectAssetType(ticker);
+
+  return { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
+           nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate, headlines, assetTyp
   }
   if (changePct >= 1.5) {
     catalystScore += 1;
@@ -1052,23 +1106,17 @@ function renderRankings(loading) {
     el.innerHTML = `<div class="empty">Ranking watchlist by bullish and bearish pressure...</div>`;
     return;
   }
-
-  const ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean));
-  if (!ranked.length) {
-    el.innerHTML = `<div class="empty">Add a ticker to build the ranked board.</div>`;
-    return;
-  }
-
-  el.innerHTML = ranked.map((d, index) => {
-    const sig = signal(d);
-    const pred = prediction(d);
+const detailId = `detail-${d.ticker}`;
+    const newsHtml = (d.headlines?.length)
+      ? d.headlines.map(h => `<div style="font-size:0.75rem;padding:6px 0;border-bottom:1px dashed var(--border)"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
+      : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
     return `
       <article class="rank-card">
         <div class="rank-head">
           <div class="rank-id">
             <span class="rank-no">#${index + 1}</span>
             <div>
-              <div class="rank-symbol">${d.ticker}</div>
+              <div class="rank-symbol">${d.ticker} <span style="font-size:0.7rem;color:var(--muted)">${d.assetType||'Stock'}</span></div>
               <div class="rank-price">$${d.price.toFixed(2)} · ${d.change >= 0 ? '+' : ''}${d.changePct.toFixed(2)}%</div>
             </div>
           </div>
@@ -1077,6 +1125,25 @@ function renderRankings(loading) {
         <div class="rank-grid">
           <div class="rank-metric"><span>Net Score</span><span>${d.netScore}</span></div>
           <div class="rank-metric"><span>Bull / Bear</span><span>${d.bullishScore} / ${d.bearishScore}</span></div>
+          <div class="rank-metric"><span>Conviction</span><span>${d.conviction}%</span></div>
+        </div>
+        <div style="margin-top:12px">
+          <button class="btn-sm" onclick="toggleDetails('${detailId}')" style="font-size:0.75rem">🔍 Show details</button>
+        </div>
+        <div id="${detailId}" style="display:none;margin-top:10px">
+          <div class="rank-grid">
+            <div class="rank-metric"><span>RSI</span><span>${d.rsi.toFixed(1)}</span></div>
+            <div class="rank-metric"><span>MACD Diff</span><span>${d.macdDiff.toFixed(4)}</span></div>
+            <div class="rank-metric"><span>Weekly Position</span><span>${(d.position * 100).toFixed(0)}%</span></div>
+          </div>
+          <div class="rank-reasons">
+            <div class="reason-pill"><strong>Outlook:</strong> ${pred.text}</div>
+            ${rankReasons(d)}
+          </div>
+          <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:10px">
+            <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px;color:var(--ink)">📰 Recent News</div>
+            ${newsHtml}
+          </div>metric"><span>Bull / Bear</span><span>${d.bullishScore} / ${d.bearishScore}</span></div>
           <div class="rank-metric"><span>Conviction</span><span>${d.conviction}%</span></div>
         </div>
         <div class="rank-grid">
@@ -1142,8 +1209,8 @@ function wRow(ticker, d, loading) {
     <td>${earnCell}</td>
     <td>${epsCell}</td>
     <td><span class="${pred.cls}">${pred.text}</span></td>
-    <td><button class="btn-del btn-sm" onclick="rmWatch('${ticker}')">✕</button></td>
-  </tr>`;
+    <td contenteditable="true" onblur="updatePosShares('${ticker}', this.textContent)">${shares}</td>
+    <td contenteditable="true" onblur="updatePosBuyPrice('${ticker}', this.textContent)"`;
 }
 
 function pRow(pos, d, loading) {
@@ -1171,11 +1238,18 @@ function pRow(pos, d, loading) {
     <td><span class="${pc}">${ps}$${pnlT.toFixed(2)}</span></td>
     <td><span class="${pc}">${ps}${pnlP.toFixed(2)}%</span></td>
     <td><span class="badge ${sig.cls}">${sig.label}</span></td>
-    <td><span class="${act.cls}">${act.text}</span></td>
-    <td><button class="btn-del btn-sm" onclick="rmPos('${ticker}')">✕</button></td>
-  </tr>`;
-}
+    <td><span  (test mode vs real)
+  const pb = document.getElementById('pb');
+  const displayPortfolio = S.testMode 
+    ? S.sim.positions.map(p => ({ ticker: p.ticker, shares: p.shares, buyPrice: p.buyPrice }))
+    : S.portfolio;
+  pb.innerHTML = displayPortfolio.length
+    ? displayPortfolio.map(p => pRow(p, S.data[p.ticker], loading)).join('')
+    : `<tr><td colspan="9"><div class="empty">No positions yet — click "+ Add Position" to track a stock you own</div></td></tr>`;
 
+  // Update test mode button
+  const tmBtn = document.getElementById('test-mode-btn');
+  if (tmBtn) tmBtn.textContent = S.testMode ? '✅ Test Mode: ON' : 'Test Mode: OFF'
 function renderAll(loading) {
   // Watchlist
   const wb = document.getElementById('wb');
@@ -1614,7 +1688,7 @@ async function refreshAll() {
   if (S.busy) return;
   S.busy = true;
   const btn = document.getElementById('rbtn');
-  btn.innerHTML = '<span class="spin">↻</span> Refreshing…';
+  btCONFIG.marketTrends '<span class="spin">↻</span> Refreshing…';
   btn.disabled = true;
 
   const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
@@ -1697,7 +1771,92 @@ function addPosition() {
   S.portfolio.push({ ticker, shares, buyPrice });
   if (!S.watchlist.includes(ticker)) { S.watchlist.push(ticker); }
   save(); closeModal();
-  renderAll(true);
+ 
+
+function updatePosShares(ticker, newVal) {
+  const shares = parseFloat(newVal);
+  if (isNaN(shares) || shares <= 0) { alert('Invalid shares value'); renderAll(false); return; }
+  const pos = S.portfolio.find(p => p.ticker === ticker);
+  loadConfig();
+  if (pos) { pos.shares = shares; save(); renderAll(false); }
+}
+
+function updatePosBuyPrice(ticker, newVal) {
+  const price = parseFloat(newVal.replace('$', ''));
+  if (isNaN(price) || price <= 0) { alert('Invalid price value'); renderAll(false); return; }
+  const pos = S.portfolio.find(p => p.ticker === ticker);
+  if (pos) { pos.buyPrice = price; save(); renderAll(false); }
+}
+
+function toggleTestMode() {
+  S.testMode = !S.testMode;
+  renderAll(false);
+}
+
+function toggleDetails(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function exportSimLog() {
+  if (!S.sim.log.length) { alert('No simulation data to export yet.'); return; }
+  const data = {
+    exported: new Date().toISOString(),
+    startCash: S.sim.startCash,
+    currentEquity: simPortfolioValue(),
+    positions: S.sim.positions,
+    closedTrades: S.sim.closed,
+    log: S.sim.log,
+    learning: S.sim.learn
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sim-log-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function openSettings() {
+  const watchlist = document.getElementById('s-watchlist');
+  const proxies = document.getElementById('s-proxies');
+  watchlist.value = CONFIG.defaultWatchlist.join(', ');
+  proxies.value = CONFIG.marketTrends.map(m => `${m.ticker}:${m.label}`).join(', ');
+  document.getElementById('settings-modal').classList.add('on');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('on');
+}
+
+function settingsModalBg(e) {
+  if (e.target === document.getElementById('settings-modal')) closeSettings();
+}
+
+function saveSettings() {
+  const watchlistRaw = document.getElementById('s-watchlist').value;
+  const proxiesRaw = document.getElementById('s-proxies').value;
+  
+  const watchlist = watchlistRaw.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+  const proxies = proxiesRaw.split(',').map(p => {
+    const [ticker, label] = p.split(':').map(s => s.trim());
+    return ticker && label ? { ticker: ticker.toUpperCase(), label } : null;
+  }).filter(Boolean);
+
+  if (!watchlist.length || !proxies.length) {
+    alert('Both watchlist and market proxies must have at least one entry.');
+    return;
+  }
+
+  CONFIG.defaultWatchlist = watchlist;
+  CONFIG.marketTrends = proxies;
+  saveConfig();
+  closeSettings();
+  alert('Settings saved! Refresh to apply new market proxies.');
+} renderAll(true);
   loadOne(ticker).then(() => renderAll(false));
 }
 
