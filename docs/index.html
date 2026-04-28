@@ -87,20 +87,6 @@
     .btn-del:hover { background: rgba(248,81,73,.1) !important; }
     #ts { font-size: 0.75rem; color: var(--muted); margin-left: 4px; }
 
-    /* ── MARKET BANNER ── */
-    #banner {
-      margin: 14px 16px 0;
-      padding: 12px 16px;
-      font-size: 0.86rem;
-      font-weight: 700;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      box-shadow: var(--shadow);
-    }
-    .b-bull { background: rgba(21,127,99,.10); color: var(--green); }
-    .b-bear { background: rgba(196,81,75,.10); color: var(--red); }
-    .b-neu  { background: rgba(95,116,136,.10); color: var(--muted); }
-
     /* ── MAIN ── */
     main { padding: 18px 16px 32px; max-width: 1240px; margin: 0 auto; }
     section { margin-bottom: 20px; }
@@ -153,6 +139,23 @@
     .overview-card { padding: 14px; }
     .overview-card small { display: block; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
     .overview-card strong { display: block; margin-top: 6px; font-size: 1.18rem; color: var(--ink); }
+    .market-pulse { display: grid; gap: 10px; margin-top: 14px; }
+    .market-pulse-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: 14px;
+      background: rgba(243, 247, 251, .88);
+      border: 1px solid rgba(19, 43, 67, .08);
+    }
+    .market-pulse-id { display: flex; flex-direction: column; gap: 3px; }
+    .market-pulse-id strong { font-size: 0.84rem; color: var(--ink); }
+    .market-pulse-id span { font-size: 0.74rem; color: var(--muted); }
+    .market-pulse-move { text-align: right; }
+    .market-pulse-move strong { display: block; font-size: 0.88rem; }
+    .market-pulse-move span { display: block; margin-top: 3px; font-size: 0.72rem; color: var(--muted); }
     .strategy-card { padding: 16px; }
     .strategy-card details summary {
       list-style: none;
@@ -385,9 +388,6 @@
   </div>
 </header>
 
-<!-- ════════════════════════════════════ BANNER ════════════════════════════════════ -->
-<div id="banner" class="b-neu">⟳ Loading market data…</div>
-
 <!-- ════════════════════════════════════ MAIN ════════════════════════════════════ -->
 <main>
 
@@ -411,6 +411,9 @@
           <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
           <div class="overview-card"><small>Bearish</small><strong>--</strong></div>
           <div class="overview-card"><small>Portfolio</small><strong>--</strong></div>
+        </div>
+        <div id="market-pulse" class="market-pulse">
+          <div class="empty" style="padding:18px">Loading current market trends...</div>
         </div>
       </section>
     </article>
@@ -550,6 +553,13 @@
 //  CONFIG
 // ══════════════════════════════════════════════════════════════
 const DEFAULT_WATCHLIST = ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JPM'];
+const MARKET_TRENDS = [
+  { ticker: 'SPY', label: 'S&P 500' },
+  { ticker: 'QQQ', label: 'Nasdaq 100' },
+  { ticker: 'IWM', label: 'Russell 2000' },
+  { ticker: 'XLK', label: 'Technology' },
+  { ticker: 'XLF', label: 'Financials' }
+];
 
 const MODEL_SPEC = {
   bullish: [
@@ -585,6 +595,7 @@ let S = {
   busy      : false,
   seeded    : false,
   marketBull: null,
+  marketTrends: [],
   sim: {
     started      : false,
     enabled      : true,
@@ -674,6 +685,13 @@ function tradeWindowLabel(signalLabel) {
   if (signalLabel.includes('Strong Buy') || signalLabel.includes('Bullish')) return 'Best buy window: tomorrow 10:30 AM - 11:30 AM';
   if (signalLabel.includes('Bearish')) return 'Best sell window: tomorrow 9:45 AM - 10:30 AM';
   return 'Watch window: tomorrow 10:30 AM - 12:00 PM';
+}
+
+function marketMode(d) {
+  if (!d) return 'Loading';
+  if (d.netScore >= 4 && d.macdDiff > 0) return 'Bullish';
+  if (d.netScore >= 1) return 'Balanced';
+  return 'Defensive';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -938,11 +956,13 @@ function renderOverview() {
   const overview = document.getElementById('overview-grid');
   const heroMeta = document.getElementById('hero-meta');
   const heroStats = document.getElementById('hero-stats');
+  const pulse = document.getElementById('market-pulse');
   const ranked = sortStocks(Object.values(S.data).filter(d => d && !d.err));
   const bullish = ranked.filter(d => d.netScore >= 4).length;
   const bearish = ranked.filter(d => d.netScore <= -2).length;
   const top = ranked[0];
   const breadth = ranked.length ? `${bullish} bullish / ${bearish} bearish` : 'Waiting for market data';
+  const leadTrend = S.marketTrends[0];
 
   overview.innerHTML = `
     <div class="overview-card"><small>Watchlist</small><strong>${S.watchlist.length}</strong></div>
@@ -961,15 +981,29 @@ function renderOverview() {
     : `
       <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
       <div class="hero-stat"><span>Market Breadth</span><span>Loading...</span></div>`;
+
+  pulse.innerHTML = S.marketTrends.length
+    ? S.marketTrends.map(item => `
+      <div class="market-pulse-card">
+        <div class="market-pulse-id">
+          <strong>${item.label}</strong>
+          <span>${item.ticker} · ${item.mode}</span>
+        </div>
+        <div class="market-pulse-move">
+          <strong class="${item.changePct >= 0 ? 'pos' : 'neg'}">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</strong>
+          <span>net ${item.netScore} · ${item.conviction}% conviction</span>
+        </div>
+      </div>`).join('')
+    : `<div class="empty" style="padding:18px">Loading current market trends...</div>`;
 }
 
 function renderStrategyPanel() {
   const panel = document.getElementById('strategy-panel');
   const marketLine = S.marketBull === null
-    ? 'Market filter is waiting for S&P 500 data.'
+    ? 'Market pulse is waiting for index and sector trend data.'
     : S.marketBull
-      ? 'Market filter is positive: S&P 500 is above EMA20 with supportive momentum.'
-      : 'Market filter is defensive: S&P 500 is below EMA20 or losing momentum.';
+      ? 'Market pulse is supportive: most tracked market proxies are above support with positive momentum.'
+      : 'Market pulse is defensive: most tracked market proxies are losing support or momentum.';
 
   const renderSpec = (items) => items.map(([label, value]) => `
     <div class="strategy-item"><strong>${label}</strong><span>${value}</span></div>`).join('');
@@ -978,7 +1012,7 @@ function renderStrategyPanel() {
     <details open>
       <summary>
         <span>How bullish and bearish scores are calculated</span>
-        <span>${S.marketBull === null ? 'Pending' : S.marketBull ? 'Market supportive' : 'Market defensive'}</span>
+        <span>${S.marketBull === null ? 'Pending' : S.marketBull ? 'Pulse supportive' : 'Pulse defensive'}</span>
       </summary>
       <div class="strategy-grid">
         <div class="strategy-block">
@@ -996,7 +1030,7 @@ function renderStrategyPanel() {
           <p>Every stock is ordered by <strong>net score = bullish score + catalyst score - bearish pressure</strong>. Higher net score means stronger upside bias. Lower net score means rising downside risk.</p>
           <div class="strategy-list">
             ${renderSpec(MODEL_SPEC.catalysts)}
-            <div class="strategy-item"><strong>Market filter</strong><span>${marketLine}</span></div>
+            <div class="strategy-item"><strong>Market pulse</strong><span>${marketLine}</span></div>
             <div class="strategy-item"><strong>Sort order</strong><span>Most bullish to most bearish using net score, then conviction.</span></div>
           </div>
         </div>
@@ -1586,27 +1620,30 @@ async function refreshAll() {
   const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
   renderAll(true);
 
-  // Fetch S&P 500 + all tickers in parallel
-  const [_, ...results] = await Promise.allSettled([
-    fetchStock('^GSPC').then(spy => {
-      const bull = spy.macdDiff > 0 && spy.price >= spy.ema20 * 0.97;
-      S.marketBull = bull;
-      const b = document.getElementById('banner');
-      const chg = `$${spy.price.toFixed(2)} (${spy.change>=0?'+':''}${spy.changePct.toFixed(2)}%)`;
-      if (bull) {
-        b.className = 'b-bull';
-        b.innerHTML = `✅ Market Trend: BULLISH — S&P 500 is above its 20 EMA &nbsp;|&nbsp; SPX: ${chg}`;
-      } else {
-        b.className = 'b-bear';
-        b.innerHTML = `⚠️ Market Trend: BEARISH — S&P 500 below 20 EMA. Use caution. &nbsp;|&nbsp; SPX: ${chg}`;
+  const marketTrendResults = await Promise.all(
+    MARKET_TRENDS.map(async ({ ticker, label }) => {
+      try {
+        const trend = await fetchStock(ticker);
+        return { ...trend, ticker, label, mode: marketMode(trend) };
+      } catch (e) {
+        return null;
       }
-    }).catch(() => {
-      const b = document.getElementById('banner');
-      S.marketBull = null;
-      b.className = 'b-neu'; b.innerHTML = '⚠️ Could not load market trend data';
-    }),
-    ...allTickers.map(t => loadOne(t))
-  ]);
+    })
+  );
+
+  S.marketTrends = marketTrendResults.filter(Boolean).sort((a, b) =>
+    (b.netScore ?? -999) - (a.netScore ?? -999) ||
+    (b.changePct ?? 0) - (a.changePct ?? 0)
+  );
+
+  if (S.marketTrends.length) {
+    const supportiveCount = S.marketTrends.filter(item => item.netScore >= 1 && item.macdDiff > 0 && item.price >= item.ema20 * 0.97).length;
+    S.marketBull = supportiveCount >= 3;
+  } else {
+    S.marketBull = null;
+  }
+
+  await Promise.allSettled(allTickers.map(t => loadOne(t)));
 
   simRunCycle(false);
   renderAll(false);
