@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>📈 Stock Scanner Dashboard</title>
+  <!-- data files: docs/data/portfolio.json, docs/data/watchlist.json -->
   <style>
     :root {
       --bg: #0d1117; --surface: #161b22; --surface2: #1c2128;
@@ -105,6 +106,40 @@
     .pred-up   { color: var(--green); font-weight: 600; }
     .pred-side { color: var(--yellow); font-weight: 600; }
     .pred-down { color: var(--red); font-weight: 600; }
+
+    /* ── INSIGHTS ── */
+    .insights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+    .icard {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .icard-head { display: flex; align-items: center; gap: 10px; }
+    .icard-tick { font-size: 1.1rem; font-weight: 800; }
+    .icard-title { font-size: 0.78rem; color: var(--muted); flex: 1; }
+    .icard-action {
+      font-size: 0.82rem; font-weight: 700; padding: 5px 12px; border-radius: 20px;
+      white-space: nowrap;
+    }
+    .act-hold  { background: rgba(63,185,80,.12);  color: var(--green);  border: 1px solid rgba(63,185,80,.3); }
+    .act-sell  { background: rgba(248,81,73,.12);  color: var(--red);    border: 1px solid rgba(248,81,73,.3); }
+    .act-buy   { background: rgba(88,166,255,.12); color: var(--blue);   border: 1px solid rgba(88,166,255,.3); }
+    .act-watch { background: rgba(210,153,34,.12); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
+    .icard-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; font-size: 0.77rem; }
+    .istat { display: flex; flex-direction: column; }
+    .istat span:first-child { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: .04em; }
+    .istat span:last-child  { font-weight: 600; margin-top: 1px; }
+    .icard-reason { font-size: 0.78rem; color: var(--muted); line-height: 1.5; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
+    .icard-reason b { color: var(--text); }
+
+    /* ── SUMMARY BAR ── */
+    .sumbar {
+      display: flex; gap: 20px; flex-wrap: wrap; padding: 14px 20px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      margin-bottom: 18px; font-size: 0.82rem;
+    }
+    .sumitem { display: flex; flex-direction: column; gap: 2px; }
+    .sumitem span:first-child { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; }
+    .sumitem span:last-child  { font-weight: 700; font-size: 1rem; }
   </style>
 </head>
 <body>
@@ -179,6 +214,15 @@
     </div>
   </section>
 
+  <!-- PORTFOLIO INSIGHTS -->
+  <section id="insights-section">
+    <h2>🧠 Portfolio Insights &amp; Suggestions</h2>
+    <div id="sumbar" class="sumbar" style="display:none"></div>
+    <div class="insights-grid" id="insights-grid">
+      <div class="empty" style="padding:36px;color:var(--muted)">Add positions to see personalised suggestions</div>
+    </div>
+  </section>
+
 </main>
 
 <!-- ════════════════════════════════════ MODAL ════════════════════════════════════ -->
@@ -209,20 +253,41 @@ const DEFAULT_WATCHLIST = ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JP
 //  STATE
 // ══════════════════════════════════════════════════════════════
 let S = {
-  watchlist : [],   // ['AAPL', ...]
-  portfolio : [],   // [{ticker, shares, buyPrice}]
+  watchlist : [],
+  portfolio : [],   // [{ticker, shares, buyPrice, note?}]
   data      : {},   // {ticker: stockObj | {err:true}}
-  busy      : false
+  busy      : false,
+  seeded    : false
 };
 
-function load() {
+// ── Load: localStorage first, then fall back to JSON data files ──
+async function load() {
   try {
     const w = localStorage.getItem('ss_watch');
     const p = localStorage.getItem('ss_port');
     if (w) S.watchlist = JSON.parse(w);
     if (p) S.portfolio  = JSON.parse(p);
   } catch(e) {}
+
+  // First visit: seed from data files
+  if (!S.watchlist.length && !S.portfolio.length) {
+    try {
+      const [wj, pj] = await Promise.all([
+        fetch('./data/watchlist.json').then(r => r.ok ? r.json() : null),
+        fetch('./data/portfolio.json').then(r => r.ok ? r.json() : null)
+      ]);
+      if (Array.isArray(wj) && wj.length) S.watchlist = wj;
+      if (Array.isArray(pj) && pj.length) {
+        S.portfolio = pj;
+        // Make sure portfolio tickers are in watchlist
+        pj.forEach(p => { if (!S.watchlist.includes(p.ticker)) S.watchlist.push(p.ticker); });
+      }
+      S.seeded = true;
+    } catch(e) {}
+  }
+
   if (!S.watchlist.length) S.watchlist = [...DEFAULT_WATCHLIST];
+  save();
 }
 
 function save() {
@@ -520,6 +585,142 @@ function renderAll(loading) {
   pb.innerHTML = S.portfolio.length
     ? S.portfolio.map(p => pRow(p, S.data[p.ticker], loading)).join('')
     : `<tr><td colspan="9"><div class="empty">No positions yet — click "+ Add Position" to track a stock you own</div></td></tr>`;
+
+  // Insights
+  renderInsights(loading);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PORTFOLIO INSIGHTS ENGINE
+// ══════════════════════════════════════════════════════════════
+function insightForPosition(pos, d) {
+  const { ticker, shares, buyPrice } = pos;
+  if (!d || d.err) return null;
+
+  const cur    = d.price;
+  const pnlPct = (cur - buyPrice) / buyPrice * 100;
+  const pnlAmt = (cur - buyPrice) * shares;
+  const stop   = buyPrice * 0.98;
+  const target = buyPrice * 1.035;
+  const sig    = signal(d);
+  const pred   = prediction(d);
+  const sc     = d.totalScore;
+
+  let actionLabel = '', actionCls = '', reasons = [];
+
+  // ── Decision tree ──
+  const hitStop   = cur <= stop;
+  const hitTarget = cur >= target;
+  const isBull    = sc >= 6 && d.macdDiff > 0;
+  const isBear    = sc <= 3;
+
+  if (hitTarget) {
+    actionLabel = '✅ Take Profit';
+    actionCls   = 'act-sell';
+    reasons.push(`<b>Target reached:</b> Stock is up ${pnlPct.toFixed(2)}% from your entry — at or above the +3.5% target of $${target.toFixed(2)}.`);
+    reasons.push(`Consider taking full or partial profits. Lock in <b>$${pnlAmt.toFixed(0)}</b> gain.`);
+  } else if (hitStop && !isBull) {
+    actionLabel = '🛑 Stop Loss';
+    actionCls   = 'act-sell';
+    reasons.push(`<b>Stop loss triggered</b> (−2% from entry). Stock is at $${cur.toFixed(2)}, stop was $${stop.toFixed(2)}.`);
+    reasons.push(`Signal is ${sig.label} — the technicals don't support holding through this loss. Cutting the position preserves capital.`);
+  } else if (hitStop && isBull) {
+    actionLabel = '⚠️ Hold / Review';
+    actionCls   = 'act-watch';
+    reasons.push(`<b>Stop loss triggered</b> (down ${pnlPct.toFixed(2)}%), BUT the algorithm gives a <b>strong bullish signal</b> (score ${sc}/14).`);
+    reasons.push(`This is a conflict. Options: (1) Hold if you believe in the thesis — RSI is ${d.rsi.toFixed(0)} and MACD is ${d.macdDiff > 0 ? 'positive' : 'negative'}. (2) Exit half to reduce risk.`);
+    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 10)
+      reasons.push(`⚠️ Earnings in <b>${d.daysToEarnings} days</b> — volatility risk is elevated.`);
+  } else if (isBear) {
+    actionLabel = '📉 Consider Exit';
+    actionCls   = 'act-sell';
+    reasons.push(`Score is <b>${sc}/14</b> — technicals have deteriorated. RSI: ${d.rsi.toFixed(0)}, MACD diff: ${d.macdDiff.toFixed(4)}.`);
+    reasons.push(`${pnlPct >= 0 ? 'You are currently profitable — consider locking in gains.' : 'Position is in loss and getting weaker technically.'}`);
+  } else if (sc >= 8 && pnlPct < 0) {
+    actionLabel = '📈 Avg Down';
+    actionCls   = 'act-buy';
+    const avgPrice = cur * 0.97;
+    reasons.push(`<b>High-score dip opportunity</b> (score ${sc}/14). Price is ${Math.abs(pnlPct).toFixed(2)}% below your entry but technicals remain strong.`);
+    reasons.push(`The 40% reserve strategy suggests averaging down near <b>$${avgPrice.toFixed(2)}</b> (another 3% lower) to improve your average cost.`);
+  } else {
+    actionLabel = '✋ Hold';
+    actionCls   = 'act-hold';
+    reasons.push(`Position is healthy. Score ${sc}/14 — ${sig.label}. P&amp;L: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%.`);
+    reasons.push(`Target: <b>$${target.toFixed(2)}</b> (+3.5%). Stop: <b>$${stop.toFixed(2)}</b> (−2%). Current: $${cur.toFixed(2)}.`);
+    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 5)
+      reasons.push(`🔔 Earnings in <b>${d.daysToEarnings} days</b> — could be a catalyst for a breakout.`);
+  }
+
+  return { ticker, cur, pnlPct, pnlAmt, actionLabel, actionCls, reasons, sig, sc, pred, shares, buyPrice };
+}
+
+function renderInsights(loading) {
+  const grid   = document.getElementById('insights-grid');
+  const sumbar = document.getElementById('sumbar');
+
+  if (!S.portfolio.length) {
+    grid.innerHTML = `<div class="empty" style="padding:36px;color:var(--muted)">Add positions to see personalised suggestions</div>`;
+    sumbar.style.display = 'none';
+    return;
+  }
+
+  if (loading) {
+    grid.innerHTML = S.portfolio.map(p => `
+      <div class="icard">
+        <div class="icard-head">
+          <span class="icard-tick">${p.ticker}</span>
+          <span class="icard-title">Analysing…</span>
+          <span class="badge by"><span class="sk" style="width:60px"></span></span>
+        </div>
+      </div>`).join('');
+    sumbar.style.display = 'none';
+    return;
+  }
+
+  const insights = S.portfolio.map(p => insightForPosition(p, S.data[p.ticker])).filter(Boolean);
+
+  // ── Summary bar ──
+  if (insights.length) {
+    const totalValue  = insights.reduce((a,i) => a + i.cur * i.shares, 0);
+    const totalCost   = S.portfolio.reduce((a,p) => a + p.buyPrice * p.shares, 0);
+    const totalPnl    = totalValue - totalCost;
+    const totalPnlPct = totalCost ? (totalPnl / totalCost) * 100 : 0;
+    const pc = totalPnl >= 0 ? 'pos' : 'neg';
+    const ps = totalPnl >= 0 ? '+' : '';
+    sumbar.style.display = 'flex';
+    sumbar.innerHTML = `
+      <div class="sumitem"><span>Total Value</span><span>$${totalValue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+      <div class="sumitem"><span>Total Cost</span><span>$${totalCost.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+      <div class="sumitem"><span>Total P&amp;L</span><span class="${pc}">${ps}$${Math.abs(totalPnl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+      <div class="sumitem"><span>Return</span><span class="${pc}">${ps}${totalPnlPct.toFixed(2)}%</span></div>
+      <div class="sumitem"><span>Positions</span><span>${insights.length}</span></div>`;
+  } else {
+    sumbar.style.display = 'none';
+  }
+
+  // ── Cards ──
+  grid.innerHTML = insights.map(i => {
+    const pp = i.pnlPct >= 0 ? 'pos' : 'neg';
+    const ps = i.pnlPct >= 0 ? '+' : '';
+    const ap = i.pnlAmt >= 0 ? 'pos' : 'neg';
+    return `
+    <div class="icard">
+      <div class="icard-head">
+        <span class="icard-tick">${i.ticker}</span>
+        <span class="icard-title">${i.shares} shares @ $${(+i.buyPrice).toFixed(2)}</span>
+        <span class="icard-action ${i.actionCls}">${i.actionLabel}</span>
+      </div>
+      <div class="icard-stats">
+        <div class="istat"><span>Current Price</span><span>$${i.cur.toFixed(2)}</span></div>
+        <div class="istat"><span>P&amp;L %</span><span class="${pp}">${ps}${i.pnlPct.toFixed(2)}%</span></div>
+        <div class="istat"><span>P&amp;L $</span><span class="${ap}">${i.pnlAmt >= 0 ? '+' : ''}$${i.pnlAmt.toFixed(2)}</span></div>
+        <div class="istat"><span>Score</span><span>${i.sc}/14</span></div>
+        <div class="istat"><span>Signal</span><span><span class="badge ${i.sig.cls}">${i.sig.label}</span></span></div>
+        <div class="istat"><span>Outlook</span><span class="${i.pred.cls}">${i.pred.text}</span></div>
+      </div>
+      <div class="icard-reason">${i.reasons.map(r=>`<p style="margin:3px 0">${r}</p>`).join('')}</div>
+    </div>`;
+  }).join('') || `<div class="empty" style="padding:36px;color:var(--muted)">Waiting for data…</div>`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -623,9 +824,11 @@ function rmPos(ticker) {
 // ══════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════
-load();
-renderAll(true);
-refreshAll();
+(async () => {
+  await load();
+  renderAll(true);
+  refreshAll();
+})();
 </script>
 </body>
 </html>

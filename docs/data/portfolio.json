@@ -1,0 +1,4 @@
+[
+  { "ticker": "GLD",  "shares": 455.92, "buyPrice": 440.00, "note": "Gold ETF" },
+  { "ticker": "VXUS", "shares": 2780,   "buyPrice": 81.66,  "note": "Intl ETF"  }
+]
