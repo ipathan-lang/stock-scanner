@@ -854,9 +854,11 @@
   <!-- ═══════════════════ TEST LAB TAB ═══════════════════ -->
   <div id="tab-testlab" class="tab-panel">
     <section>
-      <h2>🧪 Weekly Test Trading Lab</h2>
+      <h2>🧪 Automated Test Trading Lab</h2>
       <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
-        Simulate AI-driven trading strategies without risking real money. The system learns from performance and adjusts buy/sell thresholds automatically.
+        <b>Live simulation with intraday trading.</b> The system evaluates your watchlist continuously, 
+        executes algorithm-based buy/sell decisions, tracks profit/loss in real-time, and learns from performance. 
+        All trades are simulated with no real money at risk. Click \"Refresh\" to trigger new trading cycles.
       </p>
       <div class="sim-wrap">
         <div class="sim-controls">
@@ -864,16 +866,19 @@
           <input id="sim-start" type="number" min="100" step="100" value="50000" style="width:130px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px" />
           <button class="btn-p" onclick="simStart()">Start Simulation</button>
           <button onclick="simToggle()" id="sim-toggle">Pause</button>
-          <button onclick="simRunNow()">Run Today</button>
+          <button onclick="simRunNow()">Run Cycle Now</button>
           <button onclick="simReset()">Reset</button>
           <button onclick="exportSimLog()">📥 Export JSON</button>
-          <span id="sim-status" style="font-size:.77rem;color:var(--muted)"></span>
+          <button onclick="exportTradeHistory()" style="margin-left:8px">📊 Export CSV</button>
+          <span id="sim-status" style="font-size:.85rem;margin-left:12px"></span>
         </div>
         <div class="sim-kpi" id="sim-kpi"></div>
-        <div class="sim-log">
+        <div id="sim-daily-summary"></div>
+        <div class="sim-log" style="margin-top:24px">
+          <h3 style="font-size:0.95rem;margin:0 0 12px 0">📝 Recent Trades</h3>
           <table>
             <thead>
-              <tr><th>Date</th><th>Stock</th><th>Action</th><th>Price</th><th>Reason</th><th>P/L</th></tr>
+              <tr><th>Date/Time</th><th>Stock</th><th>Action</th><th>Price</th><th>Reason</th><th>P/L</th></tr>
             </thead>
             <tbody id="sim-log-body"></tbody>
           </table>
@@ -1097,12 +1102,20 @@ let S = {
     enabled      : true,
     startCash    : 50000,
     cash         : 50000,
-    positions    : [],  // [{ticker, shares, buyPrice, openedAt, daysHeld}]
-    log          : [],  // [{ts,ticker,side,price,reason,pnl}]
-    closed       : [],
-    lastRunDate  : null,
-    weekStart    : null,
-    weeklyHistory: [],
+    positions      : [],  // [{ticker, shares, buyPrice, openedAt, setupType, entryScore}]
+    log            : [],  // [{ts,ticker,side,price,reason,pnl}]
+    closed         : [],  // Completed trades with full details
+    todayTrades    : [],  // Today's completed trades
+    todayPnL       : 0,   // Today's profit/loss
+    dayStartEquity : 0,   // Equity at start of day
+    todaySummarized: false,
+    weekSummarized : false,
+    midnightReset  : false,
+    lastRunDate    : null,
+    lastRunTime    : null,
+    weekStart      : null,
+    weeklyHistory  : [],
+    dailyHistory   : [],  // [{date, startEquity, endEquity, dayPnL, dayReturn, trades, winners, losers}]
     learn: {
       buyMinScore : 4,
       sellMaxScore: -2,
@@ -2479,99 +2492,184 @@ function simApplyLearning() {
 
 function simRunCycle(force = false) {
   if (!S.sim.started || !S.sim.enabled) return;
-  const today = new Date().toISOString().slice(0, 10);
-  if (!force && S.sim.lastRunDate === today) return;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const currentTime = now.toTimeString().substring(0, 8);
+  
+  // Allow multiple cycles per day (every refresh during market hours)
+  // Market hours: 9:30 AM - 4:00 PM EST
+  const hour = now.getHours();
+  const inMarketHours = (hour >= 9 && hour < 16) || (hour === 9 && now.getMinutes() >= 30);
+  
+  // Skip if already ran in last 15 minutes (unless forced)
+  if (!force && S.sim.lastRunTime && (Date.now() - S.sim.lastRunTime) < 15 * 60 * 1000) return;
+  
+  // Start new trading day
+  if (S.sim.lastRunDate !== today) {
+    S.sim.lastRunDate = today;
+    S.sim.todayTrades = [];
+    S.sim.todayPnL = 0;
+    S.sim.dayStartEquity = simPortfolioValue();
+  }
 
   const available = S.watchlist.map(t => S.data[t]).filter(d => d && !d.err);
   const sortedBuy = [...available]
     .filter(d => d.netScore >= S.sim.learn.buyMinScore && (S.marketBull !== false))
     .sort((a, b) => b.netScore - a.netScore)
-    .slice(0, 3);
+    .slice(0, 5); // Increased to 5 for more opportunities
 
   // Sell pass first
   const remaining = [];
+  let cycleProfit = 0;
   for (const p of S.sim.positions) {
     const d = S.data[p.ticker];
-    if (!d || d.err) { remaining.push({ ...p, daysHeld: p.daysHeld + 1 }); continue; }
+    if (!d || d.err) { remaining.push(p); continue; }
     const pnlPct = ((d.price - p.buyPrice) / p.buyPrice) * 100;
-    const shouldSell =
-      pnlPct >= S.sim.learn.targetPct ||
-      pnlPct <= S.sim.learn.stopPct ||
-      d.netScore <= S.sim.learn.sellMaxScore ||
-      p.daysHeld >= S.sim.learn.holdDays;
+    const minutesHeld = (Date.now() - p.openedAt) / (1000 * 60);
+    const hoursHeld = minutesHeld / 60;
+    
+    // Enhanced exit rules with intraday logic
+    let shouldSell = false;
+    let exitReason = '';
+    
+    if (pnlPct >= S.sim.learn.targetPct) {
+      shouldSell = true;
+      exitReason = `Target hit +${pnlPct.toFixed(2)}%`;
+    } else if (pnlPct <= S.sim.learn.stopPct) {
+      shouldSell = true;
+      exitReason = `Stop loss ${pnlPct.toFixed(2)}%`;
+    } else if (d.netScore <= S.sim.learn.sellMaxScore) {
+      shouldSell = true;
+      exitReason = `Score dropped to ${d.netScore}`;
+    } else if (hoursHeld >= S.sim.learn.holdDays * 6.5) { // Convert days to market hours
+      shouldSell = true;
+      exitReason = `Time limit (${(hoursHeld/6.5).toFixed(1)} days)`;
+    } else if (pnlPct > 1.5 && d.rsi > 70) {
+      shouldSell = true;
+      exitReason = `Overbought exit +${pnlPct.toFixed(2)}%`;
+    }
+    
     if (shouldSell) {
       const pnl = (d.price - p.buyPrice) * p.shares;
-      S.sim.cash += d.price * p.shares;
+      const proceeds = d.price * p.shares;
+      S.sim.cash += proceeds;
+      cycleProfit += pnl;
+      S.sim.todayPnL += pnl;
       
-      // Enhanced trade tracking for performance analysis
+      // Enhanced trade tracking
       const now = new Date();
       const entryDate = new Date(p.openedAt);
-      S.sim.closed.push({ 
+      const closedTrade = { 
         ticker: p.ticker, 
         pnl, 
+        pnlPct,
         openedAt: p.openedAt, 
         closedAt: Date.now(),
-        // Enhanced fields for analyzer
         entryPrice: p.buyPrice,
         exitPrice: d.price,
         shares: p.shares,
         entryDate: entryDate.toISOString().split('T')[0],
-        entryTime: entryDate.toTimeString().substring(0, 5),
+        entryTime: entryDate.toTimeString().substring(0, 8),
         exitDate: now.toISOString().split('T')[0],
-        exitTime: now.toTimeString().substring(0, 5),
+        exitTime: now.toTimeString().substring(0, 8),
         setupType: p.setupType || 'Auto Trade',
-        daysHeld: p.daysHeld
-      });
+        hoursHeld: hoursHeld.toFixed(2),
+        exitReason: exitReason
+      };
       
-      simLog('SELL', p.ticker, d.price, `Rule exit (net score ${d.netScore}, held ${p.daysHeld}d)`, pnl);
+      S.sim.closed.push(closedTrade);
+      S.sim.todayTrades.push(closedTrade);
+      simLog('SELL', p.ticker, d.price, exitReason, pnl);
     } else {
-      remaining.push({ ...p, daysHeld: p.daysHeld + 1 });
+      remaining.push(p);
     }
   }
   S.sim.positions = remaining;
 
-  // Buy pass
-  const budgetPerTrade = Math.max(0, S.sim.cash * 0.2);
+  // Buy pass - more aggressive intraday strategy
+  const maxPositions = 5;
+  const budgetPerTrade = Math.max(0, S.sim.cash * 0.15); // Use 15% per trade
+  
   for (const d of sortedBuy) {
+    if (S.sim.positions.length >= maxPositions) break;
     if (S.sim.positions.some(p => p.ticker === d.ticker)) continue;
     if (budgetPerTrade < d.price) continue;
+    
+    // Calculate position size
     const shares = Math.floor(budgetPerTrade / d.price);
     if (shares <= 0) continue;
     const cost = shares * d.price;
     if (cost > S.sim.cash) continue;
     
-    // Determine setup type based on stock data
+    // Determine setup type
     let setupType = 'Auto Trade';
     if (d.netScore >= 8) setupType = 'Momentum';
-    else if (d.rsi < 40 && d.change > 0) setupType = 'Range Break';
+    else if (d.rsi < 40 && d.changePct > 0) setupType = 'Range Break';
     else if (d.position > 0.7 && d.macdDiff > 0) setupType = 'Trending';
-    else if (d.position < 0.3 && d.change > 0) setupType = 'VWAP Bounce';
-    else if (d.volume > d.avgVolume * 1.5) setupType = 'News';
+    else if (d.position < 0.3 && d.changePct > 0) setupType = 'VWAP Bounce';
+    else if (d.changePct > 2) setupType = 'News';
     
     S.sim.cash -= cost;
-    S.sim.positions.push({ 
+    const position = { 
       ticker: d.ticker, 
       shares, 
       buyPrice: d.price, 
-      openedAt: Date.now(), 
-      daysHeld: 0,
-      setupType: setupType 
-    });
-    simLog('BUY', d.ticker, d.price, `Top setup from monitor list (net score ${d.netScore})`);
+      openedAt: Date.now(),
+      setupType: setupType,
+      entryScore: d.netScore,
+      entryRSI: d.rsi,
+      entryMACD: d.macdDiff
+    };
+    
+    S.sim.positions.push(position);
+    simLog('BUY', d.ticker, d.price, `${setupType} (score ${d.netScore}, RSI ${d.rsi.toFixed(0)})`);
   }
 
   S.sim.lastRunDate = today;
+  S.sim.lastRunTime = Date.now();
   if (!S.sim.weekStart) S.sim.weekStart = today;
+  
+  // Daily summary at market close or end of day
+  if (hour >= 16 && !S.sim.todaySummarized) {
+    const dayEndEquity = simPortfolioValue();
+    const dayReturn = S.sim.dayStartEquity ? ((dayEndEquity - S.sim.dayStartEquity) / S.sim.dayStartEquity * 100) : 0;
+    
+    S.sim.dailyHistory = S.sim.dailyHistory || [];
+    S.sim.dailyHistory.push({
+      date: today,
+      startEquity: S.sim.dayStartEquity,
+      endEquity: dayEndEquity,
+      dayPnL: S.sim.todayPnL,
+      dayReturn: dayReturn,
+      trades: S.sim.todayTrades.length,
+      winners: S.sim.todayTrades.filter(t => t.pnl > 0).length,
+      losers: S.sim.todayTrades.filter(t => t.pnl < 0).length
+    });
+    
+    // Keep last 30 days
+    if (S.sim.dailyHistory.length > 30) S.sim.dailyHistory.shift();
+    S.sim.todaySummarized = true;
+  }
 
   // Weekly snapshot each Sunday
-  const wd = new Date().getDay();
-  if (wd === 0) {
+  const wd = now.getDay();
+  if (wd === 0 && !S.sim.weekSummarized) {
     S.sim.weeklyHistory.push({
       weekEnding: today,
       equity: simPortfolioValue(),
-      trades: S.sim.log.filter(x => x.side === 'SELL').length
+      trades: S.sim.log.filter(x => x.side === 'SELL' && x.ts >= Date.now() - 7*24*60*60*1000).length
     });
     if (S.sim.weeklyHistory.length > 20) S.sim.weeklyHistory.shift();
+    S.sim.weekSummarized = true;
+  }
+  
+  // Reset daily flags at midnight
+  if (hour === 0 && !S.sim.midnightReset) {
+    S.sim.todaySummarized = false;
+    S.sim.weekSummarized = false;
+    S.sim.midnightReset = true;
+  } else if (hour > 0) {
+    S.sim.midnightReset = false;
   }
 
   simApplyLearning();
@@ -2588,11 +2686,16 @@ function simStart() {
   S.sim.positions = [];
   S.sim.log = [];
   S.sim.closed = [];
+  S.sim.todayTrades = [];
+  S.sim.todayPnL = 0;
+  S.sim.dayStartEquity = v;
   S.sim.lastRunDate = null;
+  S.sim.lastRunTime = null;
   S.sim.weekStart = new Date().toISOString().slice(0, 10);
+  S.sim.dailyHistory = [];
   save();
   renderSim();
-}
+  alert('\u2705 Simulator started! It will run automatically when you refresh data. Use \"Run Cycle Now\" to execute trades immediately.');
 
 function simToggle() {
   S.sim.enabled = !S.sim.enabled;
@@ -2606,13 +2709,19 @@ function simRunNow() {
 }
 
 function simReset() {
+  if (!confirm('Reset simulator? This will clear all positions and trade history.')) return;
   S.sim.started = false;
   S.sim.enabled = true;
   S.sim.cash = S.sim.startCash;
   S.sim.positions = [];
   S.sim.log = [];
   S.sim.closed = [];
+  S.sim.todayTrades = [];
+  S.sim.todayPnL = 0;
+  S.sim.dayStartEquity = S.sim.startCash;
   S.sim.lastRunDate = null;
+  S.sim.lastRunTime = null;
+  S.sim.dailyHistory = [];
   save();
   renderSim();
 }
@@ -2623,36 +2732,83 @@ function renderSim() {
   const status = document.getElementById('sim-status');
   const tgl = document.getElementById('sim-toggle');
   const startInput = document.getElementById('sim-start');
+  const dailySum = document.getElementById('sim-daily-summary');
   if (!kpi || !logBody || !status || !tgl) return;
   if (startInput) startInput.value = String(S.sim.startCash || 50000);
 
   const equity = simPortfolioValue();
   const pnl = equity - (S.sim.startCash || 0);
   const pnlPct = S.sim.startCash ? (pnl / S.sim.startCash) * 100 : 0;
+  
+  // Calculate today's performance
+  const todayPnL = S.sim.todayPnL || 0;
+  const todayTrades = (S.sim.todayTrades || []).length;
+  const todayWinners = (S.sim.todayTrades || []).filter(t => t.pnl > 0).length;
+  const todayLosers = (S.sim.todayTrades || []).filter(t => t.pnl < 0).length;
+  const winRate = todayTrades > 0 ? ((todayWinners / todayTrades) * 100).toFixed(0) : 0;
+  
+  // Calculate total performance stats
+  const totalTrades = S.sim.closed.length;
+  const totalWinners = S.sim.closed.filter(t => t.pnl > 0).length;
+  const totalWinRate = totalTrades > 0 ? ((totalWinners / totalTrades) * 100).toFixed(0) : 0;
 
   kpi.innerHTML = `
-    <div class="sim-k"><small>Simulator Equity</small><b>${fmtMoney(equity)}</b></div>
-    <div class="sim-k"><small>Cash</small><b>${fmtMoney(S.sim.cash)}</b></div>
+    <div class="sim-k"><small>Total Equity</small><b>${fmtMoney(equity)}</b></div>
+    <div class="sim-k"><small>Available Cash</small><b>${fmtMoney(S.sim.cash)}</b></div>
     <div class="sim-k"><small>Open Positions</small><b>${S.sim.positions.length}</b></div>
-    <div class="sim-k"><small>Weekly P/L</small><b class="${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}${fmtMoney(pnl)} (${pnlPct.toFixed(2)}%)</b></div>
-    <div class="sim-k"><small>Learning Mode</small><b>Buy net score >= ${S.sim.learn.buyMinScore}, hold ${S.sim.learn.holdDays}d</b></div>`;
+    <div class="sim-k"><small>Total P/L</small><b class="${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}${fmtMoney(pnl)} (${pnlPct.toFixed(2)}%)</b></div>
+    <div class="sim-k"><small>Win Rate</small><b>${totalWinRate}% (${totalWinners}/${totalTrades})</b></div>
+    <div class="sim-k"><small>Today P/L</small><b class="${todayPnL>=0?'pos':'neg'}">${todayPnL>=0?'+':''}${fmtMoney(todayPnL)}</b></div>
+    <div class="sim-k"><small>Today Trades</small><b>${todayTrades} (${todayWinners}W/${todayLosers}L)</b></div>
+    <div class="sim-k"><small>Strategy</small><b>Score ${S.sim.learn.buyMinScore}+, ${S.sim.learn.targetPct}% target</b></div>`;
 
-  status.textContent = !S.sim.started
+  status.innerHTML = !S.sim.started
     ? 'Simulator not started yet.'
-    : (S.sim.enabled ? `Running daily. Last cycle: ${S.sim.lastRunDate || 'not run yet'}` : 'Paused. No automatic trades will run.');
+    : (S.sim.enabled 
+        ? `<span style="color:var(--success)">● Running</span> · Last trade: ${S.sim.lastRunTime ? new Date(S.sim.lastRunTime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : 'never'}` 
+        : '<span style="color:var(--warning)">⏸ Paused</span> · No automatic trades');
   tgl.textContent = S.sim.enabled ? 'Pause' : 'Resume';
+  
+  // Daily summary section
+  if (dailySum && (S.sim.dailyHistory || []).length > 0) {
+    const last7Days = (S.sim.dailyHistory || []).slice(-7);
+    dailySum.innerHTML = `
+      <h3 style="font-size:0.95rem;margin:24px 0 12px 0">📊 Daily Performance (Last 7 Days)</h3>
+      <div style="overflow-x:auto">
+        <table style="width:100%;font-size:0.85rem">
+          <thead>
+            <tr><th>Date</th><th>Trades</th><th>W/L</th><th>Win Rate</th><th>Day P/L</th><th>Return</th><th>End Equity</th></tr>
+          </thead>
+          <tbody>
+            ${last7Days.map(day => `
+              <tr>
+                <td>${new Date(day.date).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}</td>
+                <td>${day.trades}</td>
+                <td>${day.winners}/${day.losers}</td>
+                <td>${day.trades > 0 ? ((day.winners/day.trades)*100).toFixed(0) : 0}%</td>
+                <td class="${day.dayPnL>=0?'pos':'neg'}">${day.dayPnL>=0?'+':''}${fmtMoney(day.dayPnL)}</td>
+                <td class="${day.dayReturn>=0?'pos':'neg'}">${day.dayReturn>=0?'+':''}${day.dayReturn.toFixed(2)}%</td>
+                <td>${fmtMoney(day.endEquity)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
 
+  // Recent trades log (last 50)
   logBody.innerHTML = S.sim.log.length
-    ? S.sim.log.slice(0, 80).map(x => `
+    ? S.sim.log.slice(-50).reverse().map(x => `
       <tr>
-        <td>${new Date(x.ts).toLocaleDateString('en-US')}</td>
-        <td>${x.ticker}</td>
+        <td>${new Date(x.ts).toLocaleString('en-US', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</td>
+        <td><b>${x.ticker}</b></td>
         <td class="${x.side==='BUY'?'pos':'neg'}">${x.side}</td>
         <td>${fmtMoney(x.price)}</td>
-        <td>${x.reason}</td>
-        <td class="${(x.pnl||0)>=0?'pos':'neg'}">${x.pnl==null?'--':(x.pnl>=0?'+':'') + fmtMoney(Math.abs(x.pnl))}</td>
+        <td style="max-width:200px;font-size:0.8rem">${x.reason}</td>
+        <td class="${(x.pnl||0)>=0?'pos':'neg'}" style="font-weight:600">${x.pnl==null?'--':(x.pnl>=0?'+':'') + fmtMoney(Math.abs(x.pnl))}</td>
       </tr>`).join('')
-    : `<tr><td colspan="6" style="color:var(--muted)">No simulated trades yet.</td></tr>`;
+    : `<tr><td colspan="6" style="color:var(--muted);padding:24px">No trades yet. Click "Start Simulation" to begin.</td></tr>`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2794,28 +2950,23 @@ function exportTradeHistory() {
   }
   
   // Enhanced CSV format with coaching data
-  const csvHeader = 'Symbol,Entry Date,Entry Time,Entry Price,Exit Date,Exit Time,Exit Price,Shares,P&L,Setup Type,Trade Number,Previous Trades PnL,Days Held\n';
+  const csvHeader = 'Symbol,Entry Date,Entry Time,Entry Price,Exit Date,Exit Time,Exit Price,Shares,P&L,P&L %,Setup Type,Exit Reason,Hours Held\n';
   
   const csvRows = S.sim.closed.map((trade, idx) => {
-    // Calculate trade number and previous trades context
-    const tradeNumber = idx + 1;
-    const recentTrades = S.sim.closed.slice(Math.max(0, idx - 2), idx);
-    const prevPnLs = recentTrades.map(t => t.pnl?.toFixed(2) || '0.00').join('|');
-    
     return [
       trade.ticker,
       trade.entryDate || new Date(trade.openedAt).toISOString().split('T')[0],
-      trade.entryTime || new Date(trade.openedAt).toTimeString().substring(0, 5),
+      trade.entryTime || new Date(trade.openedAt).toTimeString().substring(0, 8),
       trade.entryPrice?.toFixed(2) || '0.00',
       trade.exitDate || new Date(trade.closedAt).toISOString().split('T')[0],
-      trade.exitTime || new Date(trade.closedAt).toTimeString().substring(0, 5),
+      trade.exitTime || new Date(trade.closedAt).toTimeString().substring(0, 8),
       trade.exitPrice?.toFixed(2) || '0.00',
       trade.shares || 0,
       trade.pnl?.toFixed(2) || '0.00',
+      trade.pnlPct?.toFixed(2) || '0.00',
       trade.setupType || 'Auto Trade',
-      tradeNumber,
-      prevPnLs || 'N/A',
-      trade.daysHeld || 0
+      `"${trade.exitReason || 'N/A'}"`,
+      trade.hoursHeld || '0.00'
     ].join(',');
   }).join('\n');
   
@@ -2826,7 +2977,7 @@ function exportTradeHistory() {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   
-  const filename = `trades_${new Date().toISOString().split('T')[0]}.csv`;
+  const filename = `sim_trades_${new Date().toISOString().split('T')[0]}.csv`;
   link.setAttribute('href', url);
   link.setAttribute('download', filename);
   link.style.visibility = 'hidden';
@@ -2834,29 +2985,24 @@ function exportTradeHistory() {
   link.click();
   document.body.removeChild(link);
   
-  // Enhanced alert with coaching info
-  const recentLosses = S.sim.closed.slice(-3).filter(t => t.pnl < 0).length;
-  let coachingTip = '';
-  
-  if (recentLosses >= 2) {
-    coachingTip = '\n\n⚠️  COACHING ALERT: You have 2+ recent losses. Consider stopping for the day.';
-  }
-  
+  // Enhanced alert with stats
   const avgPnL = S.sim.closed.reduce((sum, t) => sum + (t.pnl || 0), 0) / S.sim.closed.length;
-  const winRate = (S.sim.closed.filter(t => t.pnl > 0).length / S.sim.closed.length * 100).toFixed(1);
+  const totalPnL = S.sim.closed.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const winners = S.sim.closed.filter(t => t.pnl > 0);
+  const losers = S.sim.closed.filter(t => t.pnl < 0);
+  const winRate = (winners.length / S.sim.closed.length * 100).toFixed(1);
+  const avgWin = winners.length > 0 ? winners.reduce((sum, t) => sum + t.pnl, 0) / winners.length : 0;
+  const avgLoss = losers.length > 0 ? Math.abs(losers.reduce((sum, t) => sum + t.pnl, 0) / losers.length) : 0;
   
   alert(`✅ Exported ${S.sim.closed.length} trades to ${filename}
   
-📊 Quick Stats:
-• Win Rate: ${winRate}%
-• Avg P&L: $${avgPnL.toFixed(2)}
-${coachingTip}
+📊 Performance Summary:
+• Win Rate: ${winRate}% (${winners.length}W / ${losers.length}L)
+• Total P&L: $${totalPnL.toFixed(2)}
+• Avg Win: $${avgWin.toFixed(2)} / Avg Loss: $${avgLoss.toFixed(2)}
+• Profit Factor: ${avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : 'N/A'}
 
-🎓 Run coaching analysis:
-python trade_journal_coach.py ${filename}
-
-📈 Run performance analysis:
-python analyze_trades.py ${filename}`);
+🎓 Run this CSV through your Python analyzers for deeper insights!`);
 }
 
 function toggleAutoRefresh() {

@@ -1,0 +1,220 @@
+//@version=5
+// ════════════════════════════════════════════════════════════════════════════
+//  2-Bar Trailing Stop Strategy
+//  
+//  Entry: Moving Average Crossover (demo - customize as needed)
+//  Stop: Trailing stop based on lowest low of past N bars
+//  Exit: When price hits the trailing stop
+//
+//  Stop Logic:
+//  - Initial stop: lowest low of past 2 bars at entry
+//  - Trailing: When price makes new 2-bar high, move stop to new 2-bar low
+//  - Stop only moves UP, never down
+//
+//  Visual: Entry markers (▲), exit markers (▼), stop line (red → green when trailing)
+// ════════════════════════════════════════════════════════════════════════════
+
+strategy("2-Bar Trailing Stop", 
+         overlay=true, 
+         initial_capital=10000,
+         default_qty_type=strategy.percent_of_equity, 
+         default_qty_value=100,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1)
+
+// ═══════════════════════════════════════════════════════════════
+//  INPUTS - Adjustable Settings
+// ═══════════════════════════════════════════════════════════════
+
+// Entry Settings
+fastMA_length = input.int(9, "Fast MA Length", minval=1, group="Entry Settings")
+slowMA_length = input.int(21, "Slow MA Length", minval=1, group="Entry Settings")
+
+// Trailing Stop Settings
+lookback = input.int(2, "Lookback Period (Bars)", minval=1, maxval=10, 
+                     tooltip="Number of bars to look back for trailing stop calculation", 
+                     group="Trailing Stop Settings")
+
+// Visual Settings
+showStopLine = input.bool(true, "Show Stop Line", group="Visual Settings")
+stopLineWidth = input.int(2, "Stop Line Width", minval=1, maxval=4, group="Visual Settings")
+
+// ═══════════════════════════════════════════════════════════════
+//  ENTRY LOGIC - Moving Average Crossover (Demo)
+// ═══════════════════════════════════════════════════════════════
+
+fastMA = ta.sma(close, fastMA_length)
+slowMA = ta.sma(close, slowMA_length)
+
+// Long entry condition: fast MA crosses above slow MA
+longCondition = ta.crossover(fastMA, slowMA)
+
+// Plot moving averages
+plot(fastMA, "Fast MA", color=color.new(color.blue, 0), linewidth=1)
+plot(slowMA, "Slow MA", color=color.new(color.orange, 0), linewidth=2)
+
+// ═══════════════════════════════════════════════════════════════
+//  TRAILING STOP LOGIC
+// ═══════════════════════════════════════════════════════════════
+
+var float stopLoss = na          // Current stop loss level
+var float highestPrice = na      // Highest price since entry
+var bool stopHasMoved = false    // Has the stop moved up at least once?
+var int entryBar = 0             // Bar index when position was entered
+
+// Calculate N-bar low and high
+nBarLow = ta.lowest(low, lookback)
+nBarHigh = ta.highest(high, lookback)
+
+// Calculate previous N-bar high (for detecting new highs)
+prevNBarHigh = ta.highest(high[1], lookback)
+
+// When entering a long position
+if (longCondition and strategy.position_size == 0)
+    // Set initial stop to lowest low of past N bars
+    stopLoss := nBarLow
+    highestPrice := high
+    stopHasMoved := false
+    entryBar := bar_index
+    
+    // Enter long position
+    strategy.entry("Long", strategy.long)
+
+// When in a long position
+if (strategy.position_size > 0)
+    // Update highest price since entry
+    if (high > highestPrice)
+        highestPrice := high
+    
+    // Check if we've made a new N-bar high (current high > previous N-bar high)
+    newNBarHigh = high > prevNBarHigh
+    
+    // If we made a new N-bar high, trail the stop to new N-bar low
+    if (newNBarHigh and nBarLow > stopLoss)
+        stopLoss := nBarLow
+        stopHasMoved := true  // Mark that stop has moved at least once
+    
+    // Exit if price hits the stop
+    strategy.exit("Stop Loss", "Long", stop=stopLoss)
+
+// Reset stop when position is closed
+if (strategy.position_size == 0 and strategy.position_size[1] > 0)
+    stopLoss := na
+    highestPrice := na
+    stopHasMoved := false
+
+// ═══════════════════════════════════════════════════════════════
+//  VISUAL MARKERS & STOP LINE
+// ═══════════════════════════════════════════════════════════════
+
+// Entry marker (green triangle up)
+plotshape(longCondition and strategy.position_size == 0, 
+          title="Entry", 
+          location=location.belowbar, 
+          color=color.new(color.green, 0), 
+          style=shape.triangleup, 
+          size=size.small,
+          text="▲")
+
+// Exit marker (red triangle down) - when position closes
+exitCondition = strategy.position_size == 0 and strategy.position_size[1] > 0
+plotshape(exitCondition, 
+          title="Exit", 
+          location=location.abovebar, 
+          color=color.new(color.red, 0), 
+          style=shape.triangledown, 
+          size=size.small,
+          text="▼")
+
+// Stop line with color coding
+// Red: initial stop (hasn't moved yet)
+// Green: trailing stop (has moved up at least once)
+stopLineColor = strategy.position_size > 0 ? 
+                 (stopHasMoved ? color.new(color.green, 0) : color.new(color.red, 0)) : 
+                 na
+
+plot(showStopLine and strategy.position_size > 0 ? stopLoss : na, 
+     title="Trailing Stop", 
+     color=stopLineColor, 
+     linewidth=stopLineWidth, 
+     style=plot.style_linebr,
+     trackprice=false)
+
+// ═══════════════════════════════════════════════════════════════
+//  INFORMATION LABEL (Optional - shows stop info)
+// ═══════════════════════════════════════════════════════════════
+
+if (strategy.position_size > 0 and barstate.islast)
+    // Create label showing current stop info
+    stopDistance = close - stopLoss
+    stopDistancePct = (stopDistance / close) * 100
+    
+    labelText = "Stop: " + str.tostring(stopLoss, "#.##") + "\n" +
+                 "Distance: " + str.tostring(stopDistancePct, "#.##") + "%\n" +
+                 (stopHasMoved ? "Status: Trailing ✓" : "Status: Initial")
+    
+    label.new(bar_index, stopLoss, 
+              text=labelText, 
+              style=label.style_label_up,
+              color=stopHasMoved ? color.new(color.green, 80) : color.new(color.red, 80),
+              textcolor=color.white,
+              size=size.small)
+
+// ═══════════════════════════════════════════════════════════════
+//  PERFORMANCE TRACKING (Background fill on wins/losses)
+// ═══════════════════════════════════════════════════════════════
+
+// Track entry price for P&L calculation
+var float entryPrice = na
+
+if (longCondition and strategy.position_size == 0)
+    entryPrice := close
+
+// Determine if exit was a win or loss
+if (exitCondition)
+    isWin = close > entryPrice
+    // Fill background: green for wins, red for losses
+    bgcolor(isWin ? color.new(color.green, 95) : color.new(color.red, 95), 
+            title="Trade Result Background")
+
+// ═══════════════════════════════════════════════════════════════
+//  ALERTS (Optional - for automated trading)
+// ═══════════════════════════════════════════════════════════════
+
+// Entry alert
+if (longCondition)
+    alert("2-Bar Trailing Stop: LONG ENTRY at " + str.tostring(close), alert.freq_once_per_bar)
+
+// Stop moved alert
+if (strategy.position_size > 0 and stopLoss != stopLoss[1] and stopHasMoved)
+    alert("2-Bar Trailing Stop: STOP MOVED UP to " + str.tostring(stopLoss), alert.freq_once_per_bar)
+
+// Exit alert
+if (exitCondition)
+    pnlPct = ((close - entryPrice) / entryPrice) * 100
+    alert("2-Bar Trailing Stop: EXIT at " + str.tostring(close) + 
+          " | P&L: " + str.tostring(pnlPct, "#.##") + "%", alert.freq_once_per_bar)
+
+// ════════════════════════════════════════════════════════════════════════════
+//  END OF STRATEGY
+//
+//  USAGE INSTRUCTIONS:
+//  1. Copy this code into TradingView Pine Editor
+//  2. Click "Add to Chart"
+//  3. Adjust settings:
+//     - Lookback Period: 2 bars (default) or customize
+//     - MA lengths for entry (or replace with your own entry logic)
+//     - Show/hide stop line
+//  4. Backtest on your preferred timeframe (works best on 5min-1hour)
+//  
+//  CUSTOMIZATION:
+//  - Replace the MA crossover entry logic with your own setup
+//  - Adjust lookback period (2 bars is standard, but 3-4 can work too)
+//  - Enable alerts for live trading
+//
+//  STOP BEHAVIOR:
+//  - Initial: Lowest low of past N bars at entry (RED line)
+//  - Trailing: Moves up to new N-bar low when price makes new N-bar high (GREEN line)
+//  - Never moves down - protects profits once price runs
+//
+// ════════════════════════════════════════════════════════════════════════════
