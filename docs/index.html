@@ -13,7 +13,15 @@
       --blue: #58a6ff; --purple: #bc8cff;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; }
+    body {
+      background:
+        radial-gradient(1200px 500px at 95% -10%, rgba(88,166,255,.12), transparent 60%),
+        radial-gradient(900px 420px at -10% -20%, rgba(63,185,80,.08), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', 'Aptos', Tahoma, sans-serif;
+      min-height: 100vh;
+    }
 
     /* ── HEADER ── */
     header {
@@ -140,6 +148,56 @@
     .sumitem { display: flex; flex-direction: column; gap: 2px; }
     .sumitem span:first-child { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; }
     .sumitem span:last-child  { font-weight: 700; font-size: 1rem; }
+
+    /* ── SIMPLE ACTION BOARD ── */
+    .coach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+    .coach-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.015), transparent), var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .coach-top { display: flex; align-items: center; gap: 8px; }
+    .coach-top h3 { font-size: 0.92rem; }
+    .coach-pill { font-size: 0.72rem; padding: 4px 9px; border-radius: 100px; font-weight: 700; }
+    .coach-buy  { background: rgba(63,185,80,.13); color: var(--green); }
+    .coach-sell { background: rgba(248,81,73,.13); color: var(--red); }
+    .coach-hold { background: rgba(210,153,34,.13); color: var(--yellow); }
+    .coach-note { font-size: 0.8rem; color: #cfd8e3; line-height: 1.45; }
+    .coach-time { font-size: 0.74rem; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 7px; }
+
+    /* ── PAPER TRADING ── */
+    .sim-wrap {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.02), transparent), var(--surface);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .sim-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .sim-kpi { display: flex; gap: 14px; flex-wrap: wrap; }
+    .sim-k {
+      min-width: 160px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(13,17,23,.55);
+    }
+    .sim-k small { display: block; color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: .04em; }
+    .sim-k b { font-size: 0.98rem; }
+    .sim-log { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+    .sim-log table { font-size: 0.76rem; }
+    .sim-log td, .sim-log th { padding: 7px 9px; }
+
+    @media (max-width: 900px) {
+      main { padding: 14px; }
+      .icard-stats { grid-template-columns: 1fr; }
+      .sim-k { min-width: 48%; }
+    }
   </style>
 </head>
 <body>
@@ -160,6 +218,40 @@
 
 <!-- ════════════════════════════════════ MAIN ════════════════════════════════════ -->
 <main>
+
+  <!-- PORTFOLIO -->
+  <section>
+    <h2>
+      💼 My Portfolio
+      <button class="btn-sm" onclick="openModal()">+ Add Position</button>
+    </h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Shares</th>
+            <th>Bought @</th>
+            <th>Current</th>
+            <th>P&amp;L $</th>
+            <th>P&amp;L %</th>
+            <th>Signal</th>
+            <th>Action</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="pb"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SIMPLE ACTION BOARD -->
+  <section>
+    <h2>🧭 Clear Buy/Sell Guidance (Simple Mode)</h2>
+    <div class="coach-grid" id="coach-grid">
+      <div class="empty" style="padding:24px">Loading guidance...</div>
+    </div>
+  </section>
 
   <!-- WATCHLIST -->
   <section>
@@ -188,35 +280,34 @@
     </div>
   </section>
 
-  <!-- PORTFOLIO -->
+  <!-- PAPER TRADING LAB -->
   <section>
-    <h2>
-      💼 My Portfolio
-      <button class="btn-sm" onclick="openModal()">+ Add Position</button>
-    </h2>
-    <div class="tw">
-      <table>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Shares</th>
-            <th>Bought @</th>
-            <th>Current</th>
-            <th>P&amp;L $</th>
-            <th>P&amp;L %</th>
-            <th>Signal</th>
-            <th>Action</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="pb"></tbody>
-      </table>
+    <h2>🧪 Weekly Test Trading Lab</h2>
+    <div class="sim-wrap">
+      <div class="sim-controls">
+        <label style="font-size:.8rem;color:var(--muted)">Start Amount ($)</label>
+        <input id="sim-start" type="number" min="100" step="100" value="50000" style="width:130px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px" />
+        <button class="btn-p" onclick="simStart()">Start Simulation</button>
+        <button onclick="simToggle()" id="sim-toggle">Pause</button>
+        <button onclick="simRunNow()">Run Today</button>
+        <button onclick="simReset()">Reset</button>
+        <span id="sim-status" style="font-size:.77rem;color:var(--muted)"></span>
+      </div>
+      <div class="sim-kpi" id="sim-kpi"></div>
+      <div class="sim-log">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Stock</th><th>Action</th><th>Price</th><th>Reason</th><th>P/L</th></tr>
+          </thead>
+          <tbody id="sim-log-body"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 
   <!-- PORTFOLIO INSIGHTS -->
   <section id="insights-section">
-    <h2>🧠 Portfolio Insights &amp; Suggestions</h2>
+    <h2>🧠 Suggestions &amp; Why (Bottom Summary)</h2>
     <div id="sumbar" class="sumbar" style="display:none"></div>
     <div class="insights-grid" id="insights-grid">
       <div class="empty" style="padding:36px;color:var(--muted)">Add positions to see personalised suggestions</div>
@@ -257,7 +348,27 @@ let S = {
   portfolio : [],   // [{ticker, shares, buyPrice, note?}]
   data      : {},   // {ticker: stockObj | {err:true}}
   busy      : false,
-  seeded    : false
+  seeded    : false,
+  marketBull: null,
+  sim: {
+    started      : false,
+    enabled      : true,
+    startCash    : 50000,
+    cash         : 50000,
+    positions    : [],  // [{ticker, shares, buyPrice, openedAt, daysHeld}]
+    log          : [],  // [{ts,ticker,side,price,reason,pnl}]
+    closed       : [],
+    lastRunDate  : null,
+    weekStart    : null,
+    weeklyHistory: [],
+    learn: {
+      buyMinScore : 7,
+      sellMaxScore: 4,
+      holdDays    : 3,
+      stopPct     : -2,
+      targetPct   : 3.5
+    }
+  }
 };
 
 // ── Load: localStorage first, then fall back to JSON data files ──
@@ -265,8 +376,13 @@ async function load() {
   try {
     const w = localStorage.getItem('ss_watch');
     const p = localStorage.getItem('ss_port');
+    const sim = localStorage.getItem('ss_sim');
     if (w) S.watchlist = JSON.parse(w);
     if (p) S.portfolio  = JSON.parse(p);
+    if (sim) {
+      const parsedSim = JSON.parse(sim);
+      S.sim = { ...S.sim, ...parsedSim, learn: { ...S.sim.learn, ...(parsedSim.learn || {}) } };
+    }
   } catch(e) {}
 
   // First visit: seed from data files
@@ -293,6 +409,22 @@ async function load() {
 function save() {
   localStorage.setItem('ss_watch', JSON.stringify(S.watchlist));
   localStorage.setItem('ss_port',  JSON.stringify(S.portfolio));
+  localStorage.setItem('ss_sim',   JSON.stringify(S.sim));
+}
+
+function fmtMoney(v) {
+  return '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtClock(dt) {
+  return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function tradeWindowLabel(signalLabel) {
+  // Keep action windows simple for general users.
+  if (signalLabel.includes('Strong Buy') || signalLabel.includes('Bullish')) return 'Best buy window: tomorrow 10:30 AM - 11:30 AM';
+  if (signalLabel.includes('Bearish')) return 'Best sell window: tomorrow 9:45 AM - 10:30 AM';
+  return 'Watch window: tomorrow 10:30 AM - 12:00 PM';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -471,11 +603,12 @@ function prediction(d) {
 function action(d, buyPrice) {
   if (!d || d.err || !d.price) return { text:'Loading…', cls:'' };
   const pct = (d.price - buyPrice) / buyPrice * 100;
-  if (pct >= 3.5)           return { text:'✅ Take Profit (+3.5%)',  cls:'pos' };
-  if (pct <= -2)            return { text:'🛑 Stop Loss (−2%)',       cls:'neg' };
-  if (d.totalScore >= 6)   return { text:'✋ Hold — bullish',         cls:'pos' };
-  if (d.totalScore >= 4)   return { text:'⚠️ Monitor',               cls:'' };
-  return                          { text:'📉 Consider exit',          cls:'neg' };
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (pct >= 3.5)           return { text:`✅ Sell ${tomorrow} 9:45-10:30 AM`, cls:'pos' };
+  if (pct <= -2 && d.totalScore < 8) return { text:`🛑 Sell ${tomorrow} 9:45-10:30 AM`, cls:'neg' };
+  if (d.totalScore >= 7)    return { text:`🟢 Buy add-on ${tomorrow} 10:30-11:30 AM`, cls:'pos' };
+  if (d.totalScore >= 5)    return { text:`✋ Hold, review ${tomorrow} 11:00 AM`, cls:'' };
+  return                    { text:`📉 Exit ${tomorrow} if no recovery by 10:30 AM`, cls:'neg' };
 }
 
 function fmtDate(dt) {
@@ -588,6 +721,10 @@ function renderAll(loading) {
 
   // Insights
   renderInsights(loading);
+
+  // Simple guidance + simulator
+  renderCoachBoard(loading);
+  renderSim();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -723,6 +860,273 @@ function renderInsights(loading) {
   }).join('') || `<div class="empty" style="padding:36px;color:var(--muted)">Waiting for data…</div>`;
 }
 
+function simpleAction(pos, d) {
+  const hasPos = !!pos;
+  const sig = signal(d);
+  const pred = prediction(d);
+  const score = d?.totalScore ?? 0;
+  const price = d?.price ?? 0;
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 86400000);
+  const day = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  if (!d || d.err) {
+    return {
+      ticker: pos?.ticker || 'Unknown',
+      pillCls: 'coach-hold',
+      pill: 'WAIT',
+      note: 'Data is unavailable right now. Do not trade this stock until data refresh succeeds.',
+      time: 'No action time available'
+    };
+  }
+
+  if (hasPos) {
+    const pnlPct = ((price - pos.buyPrice) / pos.buyPrice) * 100;
+    if (pnlPct >= S.sim.learn.targetPct || score <= S.sim.learn.sellMaxScore) {
+      return {
+        ticker: pos.ticker,
+        pillCls: 'coach-sell',
+        pill: 'SELL',
+        note: `${pos.ticker} has reached your exit conditions. You can sell to lock results and reduce risk.`,
+        time: `${day} - ${tradeWindowLabel('Bearish')} (market trend ${S.marketBull ? 'supports holding winners' : 'is weak'})`
+      };
+    }
+    if (pnlPct <= S.sim.learn.stopPct && score < 8) {
+      return {
+        ticker: pos.ticker,
+        pillCls: 'coach-sell',
+        pill: 'SELL',
+        note: `${pos.ticker} is below your safety limit and trend is not strong enough. Reduce loss now.`,
+        time: `${day} - Best sell window: tomorrow 9:45 AM - 10:30 AM`
+      };
+    }
+    return {
+      ticker: pos.ticker,
+      pillCls: 'coach-hold',
+      pill: 'HOLD',
+      note: `${pos.ticker} looks stable now. Keep holding and review again after next refresh.`,
+      time: `${day} - Re-check around 11:00 AM and 2:30 PM`
+    };
+  }
+
+  if (score >= S.sim.learn.buyMinScore && (S.marketBull !== false)) {
+    return {
+      ticker: d.ticker,
+      pillCls: 'coach-buy',
+      pill: 'BUY',
+      note: `${d.ticker} is showing bullish momentum from historical indicators and current trend data.`,
+      time: `${day} - ${tradeWindowLabel(sig.label)} | outlook: ${pred.text}`
+    };
+  }
+  return {
+    ticker: d.ticker,
+    pillCls: 'coach-hold',
+    pill: 'WAIT',
+    note: `${d.ticker} is not a high-confidence setup yet. Keep it in monitor list.`,
+    time: `${day} - Watch for score >= ${S.sim.learn.buyMinScore} and positive market trend`
+  };
+}
+
+function renderCoachBoard(loading) {
+  const el = document.getElementById('coach-grid');
+  if (!el) return;
+  if (loading) {
+    el.innerHTML = `<div class="empty" style="padding:24px">Analysing action timing from trend + historical setup...</div>`;
+    return;
+  }
+
+  const cards = [];
+  for (const pos of S.portfolio) cards.push(simpleAction(pos, S.data[pos.ticker]));
+
+  const watchOnly = S.watchlist.filter(t => !S.portfolio.some(p => p.ticker === t)).slice(0, 4);
+  for (const t of watchOnly) if (S.data[t]) cards.push(simpleAction(null, S.data[t]));
+
+  if (!cards.length) {
+    el.innerHTML = `<div class="empty" style="padding:24px">Add stocks to watchlist to receive plain-language buy/sell guidance.</div>`;
+    return;
+  }
+
+  el.innerHTML = cards.map(c => `
+    <article class="coach-card">
+      <div class="coach-top">
+        <h3>${c.ticker}</h3>
+        <span class="coach-pill ${c.pillCls}">${c.pill}</span>
+      </div>
+      <p class="coach-note">${c.note}</p>
+      <div class="coach-time">${c.time}</div>
+    </article>
+  `).join('');
+}
+
+function simPortfolioValue() {
+  const posVal = S.sim.positions.reduce((a, p) => a + (S.data[p.ticker]?.price || p.buyPrice) * p.shares, 0);
+  return S.sim.cash + posVal;
+}
+
+function simLog(side, ticker, price, reason, pnl = null) {
+  S.sim.log.unshift({ ts: Date.now(), side, ticker, price, reason, pnl });
+  if (S.sim.log.length > 250) S.sim.log.length = 250;
+}
+
+function simApplyLearning() {
+  if (!S.sim.closed.length) return;
+  const last10 = S.sim.closed.slice(-10);
+  const wins = last10.filter(t => t.pnl > 0).length;
+  const rate = wins / last10.length;
+
+  if (rate < 0.45) {
+    S.sim.learn.buyMinScore = Math.min(9, S.sim.learn.buyMinScore + 1);
+    S.sim.learn.sellMaxScore = Math.min(6, S.sim.learn.sellMaxScore + 1);
+    S.sim.learn.holdDays = Math.max(2, S.sim.learn.holdDays - 1);
+  } else if (rate > 0.65) {
+    S.sim.learn.buyMinScore = Math.max(6, S.sim.learn.buyMinScore - 1);
+    S.sim.learn.sellMaxScore = Math.max(3, S.sim.learn.sellMaxScore - 1);
+    S.sim.learn.holdDays = Math.min(5, S.sim.learn.holdDays + 1);
+  }
+}
+
+function simRunCycle(force = false) {
+  if (!S.sim.started || !S.sim.enabled) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (!force && S.sim.lastRunDate === today) return;
+
+  const available = S.watchlist.map(t => S.data[t]).filter(d => d && !d.err);
+  const sortedBuy = [...available]
+    .filter(d => d.totalScore >= S.sim.learn.buyMinScore && (S.marketBull !== false))
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .slice(0, 3);
+
+  // Sell pass first
+  const remaining = [];
+  for (const p of S.sim.positions) {
+    const d = S.data[p.ticker];
+    if (!d || d.err) { remaining.push({ ...p, daysHeld: p.daysHeld + 1 }); continue; }
+    const pnlPct = ((d.price - p.buyPrice) / p.buyPrice) * 100;
+    const shouldSell =
+      pnlPct >= S.sim.learn.targetPct ||
+      pnlPct <= S.sim.learn.stopPct ||
+      d.totalScore <= S.sim.learn.sellMaxScore ||
+      p.daysHeld >= S.sim.learn.holdDays;
+    if (shouldSell) {
+      const pnl = (d.price - p.buyPrice) * p.shares;
+      S.sim.cash += d.price * p.shares;
+      S.sim.closed.push({ ticker: p.ticker, pnl, openedAt: p.openedAt, closedAt: Date.now() });
+      simLog('SELL', p.ticker, d.price, `Rule exit (score ${d.totalScore}/14, held ${p.daysHeld}d)`, pnl);
+    } else {
+      remaining.push({ ...p, daysHeld: p.daysHeld + 1 });
+    }
+  }
+  S.sim.positions = remaining;
+
+  // Buy pass
+  const budgetPerTrade = Math.max(0, S.sim.cash * 0.2);
+  for (const d of sortedBuy) {
+    if (S.sim.positions.some(p => p.ticker === d.ticker)) continue;
+    if (budgetPerTrade < d.price) continue;
+    const shares = Math.floor(budgetPerTrade / d.price);
+    if (shares <= 0) continue;
+    const cost = shares * d.price;
+    if (cost > S.sim.cash) continue;
+    S.sim.cash -= cost;
+    S.sim.positions.push({ ticker: d.ticker, shares, buyPrice: d.price, openedAt: Date.now(), daysHeld: 0 });
+    simLog('BUY', d.ticker, d.price, `Top setup from monitor list (score ${d.totalScore}/14)`);
+  }
+
+  S.sim.lastRunDate = today;
+  if (!S.sim.weekStart) S.sim.weekStart = today;
+
+  // Weekly snapshot each Sunday
+  const wd = new Date().getDay();
+  if (wd === 0) {
+    S.sim.weeklyHistory.push({
+      weekEnding: today,
+      equity: simPortfolioValue(),
+      trades: S.sim.log.filter(x => x.side === 'SELL').length
+    });
+    if (S.sim.weeklyHistory.length > 20) S.sim.weeklyHistory.shift();
+  }
+
+  simApplyLearning();
+  save();
+}
+
+function simStart() {
+  const v = parseFloat(document.getElementById('sim-start').value);
+  if (!v || v < 100) { alert('Enter a valid start amount above $100.'); return; }
+  S.sim.started = true;
+  S.sim.enabled = true;
+  S.sim.startCash = v;
+  S.sim.cash = v;
+  S.sim.positions = [];
+  S.sim.log = [];
+  S.sim.closed = [];
+  S.sim.lastRunDate = null;
+  S.sim.weekStart = new Date().toISOString().slice(0, 10);
+  save();
+  renderSim();
+}
+
+function simToggle() {
+  S.sim.enabled = !S.sim.enabled;
+  save();
+  renderSim();
+}
+
+function simRunNow() {
+  simRunCycle(true);
+  renderAll(false);
+}
+
+function simReset() {
+  S.sim.started = false;
+  S.sim.enabled = true;
+  S.sim.cash = S.sim.startCash;
+  S.sim.positions = [];
+  S.sim.log = [];
+  S.sim.closed = [];
+  S.sim.lastRunDate = null;
+  save();
+  renderSim();
+}
+
+function renderSim() {
+  const kpi = document.getElementById('sim-kpi');
+  const logBody = document.getElementById('sim-log-body');
+  const status = document.getElementById('sim-status');
+  const tgl = document.getElementById('sim-toggle');
+  const startInput = document.getElementById('sim-start');
+  if (!kpi || !logBody || !status || !tgl) return;
+  if (startInput) startInput.value = String(S.sim.startCash || 50000);
+
+  const equity = simPortfolioValue();
+  const pnl = equity - (S.sim.startCash || 0);
+  const pnlPct = S.sim.startCash ? (pnl / S.sim.startCash) * 100 : 0;
+
+  kpi.innerHTML = `
+    <div class="sim-k"><small>Simulator Equity</small><b>${fmtMoney(equity)}</b></div>
+    <div class="sim-k"><small>Cash</small><b>${fmtMoney(S.sim.cash)}</b></div>
+    <div class="sim-k"><small>Open Positions</small><b>${S.sim.positions.length}</b></div>
+    <div class="sim-k"><small>Weekly P/L</small><b class="${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}${fmtMoney(pnl)} (${pnlPct.toFixed(2)}%)</b></div>
+    <div class="sim-k"><small>Learning Mode</small><b>Buy score >= ${S.sim.learn.buyMinScore}, hold ${S.sim.learn.holdDays}d</b></div>`;
+
+  status.textContent = !S.sim.started
+    ? 'Simulator not started yet.'
+    : (S.sim.enabled ? `Running daily. Last cycle: ${S.sim.lastRunDate || 'not run yet'}` : 'Paused. No automatic trades will run.');
+  tgl.textContent = S.sim.enabled ? 'Pause' : 'Resume';
+
+  logBody.innerHTML = S.sim.log.length
+    ? S.sim.log.slice(0, 80).map(x => `
+      <tr>
+        <td>${new Date(x.ts).toLocaleDateString('en-US')}</td>
+        <td>${x.ticker}</td>
+        <td class="${x.side==='BUY'?'pos':'neg'}">${x.side}</td>
+        <td>${fmtMoney(x.price)}</td>
+        <td>${x.reason}</td>
+        <td class="${(x.pnl||0)>=0?'pos':'neg'}">${x.pnl==null?'--':(x.pnl>=0?'+':'') + fmtMoney(Math.abs(x.pnl))}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="6" style="color:var(--muted)">No simulated trades yet.</td></tr>`;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  REFRESH
 // ══════════════════════════════════════════════════════════════
@@ -745,6 +1149,7 @@ async function refreshAll() {
   const [_, ...results] = await Promise.allSettled([
     fetchStock('^GSPC').then(spy => {
       const bull = spy.macdDiff > 0 && spy.price >= spy.ema20 * 0.97;
+      S.marketBull = bull;
       const b = document.getElementById('banner');
       const chg = `$${spy.price.toFixed(2)} (${spy.change>=0?'+':''}${spy.changePct.toFixed(2)}%)`;
       if (bull) {
@@ -756,13 +1161,15 @@ async function refreshAll() {
       }
     }).catch(() => {
       const b = document.getElementById('banner');
+      S.marketBull = null;
       b.className = 'b-neu'; b.innerHTML = '⚠️ Could not load market trend data';
     }),
     ...allTickers.map(t => loadOne(t))
   ]);
 
+  simRunCycle(false);
   renderAll(false);
-  document.getElementById('ts').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  document.getElementById('ts').textContent = 'Updated: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
   btn.innerHTML = '🔄 Refresh';
   btn.disabled = false;
   S.busy = false;
