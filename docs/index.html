@@ -3,72 +3,229 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>📈 Stock Scanner Dashboard</title>
+  <title>Atlas Swing Scanner</title>
   <!-- data files: docs/data/portfolio.json, docs/data/watchlist.json -->
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
     :root {
-      --bg: #0d1117; --surface: #161b22; --surface2: #1c2128;
-      --border: #30363d; --text: #e6edf3; --muted: #8b949e;
-      --green: #3fb950; --red: #f85149; --yellow: #d29922;
-      --blue: #58a6ff; --purple: #bc8cff;
+      --bg: #f3f7fb; --surface: rgba(255,255,255,.88); --surface2: #eef4f8;
+      --surface3: #e3ecf3; --border: rgba(19, 43, 67, .12); --text: #122235; --muted: #5f7488;
+      --green: #157f63; --red: #c4514b; --yellow: #b8841a;
+      --blue: #1e63d9; --teal: #0f766e; --ink: #0f2740; --shadow: 0 20px 55px rgba(15, 39, 64, .10);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background:
-        radial-gradient(1200px 500px at 95% -10%, rgba(88,166,255,.12), transparent 60%),
-        radial-gradient(900px 420px at -10% -20%, rgba(63,185,80,.08), transparent 60%),
+        radial-gradient(900px 420px at 100% -10%, rgba(30,99,217,.16), transparent 58%),
+        radial-gradient(680px 320px at -10% 0%, rgba(15,118,110,.14), transparent 55%),
+        linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%),
         var(--bg);
       color: var(--text);
-      font-family: 'Segoe UI', 'Aptos', Tahoma, sans-serif;
+      font-family: 'Manrope', 'Segoe UI', sans-serif;
       min-height: 100vh;
     }
 
     /* ── HEADER ── */
     header {
-      background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 14px 24px; display: flex; align-items: center; gap: 12px;
-      flex-wrap: wrap; position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(18px);
+      background: rgba(248, 251, 253, .76);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    header h1 { font-size: 1.1rem; font-weight: 700; flex: 1; min-width: 180px; white-space: nowrap; }
+    header h1 {
+      font-size: 1.02rem;
+      font-weight: 800;
+      flex: 1;
+      min-width: 220px;
+      color: var(--ink);
+      letter-spacing: -.02em;
+      white-space: nowrap;
+    }
     .hctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     #add-input {
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      padding: 7px 12px; border-radius: 6px; font-size: 0.875rem; outline: none; width: 130px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      outline: none;
+      width: 150px;
       text-transform: uppercase;
     }
-    #add-input:focus { border-color: var(--blue); }
+    #add-input:focus { border-color: rgba(30,99,217,.55); box-shadow: 0 0 0 4px rgba(30,99,217,.10); }
     #add-input::placeholder { text-transform: none; }
-    button { padding: 7px 15px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; background: var(--surface2); color: var(--text); }
-    button:hover { border-color: var(--blue); color: var(--blue); }
-    .btn-p { background: var(--blue) !important; color: #fff !important; border-color: var(--blue) !important; }
-    .btn-p:hover { opacity: 0.85; }
+    button {
+      padding: 9px 15px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 700;
+      transition: all 0.18s ease;
+      background: rgba(255,255,255,.92);
+      color: var(--text);
+    }
+    button:hover { border-color: rgba(30,99,217,.35); color: var(--blue); transform: translateY(-1px); }
+    .btn-p {
+      background: linear-gradient(135deg, #1d6ce0, #0f766e) !important;
+      color: #fff !important;
+      border-color: transparent !important;
+      box-shadow: 0 12px 26px rgba(15, 118, 110, .16);
+    }
+    .btn-p:hover { opacity: 0.92; }
     .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
     .btn-del { background: transparent !important; color: var(--red) !important; border-color: transparent !important; padding: 3px 8px; font-size: 0.8rem; }
     .btn-del:hover { background: rgba(248,81,73,.1) !important; }
     #ts { font-size: 0.75rem; color: var(--muted); margin-left: 4px; }
 
     /* ── MARKET BANNER ── */
-    #banner { padding: 9px 24px; font-size: 0.85rem; font-weight: 500; border-bottom: 1px solid var(--border); }
-    .b-bull { background: rgba(63,185,80,.08); color: var(--green); }
-    .b-bear { background: rgba(248,81,73,.08); color: var(--red); }
-    .b-neu  { background: rgba(139,148,158,.08); color: var(--muted); }
+    #banner {
+      margin: 14px 16px 0;
+      padding: 12px 16px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+    .b-bull { background: rgba(21,127,99,.10); color: var(--green); }
+    .b-bear { background: rgba(196,81,75,.10); color: var(--red); }
+    .b-neu  { background: rgba(95,116,136,.10); color: var(--muted); }
 
     /* ── MAIN ── */
-    main { padding: 24px; max-width: 1440px; margin: 0 auto; }
-    section { margin-bottom: 32px; }
-    section > h2 { font-size: 0.95rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+    main { padding: 18px 16px 32px; max-width: 1240px; margin: 0 auto; }
+    section { margin-bottom: 20px; }
+    section > h2 {
+      font-size: 0.98rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      letter-spacing: -.02em;
+    }
+
+    .hero-grid, .overview-grid, .rank-list { display: grid; gap: 12px; }
+    .hero-grid { grid-template-columns: repeat(12, 1fr); margin-top: 16px; }
+    .hero-card, .overview-card, .strategy-card, .rank-card, .coach-card, .icard, .sim-wrap {
+      background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.95));
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+    .hero-card {
+      grid-column: span 12;
+      padding: 18px;
+      overflow: hidden;
+      position: relative;
+    }
+    .hero-card.primary {
+      background:
+        radial-gradient(300px 160px at 100% 0%, rgba(255,255,255,.20), transparent 65%),
+        linear-gradient(135deg, #133c66 0%, #145b79 48%, #0f766e 100%);
+      color: #f5fbff;
+    }
+    .hero-card.primary .hero-kicker,
+    .hero-card.primary .hero-meta,
+    .hero-card.primary .hero-subcopy,
+    .hero-card.primary .hero-stat span:first-child { color: rgba(245, 251, 255, .72); }
+    .hero-card.primary .hero-stat span:last-child { color: #fff; }
+    .hero-kicker { font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .hero-title { font-size: clamp(1.45rem, 5vw, 2.4rem); line-height: 1.05; font-weight: 800; margin-top: 8px; max-width: 12ch; }
+    .hero-subcopy { font-size: 0.92rem; line-height: 1.55; margin-top: 10px; max-width: 52ch; color: var(--muted); }
+    .hero-meta { font-size: 0.8rem; font-weight: 700; margin-top: 12px; color: var(--muted); }
+    .hero-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .hero-stat { padding: 12px; border-radius: 16px; background: rgba(255,255,255,.10); backdrop-filter: blur(8px); }
+    .hero-stat span { display: block; }
+    .hero-stat span:first-child { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
+    .hero-stat span:last-child { margin-top: 5px; font-size: 1.05rem; font-weight: 800; }
+    .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .overview-card { padding: 14px; }
+    .overview-card small { display: block; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
+    .overview-card strong { display: block; margin-top: 6px; font-size: 1.18rem; color: var(--ink); }
+    .strategy-card { padding: 16px; }
+    .strategy-card details summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .strategy-card details summary::-webkit-details-marker { display: none; }
+    .strategy-grid { display: grid; gap: 12px; margin-top: 14px; }
+    .strategy-block {
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: rgba(243, 247, 251, .88);
+    }
+    .strategy-block h3 { font-size: 0.85rem; margin-bottom: 8px; color: var(--ink); }
+    .strategy-block p { font-size: 0.82rem; line-height: 1.55; color: var(--muted); }
+    .strategy-list { display: grid; gap: 8px; margin-top: 10px; }
+    .strategy-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.8rem;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(19, 43, 67, .08);
+    }
+    .strategy-item strong { color: var(--ink); }
+    .rank-list { grid-template-columns: 1fr; }
+    .rank-card { padding: 16px; }
+    .rank-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .rank-id { display: flex; align-items: center; gap: 12px; }
+    .rank-no {
+      width: 34px; height: 34px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface3); color: var(--ink); font-size: 0.82rem; font-weight: 800;
+    }
+    .rank-symbol { font-size: 1.02rem; font-weight: 800; color: var(--ink); }
+    .rank-price { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .rank-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .rank-metric { padding: 10px 12px; border-radius: 14px; background: rgba(243, 247, 251, .88); border: 1px solid rgba(19, 43, 67, .08); }
+    .rank-metric span { display: block; }
+    .rank-metric span:first-child { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .rank-metric span:last-child { margin-top: 4px; font-size: 0.95rem; font-weight: 800; }
+    .rank-reasons { display: grid; gap: 8px; margin-top: 14px; }
+    .reason-pill {
+      padding: 9px 11px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      background: rgba(243, 247, 251, .88);
+      border: 1px solid rgba(19, 43, 67, .08);
+      color: var(--muted);
+    }
+    .reason-pill strong { color: var(--ink); }
+    .desktop-metrics { display: none; }
 
     /* ── TABLES ── */
-    .tw { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    .tw { overflow-x: auto; border-radius: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); background: rgba(255,255,255,.92); }
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
     thead th {
-      background: var(--surface); padding: 9px 13px; text-align: left;
+      background: rgba(243, 247, 251, .92); padding: 11px 13px; text-align: left;
       color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase;
       letter-spacing: .05em; white-space: nowrap; border-bottom: 1px solid var(--border);
     }
     tbody td { padding: 9px 13px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: middle; white-space: nowrap; }
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: rgba(56,68,77,.12); }
+    tbody tr:hover td { background: rgba(30,99,217,.04); }
 
     /* ── BADGES ── */
     .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
@@ -79,7 +236,7 @@
     /* ── SCORE BAR ── */
     .sbar { display: flex; align-items: center; gap: 7px; }
     .sval { font-weight: 700; min-width: 18px; text-align: right; font-size: 0.85rem; }
-    .strk { height: 5px; background: var(--border); border-radius: 3px; flex: 1; min-width: 50px; }
+    .strk { height: 6px; background: rgba(19, 43, 67, .08); border-radius: 999px; flex: 1; min-width: 50px; }
     .sfil { height: 100%; border-radius: 3px; transition: width .3s; }
 
     /* ── COLORS ── */
@@ -95,12 +252,12 @@
     /* ── MODAL ── */
     .ov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 200; align-items: center; justify-content: center; }
     .ov.on { display: flex; }
-    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 340px; max-width: 92vw; }
+    .modal { background: rgba(255,255,255,.98); border: 1px solid var(--border); border-radius: 20px; padding: 24px; width: 340px; max-width: 92vw; box-shadow: var(--shadow); }
     .modal h3 { font-size: 1rem; margin-bottom: 4px; }
     .modal p  { font-size: 0.78rem; color: var(--muted); margin-bottom: 16px; }
     .modal label { display: block; font-size: 0.78rem; color: var(--muted); margin: 10px 0 3px; }
-    .modal input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 11px; border-radius: 6px; font-size: 0.875rem; outline: none; }
-    .modal input:focus { border-color: var(--blue); }
+    .modal input { width: 100%; background: rgba(243, 247, 251, .88); border: 1px solid var(--border); color: var(--text); padding: 10px 11px; border-radius: 12px; font-size: 0.875rem; outline: none; }
+    .modal input:focus { border-color: rgba(30,99,217,.55); box-shadow: 0 0 0 4px rgba(30,99,217,.10); }
     .ma { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 
     /* ── SPIN ── */
@@ -118,7 +275,7 @@
     /* ── INSIGHTS ── */
     .insights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
     .icard {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      border-radius: 18px;
       padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
     }
     .icard-head { display: flex; align-items: center; gap: 10px; }
@@ -152,9 +309,7 @@
     /* ── SIMPLE ACTION BOARD ── */
     .coach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
     .coach-card {
-      background: linear-gradient(180deg, rgba(255,255,255,.015), transparent), var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 18px;
       padding: 14px 15px;
       display: flex;
       flex-direction: column;
@@ -166,14 +321,12 @@
     .coach-buy  { background: rgba(63,185,80,.13); color: var(--green); }
     .coach-sell { background: rgba(248,81,73,.13); color: var(--red); }
     .coach-hold { background: rgba(210,153,34,.13); color: var(--yellow); }
-    .coach-note { font-size: 0.8rem; color: #cfd8e3; line-height: 1.45; }
+    .coach-note { font-size: 0.8rem; color: var(--text); line-height: 1.5; }
     .coach-time { font-size: 0.74rem; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 7px; }
 
     /* ── PAPER TRADING ── */
     .sim-wrap {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: linear-gradient(180deg, rgba(255,255,255,.02), transparent), var(--surface);
+      border-radius: 18px;
       padding: 14px;
       display: grid;
       gap: 12px;
@@ -182,10 +335,9 @@
     .sim-kpi { display: flex; gap: 14px; flex-wrap: wrap; }
     .sim-k {
       min-width: 160px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 14px;
       padding: 10px 12px;
-      background: rgba(13,17,23,.55);
+      background: rgba(243,247,251,.92);
     }
     .sim-k small { display: block; color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: .04em; }
     .sim-k b { font-size: 0.98rem; }
@@ -193,10 +345,30 @@
     .sim-log table { font-size: 0.76rem; }
     .sim-log td, .sim-log th { padding: 7px 9px; }
 
-    @media (max-width: 900px) {
-      main { padding: 14px; }
+    @media (min-width: 860px) {
+      .hero-card.primary { grid-column: span 7; }
+      .hero-card.secondary { grid-column: span 5; }
+      .overview-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .strategy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .rank-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (min-width: 1080px) {
+      .desktop-metrics { display: block; }
+      .rank-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 780px) {
+      header { padding: 12px 14px; }
+      header h1 { white-space: normal; }
+      .hctl { width: 100%; }
+      .hctl > * { flex: 1 1 calc(50% - 6px); }
+      #add-input, button { width: 100%; }
+      .hero-stats, .overview-grid, .rank-grid, .coach-grid, .insights-grid { grid-template-columns: 1fr; }
+      .rank-head { flex-direction: column; }
       .icard-stats { grid-template-columns: 1fr; }
-      .sim-k { min-width: 48%; }
+      .sim-k { min-width: calc(50% - 8px); }
+      .tw { border-radius: 16px; }
     }
   </style>
 </head>
@@ -204,7 +376,7 @@
 
 <!-- ════════════════════════════════════ HEADER ════════════════════════════════════ -->
 <header>
-  <h1>📈 Stock Scanner</h1>
+  <h1>Atlas Swing Scanner</h1>
   <div class="hctl">
     <input id="add-input" type="text" placeholder="Add ticker e.g. NVDA" maxlength="10" />
     <button class="btn-p" onclick="addWatch()">+ Add Stock</button>
@@ -218,6 +390,35 @@
 
 <!-- ════════════════════════════════════ MAIN ════════════════════════════════════ -->
 <main>
+
+  <section class="hero-grid">
+    <article class="hero-card primary">
+      <div class="hero-kicker">Mobile-First Market Intelligence</div>
+      <div class="hero-title">See the cleanest bullish setups first.</div>
+      <p class="hero-subcopy">The app now separates bullish setup quality from bearish pressure, then ranks every stock from strongest upside profile to weakest so the watchlist reads like a decision screen instead of a raw data dump.</p>
+      <div class="hero-meta" id="hero-meta">Loading ranked market context...</div>
+      <div class="hero-stats" id="hero-stats">
+        <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
+        <div class="hero-stat"><span>Market Breadth</span><span>Loading...</span></div>
+      </div>
+    </article>
+
+    <article class="hero-card secondary">
+      <section>
+        <h2>Session Snapshot</h2>
+        <div id="overview-grid" class="overview-grid">
+          <div class="overview-card"><small>Watchlist</small><strong>--</strong></div>
+          <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
+          <div class="overview-card"><small>Bearish</small><strong>--</strong></div>
+          <div class="overview-card"><small>Portfolio</small><strong>--</strong></div>
+        </div>
+      </section>
+    </article>
+  </section>
+
+  <section>
+    <div id="strategy-panel" class="strategy-card"></div>
+  </section>
 
   <!-- PORTFOLIO -->
   <section>
@@ -255,7 +456,14 @@
 
   <!-- WATCHLIST -->
   <section>
-    <h2>📊 Watchlist</h2>
+    <h2>📊 Ranked Market Board</h2>
+    <div id="rank-list" class="rank-list">
+      <div class="empty">Loading ranked setups...</div>
+    </div>
+  </section>
+
+  <section class="desktop-metrics">
+    <h2>🧮 Deep Metrics</h2>
     <div class="tw">
       <table>
         <thead>
@@ -264,7 +472,10 @@
             <th>Price</th>
             <th>Change</th>
             <th>Signal</th>
-            <th>Score /14</th>
+            <th>Net</th>
+            <th>Bull</th>
+            <th>Bear</th>
+            <th>Conviction</th>
             <th>RSI</th>
             <th>MACD Diff</th>
             <th>Wk Position</th>
@@ -340,6 +551,30 @@
 // ══════════════════════════════════════════════════════════════
 const DEFAULT_WATCHLIST = ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JPM'];
 
+const MODEL_SPEC = {
+  bullish: [
+    ['Near weekly support', '+2 when weekly position < 50%'],
+    ['RSI recovery zone', '+2 when RSI is between 30 and 65'],
+    ['MACD confirmation', '+2 when MACD diff is positive'],
+    ['EMA20 support', '+2 when price is at least 97% of EMA20'],
+    ['Deep dip bonus', '+1 when weekly position < 35%'],
+    ['Healthy momentum bonus', '+1 when RSI is between 35 and 55']
+  ],
+  bearish: [
+    ['Extended weekly position', '+2 when weekly position > 75%'],
+    ['Overheated RSI', '+2 when RSI is at least 68'],
+    ['Negative MACD', '+2 when MACD diff is below 0'],
+    ['Below EMA20 trend', '+2 when price is below 98.5% of EMA20'],
+    ['Sharp daily drop', '+1 when day change is -2% or worse'],
+    ['EPS miss risk', '+1 when last earnings surprise was negative']
+  ],
+  catalysts: [
+    ['Recent EPS beat', '+1 when last EPS beat estimates'],
+    ['Near-term earnings catalyst', '+1 when earnings are within 5 days'],
+    ['Fresh strength', '+1 when day change is +1.5% or better']
+  ]
+};
+
 // ══════════════════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════════════════
@@ -362,8 +597,8 @@ let S = {
     weekStart    : null,
     weeklyHistory: [],
     learn: {
-      buyMinScore : 7,
-      sellMaxScore: 4,
+      buyMinScore : 4,
+      sellMaxScore: -2,
       holdDays    : 3,
       stopPct     : -2,
       targetPct   : 3.5
@@ -418,6 +653,20 @@ function fmtMoney(v) {
 
 function fmtClock(dt) {
   return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function sortStocks(list) {
+  return [...list].sort((a, b) =>
+    (b.sortScore ?? -9999) - (a.sortScore ?? -9999) ||
+    (b.netScore ?? -999) - (a.netScore ?? -999) ||
+    (b.bullishScore ?? 0) - (a.bullishScore ?? 0) ||
+    (a.bearishScore ?? 0) - (b.bearishScore ?? 0) ||
+    (b.changePct ?? 0) - (a.changePct ?? 0)
+  );
 }
 
 function tradeWindowLabel(signalLabel) {
@@ -481,14 +730,33 @@ function score(closes, highs, lows) {
   const wLow  = Math.min(...lows.slice(-5));
   const wHigh = Math.max(...highs.slice(-5));
   const pos   = wHigh===wLow ? 0.5 : (price-wLow)/(wHigh-wLow);
-  let sc = 0;
-  if (pos  < 0.5)          sc += 2;
-  if (r    > 30 && r < 65) sc += 2;
-  if (mc.diff > 0)          sc += 2;
-  if (price >= ema20*0.97) sc += 2;
-  if (pos  < 0.35)         sc += 1;
-  if (r    > 35 && r < 55) sc += 1;
-  return { score: sc, rsi: r, macdDiff: mc.diff, ema20, position: pos, price };
+  let bullishScore = 0;
+  const bullishDrivers = [];
+  if (pos < 0.5) {
+    bullishScore += 2;
+    bullishDrivers.push('Trading in the lower half of the weekly range');
+  }
+  if (r > 30 && r < 65) {
+    bullishScore += 2;
+    bullishDrivers.push('RSI is in a healthy recovery zone');
+  }
+  if (mc.diff > 0) {
+    bullishScore += 2;
+    bullishDrivers.push('MACD is above its signal line');
+  }
+  if (price >= ema20 * 0.97) {
+    bullishScore += 2;
+    bullishDrivers.push('Price is holding close to EMA20 support');
+  }
+  if (pos < 0.35) {
+    bullishScore += 1;
+    bullishDrivers.push('Price is near the recent support pocket');
+  }
+  if (r > 35 && r < 55) {
+    bullishScore += 1;
+    bullishDrivers.push('Momentum is balanced, not overheated');
+  }
+  return { bullishScore, bullishDrivers, rsi: r, macdDiff: mc.diff, ema20, position: pos, price };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -568,12 +836,53 @@ async function fetchStock(ticker) {
     }
   }
 
-  // Earnings scoring
-  let totalScore = ind.score;
-  if (lastEPSBeat) totalScore += 2;
-  if (daysToEarnings !== null && daysToEarnings >= 0 && daysToEarnings <= 5) totalScore += 2;
+  let bearishScore = 0;
+  const bearishDrivers = [];
+  if (ind.position > 0.75) {
+    bearishScore += 2;
+    bearishDrivers.push('Price is already near the top of the weekly range');
+  }
+  if (ind.rsi >= 68) {
+    bearishScore += 2;
+    bearishDrivers.push('RSI is overheated and pullback risk is higher');
+  }
+  if (ind.macdDiff < 0) {
+    bearishScore += 2;
+    bearishDrivers.push('MACD is below the signal line');
+  }
+  if (price < ind.ema20 * 0.985) {
+    bearishScore += 2;
+    bearishDrivers.push('Price is losing EMA20 trend support');
+  }
+  if (changePct <= -2) {
+    bearishScore += 1;
+    bearishDrivers.push('Daily move is showing fresh downside pressure');
+  }
+  if (lastEPSSurprise !== null && lastEPSSurprise < 0) {
+    bearishScore += 1;
+    bearishDrivers.push('Last EPS report missed expectations');
+  }
 
-  return { ticker, price, change, changePct, ...ind, totalScore,
+  let catalystScore = 0;
+  const catalystDrivers = [];
+  if (lastEPSBeat) {
+    catalystScore += 1;
+    catalystDrivers.push('Recent EPS beat supports momentum follow-through');
+  }
+  if (daysToEarnings !== null && daysToEarnings >= 0 && daysToEarnings <= 5) {
+    catalystScore += 1;
+    catalystDrivers.push('Upcoming earnings can act as a catalyst');
+  }
+  if (changePct >= 1.5) {
+    catalystScore += 1;
+    catalystDrivers.push('Price is already attracting fresh buyers');
+  }
+
+  const netScore = ind.bullishScore + catalystScore - bearishScore;
+  const conviction = clamp(Math.round(((netScore + 9) / 22) * 100), 0, 100);
+  const sortScore = netScore * 100 + ind.bullishScore * 10 - bearishScore;
+
+  return { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
            nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate };
 }
 
@@ -582,32 +891,32 @@ async function fetchStock(ticker) {
 // ══════════════════════════════════════════════════════════════
 function signal(d) {
   if (!d || d.err) return { label:'—', cls:'by' };
-  const s = d.totalScore;
-  if (s >= 8 && d.macdDiff > 0) return { label:'🟢 Strong Buy', cls:'bg' };
-  if (s >= 6)                    return { label:'🟢 Bullish',    cls:'bg' };
-  if (s >= 4)                    return { label:'🟡 Watch',      cls:'by' };
-  if (s >= 2)                    return { label:'🟠 Caution',    cls:'by' };
-  return                                { label:'🔴 Bearish',    cls:'br' };
+  const s = d.netScore;
+  if (s >= 8 && d.macdDiff > 0) return { label:'Strong Bullish', cls:'bg' };
+  if (s >= 4)                   return { label:'Bullish',        cls:'bg' };
+  if (s >= 1)                   return { label:'Balanced Watch', cls:'by' };
+  if (s >= -2)                  return { label:'Cautious',       cls:'by' };
+  return                               { label:'Bearish',        cls:'br' };
 }
 
 function prediction(d) {
   if (!d || d.err) return { text:'—', cls:'' };
-  const s = d.totalScore;
-  if (s >= 8) return { text:'↑ Strong upside expected', cls:'pred-up' };
-  if (s >= 6) return { text:'↑ Likely to rise',         cls:'pred-up' };
-  if (s >= 4) return { text:'→ Sideways / uncertain',   cls:'pred-side' };
-  if (s >= 2) return { text:'↓ May decline further',    cls:'pred-down' };
-  return             { text:'↓ Likely to fall',         cls:'pred-down' };
+  const s = d.netScore;
+  if (s >= 8) return { text:'Upside setup is dominant',     cls:'pred-up' };
+  if (s >= 4) return { text:'Bias remains positive',        cls:'pred-up' };
+  if (s >= 1) return { text:'Balanced, wait for trigger',   cls:'pred-side' };
+  if (s >= -2) return { text:'Downside risk is building',   cls:'pred-down' };
+  return              { text:'Bearish pressure is dominant', cls:'pred-down' };
 }
 
 function action(d, buyPrice) {
   if (!d || d.err || !d.price) return { text:'Loading…', cls:'' };
   const pct = (d.price - buyPrice) / buyPrice * 100;
   const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  if (pct >= 3.5)           return { text:`✅ Sell ${tomorrow} 9:45-10:30 AM`, cls:'pos' };
-  if (pct <= -2 && d.totalScore < 8) return { text:`🛑 Sell ${tomorrow} 9:45-10:30 AM`, cls:'neg' };
-  if (d.totalScore >= 7)    return { text:`🟢 Buy add-on ${tomorrow} 10:30-11:30 AM`, cls:'pos' };
-  if (d.totalScore >= 5)    return { text:`✋ Hold, review ${tomorrow} 11:00 AM`, cls:'' };
+  if (pct >= 3.5)              return { text:`✅ Sell ${tomorrow} 9:45-10:30 AM`, cls:'pos' };
+  if (pct <= -2 && d.netScore < 8) return { text:`🛑 Sell ${tomorrow} 9:45-10:30 AM`, cls:'neg' };
+  if (d.netScore >= 7)         return { text:`🟢 Buy add-on ${tomorrow} 10:30-11:30 AM`, cls:'pos' };
+  if (d.netScore >= 4)         return { text:`✋ Hold, review ${tomorrow} 11:00 AM`, cls:'' };
   return                    { text:`📉 Exit ${tomorrow} if no recovery by 10:30 AM`, cls:'neg' };
 }
 
@@ -616,8 +925,8 @@ function fmtDate(dt) {
   return new Date(dt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
 }
 
-function scoreBar(sc, max=14) {
-  const pct = Math.min(100, (sc/max)*100);
+function scoreBar(sc, max=100) {
+  const pct = Math.min(100, Math.max(0, (sc/max)*100));
   const col = pct>=57 ? 'var(--green)' : pct>=29 ? 'var(--yellow)' : 'var(--red)';
   return `<div class="sbar"><span class="sval">${sc}</span><div class="strk"><div class="sfil" style="width:${pct}%;background:${col}"></div></div></div>`;
 }
@@ -625,14 +934,138 @@ function scoreBar(sc, max=14) {
 // ══════════════════════════════════════════════════════════════
 //  ROW RENDERERS
 // ══════════════════════════════════════════════════════════════
+function renderOverview() {
+  const overview = document.getElementById('overview-grid');
+  const heroMeta = document.getElementById('hero-meta');
+  const heroStats = document.getElementById('hero-stats');
+  const ranked = sortStocks(Object.values(S.data).filter(d => d && !d.err));
+  const bullish = ranked.filter(d => d.netScore >= 4).length;
+  const bearish = ranked.filter(d => d.netScore <= -2).length;
+  const top = ranked[0];
+  const breadth = ranked.length ? `${bullish} bullish / ${bearish} bearish` : 'Waiting for market data';
+
+  overview.innerHTML = `
+    <div class="overview-card"><small>Watchlist</small><strong>${S.watchlist.length}</strong></div>
+    <div class="overview-card"><small>Bullish Setups</small><strong>${bullish}</strong></div>
+    <div class="overview-card"><small>Bearish Risk</small><strong>${bearish}</strong></div>
+    <div class="overview-card"><small>Portfolio</small><strong>${S.portfolio.length}</strong></div>`;
+
+  heroMeta.textContent = top
+    ? `${top.ticker} currently leads the board with net score ${top.netScore} and ${top.conviction}% conviction.`
+    : 'Loading ranked market context...';
+
+  heroStats.innerHTML = top
+    ? `
+      <div class="hero-stat"><span>Top Setup</span><span>${top.ticker} · ${signal(top).label}</span></div>
+      <div class="hero-stat"><span>Market Breadth</span><span>${breadth}</span></div>`
+    : `
+      <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
+      <div class="hero-stat"><span>Market Breadth</span><span>Loading...</span></div>`;
+}
+
+function renderStrategyPanel() {
+  const panel = document.getElementById('strategy-panel');
+  const marketLine = S.marketBull === null
+    ? 'Market filter is waiting for S&P 500 data.'
+    : S.marketBull
+      ? 'Market filter is positive: S&P 500 is above EMA20 with supportive momentum.'
+      : 'Market filter is defensive: S&P 500 is below EMA20 or losing momentum.';
+
+  const renderSpec = (items) => items.map(([label, value]) => `
+    <div class="strategy-item"><strong>${label}</strong><span>${value}</span></div>`).join('');
+
+  panel.innerHTML = `
+    <details open>
+      <summary>
+        <span>How bullish and bearish scores are calculated</span>
+        <span>${S.marketBull === null ? 'Pending' : S.marketBull ? 'Market supportive' : 'Market defensive'}</span>
+      </summary>
+      <div class="strategy-grid">
+        <div class="strategy-block">
+          <h3>Bullish setup score</h3>
+          <p>This is the entry-quality score. It rewards support-zone pricing, RSI recovery, positive MACD, and price staying close to EMA20.</p>
+          <div class="strategy-list">${renderSpec(MODEL_SPEC.bullish)}</div>
+        </div>
+        <div class="strategy-block">
+          <h3>Bearish pressure score</h3>
+          <p>This is the risk score. It increases when price is extended, momentum weakens, trend support breaks, or earnings quality is poor.</p>
+          <div class="strategy-list">${renderSpec(MODEL_SPEC.bearish)}</div>
+        </div>
+        <div class="strategy-block">
+          <h3>Ranking formula</h3>
+          <p>Every stock is ordered by <strong>net score = bullish score + catalyst score - bearish pressure</strong>. Higher net score means stronger upside bias. Lower net score means rising downside risk.</p>
+          <div class="strategy-list">
+            ${renderSpec(MODEL_SPEC.catalysts)}
+            <div class="strategy-item"><strong>Market filter</strong><span>${marketLine}</span></div>
+            <div class="strategy-item"><strong>Sort order</strong><span>Most bullish to most bearish using net score, then conviction.</span></div>
+          </div>
+        </div>
+      </div>
+    </details>`;
+}
+
+function rankReasons(d) {
+  const bullish = (d.bullishDrivers || []).slice(0, 2).map(x => `<div class="reason-pill"><strong>Bullish:</strong> ${x}</div>`);
+  const bearish = (d.bearishDrivers || []).slice(0, 2).map(x => `<div class="reason-pill"><strong>Bearish:</strong> ${x}</div>`);
+  const catalysts = (d.catalystDrivers || []).slice(0, 1).map(x => `<div class="reason-pill"><strong>Catalyst:</strong> ${x}</div>`);
+  return [...bullish, ...bearish, ...catalysts].join('');
+}
+
+function renderRankings(loading) {
+  const el = document.getElementById('rank-list');
+  if (!el) return;
+  if (loading) {
+    el.innerHTML = `<div class="empty">Ranking watchlist by bullish and bearish pressure...</div>`;
+    return;
+  }
+
+  const ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean));
+  if (!ranked.length) {
+    el.innerHTML = `<div class="empty">Add a ticker to build the ranked board.</div>`;
+    return;
+  }
+
+  el.innerHTML = ranked.map((d, index) => {
+    const sig = signal(d);
+    const pred = prediction(d);
+    return `
+      <article class="rank-card">
+        <div class="rank-head">
+          <div class="rank-id">
+            <span class="rank-no">#${index + 1}</span>
+            <div>
+              <div class="rank-symbol">${d.ticker}</div>
+              <div class="rank-price">$${d.price.toFixed(2)} · ${d.change >= 0 ? '+' : ''}${d.changePct.toFixed(2)}%</div>
+            </div>
+          </div>
+          <span class="badge ${sig.cls}">${sig.label}</span>
+        </div>
+        <div class="rank-grid">
+          <div class="rank-metric"><span>Net Score</span><span>${d.netScore}</span></div>
+          <div class="rank-metric"><span>Bull / Bear</span><span>${d.bullishScore} / ${d.bearishScore}</span></div>
+          <div class="rank-metric"><span>Conviction</span><span>${d.conviction}%</span></div>
+        </div>
+        <div class="rank-grid">
+          <div class="rank-metric"><span>RSI</span><span>${d.rsi.toFixed(1)}</span></div>
+          <div class="rank-metric"><span>MACD Diff</span><span>${d.macdDiff.toFixed(4)}</span></div>
+          <div class="rank-metric"><span>Weekly Position</span><span>${(d.position * 100).toFixed(0)}%</span></div>
+        </div>
+        <div class="rank-reasons">
+          <div class="reason-pill"><strong>Outlook:</strong> ${pred.text}</div>
+          ${rankReasons(d)}
+        </div>
+      </article>`;
+  }).join('');
+}
+
 function wRow(ticker, d, loading) {
   if (loading)
-    return `<tr id="wr-${ticker}"><td class="tcell">${ticker}</td>${'<td><span class="sk"></span></td>'.repeat(11)}<td></td></tr>`;
+    return `<tr id="wr-${ticker}"><td class="tcell">${ticker}</td>${'<td><span class="sk"></span></td>'.repeat(14)}<td></td></tr>`;
 
   if (!d || d.err)
     return `<tr id="wr-${ticker}">
       <td class="tcell">${ticker}</td>
-      <td colspan="11" style="color:var(--muted);font-style:italic">⚠ Failed to load — check ticker</td>
+      <td colspan="14" style="color:var(--muted);font-style:italic">⚠ Failed to load — check ticker</td>
       <td><button class="btn-del btn-sm" onclick="rmWatch('${ticker}')">✕</button></td>
     </tr>`;
 
@@ -664,7 +1097,10 @@ function wRow(ticker, d, loading) {
     <td><b>$${d.price.toFixed(2)}</b></td>
     <td><span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span></td>
     <td><span class="badge ${sig.cls}">${sig.label}</span></td>
-    <td>${scoreBar(d.totalScore)}</td>
+    <td>${d.netScore}</td>
+    <td>${d.bullishScore}</td>
+    <td>${d.bearishScore}</td>
+    <td>${scoreBar(d.conviction)}</td>
     <td><span class="${rc}">${d.rsi.toFixed(1)}</span></td>
     <td><span class="${mc}">${d.macdDiff.toFixed(4)}</span></td>
     <td>${(d.position*100).toFixed(0)}%</td>
@@ -709,15 +1145,20 @@ function pRow(pos, d, loading) {
 function renderAll(loading) {
   // Watchlist
   const wb = document.getElementById('wb');
+  const rankedTickers = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean)).map(d => d.ticker);
   wb.innerHTML = S.watchlist.length
-    ? S.watchlist.map(t => wRow(t, S.data[t], loading)).join('')
-    : `<tr><td colspan="13"><div class="empty">Add a ticker above to start tracking</div></td></tr>`;
+    ? (rankedTickers.length ? rankedTickers : S.watchlist).map(t => wRow(t, S.data[t], loading)).join('')
+    : `<tr><td colspan="16"><div class="empty">Add a ticker above to start tracking</div></td></tr>`;
 
   // Portfolio
   const pb = document.getElementById('pb');
   pb.innerHTML = S.portfolio.length
     ? S.portfolio.map(p => pRow(p, S.data[p.ticker], loading)).join('')
     : `<tr><td colspan="9"><div class="empty">No positions yet — click "+ Add Position" to track a stock you own</div></td></tr>`;
+
+  renderOverview();
+  renderStrategyPanel();
+  renderRankings(loading);
 
   // Insights
   renderInsights(loading);
@@ -741,15 +1182,15 @@ function insightForPosition(pos, d) {
   const target = buyPrice * 1.035;
   const sig    = signal(d);
   const pred   = prediction(d);
-  const sc     = d.totalScore;
+  const sc     = d.netScore;
 
   let actionLabel = '', actionCls = '', reasons = [];
 
   // ── Decision tree ──
   const hitStop   = cur <= stop;
   const hitTarget = cur >= target;
-  const isBull    = sc >= 6 && d.macdDiff > 0;
-  const isBear    = sc <= 3;
+  const isBull    = sc >= 4 && d.macdDiff > 0;
+  const isBear    = sc <= -2;
 
   if (hitTarget) {
     actionLabel = '✅ Take Profit';
@@ -764,25 +1205,25 @@ function insightForPosition(pos, d) {
   } else if (hitStop && isBull) {
     actionLabel = '⚠️ Hold / Review';
     actionCls   = 'act-watch';
-    reasons.push(`<b>Stop loss triggered</b> (down ${pnlPct.toFixed(2)}%), BUT the algorithm gives a <b>strong bullish signal</b> (score ${sc}/14).`);
+    reasons.push(`<b>Stop loss triggered</b> (down ${pnlPct.toFixed(2)}%), BUT the algorithm still shows a <b>strong bullish bias</b> (net score ${sc}).`);
     reasons.push(`This is a conflict. Options: (1) Hold if you believe in the thesis — RSI is ${d.rsi.toFixed(0)} and MACD is ${d.macdDiff > 0 ? 'positive' : 'negative'}. (2) Exit half to reduce risk.`);
     if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 10)
       reasons.push(`⚠️ Earnings in <b>${d.daysToEarnings} days</b> — volatility risk is elevated.`);
   } else if (isBear) {
     actionLabel = '📉 Consider Exit';
     actionCls   = 'act-sell';
-    reasons.push(`Score is <b>${sc}/14</b> — technicals have deteriorated. RSI: ${d.rsi.toFixed(0)}, MACD diff: ${d.macdDiff.toFixed(4)}.`);
+    reasons.push(`Net score is <b>${sc}</b> — bearish pressure is overtaking the bullish setup. RSI: ${d.rsi.toFixed(0)}, MACD diff: ${d.macdDiff.toFixed(4)}.`);
     reasons.push(`${pnlPct >= 0 ? 'You are currently profitable — consider locking in gains.' : 'Position is in loss and getting weaker technically.'}`);
   } else if (sc >= 8 && pnlPct < 0) {
     actionLabel = '📈 Avg Down';
     actionCls   = 'act-buy';
     const avgPrice = cur * 0.97;
-    reasons.push(`<b>High-score dip opportunity</b> (score ${sc}/14). Price is ${Math.abs(pnlPct).toFixed(2)}% below your entry but technicals remain strong.`);
+    reasons.push(`<b>High-score dip opportunity</b> (net score ${sc}). Price is ${Math.abs(pnlPct).toFixed(2)}% below your entry but technicals remain strong.`);
     reasons.push(`The 40% reserve strategy suggests averaging down near <b>$${avgPrice.toFixed(2)}</b> (another 3% lower) to improve your average cost.`);
   } else {
     actionLabel = '✋ Hold';
     actionCls   = 'act-hold';
-    reasons.push(`Position is healthy. Score ${sc}/14 — ${sig.label}. P&amp;L: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%.`);
+    reasons.push(`Position is healthy. Net score ${sc} with ${d.bullishScore} bullish points versus ${d.bearishScore} bearish points. P&amp;L: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%.`);
     reasons.push(`Target: <b>$${target.toFixed(2)}</b> (+3.5%). Stop: <b>$${stop.toFixed(2)}</b> (−2%). Current: $${cur.toFixed(2)}.`);
     if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 5)
       reasons.push(`🔔 Earnings in <b>${d.daysToEarnings} days</b> — could be a catalyst for a breakout.`);
@@ -851,7 +1292,7 @@ function renderInsights(loading) {
         <div class="istat"><span>Current Price</span><span>$${i.cur.toFixed(2)}</span></div>
         <div class="istat"><span>P&amp;L %</span><span class="${pp}">${ps}${i.pnlPct.toFixed(2)}%</span></div>
         <div class="istat"><span>P&amp;L $</span><span class="${ap}">${i.pnlAmt >= 0 ? '+' : ''}$${i.pnlAmt.toFixed(2)}</span></div>
-        <div class="istat"><span>Score</span><span>${i.sc}/14</span></div>
+        <div class="istat"><span>Net Score</span><span>${i.sc}</span></div>
         <div class="istat"><span>Signal</span><span><span class="badge ${i.sig.cls}">${i.sig.label}</span></span></div>
         <div class="istat"><span>Outlook</span><span class="${i.pred.cls}">${i.pred.text}</span></div>
       </div>
@@ -864,7 +1305,7 @@ function simpleAction(pos, d) {
   const hasPos = !!pos;
   const sig = signal(d);
   const pred = prediction(d);
-  const score = d?.totalScore ?? 0;
+  const score = d?.netScore ?? 0;
   const price = d?.price ?? 0;
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 86400000);
@@ -914,7 +1355,7 @@ function simpleAction(pos, d) {
       ticker: d.ticker,
       pillCls: 'coach-buy',
       pill: 'BUY',
-      note: `${d.ticker} is showing bullish momentum from historical indicators and current trend data.`,
+      note: `${d.ticker} is showing stronger bullish score than bearish pressure and passes the market filter.`,
       time: `${day} - ${tradeWindowLabel(sig.label)} | outlook: ${pred.text}`
     };
   }
@@ -923,7 +1364,7 @@ function simpleAction(pos, d) {
     pillCls: 'coach-hold',
     pill: 'WAIT',
     note: `${d.ticker} is not a high-confidence setup yet. Keep it in monitor list.`,
-    time: `${day} - Watch for score >= ${S.sim.learn.buyMinScore} and positive market trend`
+    time: `${day} - Watch for net score >= ${S.sim.learn.buyMinScore} and positive market trend`
   };
 }
 
@@ -975,12 +1416,12 @@ function simApplyLearning() {
   const rate = wins / last10.length;
 
   if (rate < 0.45) {
-    S.sim.learn.buyMinScore = Math.min(9, S.sim.learn.buyMinScore + 1);
-    S.sim.learn.sellMaxScore = Math.min(6, S.sim.learn.sellMaxScore + 1);
+    S.sim.learn.buyMinScore = Math.min(7, S.sim.learn.buyMinScore + 1);
+    S.sim.learn.sellMaxScore = Math.min(0, S.sim.learn.sellMaxScore + 1);
     S.sim.learn.holdDays = Math.max(2, S.sim.learn.holdDays - 1);
   } else if (rate > 0.65) {
-    S.sim.learn.buyMinScore = Math.max(6, S.sim.learn.buyMinScore - 1);
-    S.sim.learn.sellMaxScore = Math.max(3, S.sim.learn.sellMaxScore - 1);
+    S.sim.learn.buyMinScore = Math.max(3, S.sim.learn.buyMinScore - 1);
+    S.sim.learn.sellMaxScore = Math.max(-4, S.sim.learn.sellMaxScore - 1);
     S.sim.learn.holdDays = Math.min(5, S.sim.learn.holdDays + 1);
   }
 }
@@ -992,8 +1433,8 @@ function simRunCycle(force = false) {
 
   const available = S.watchlist.map(t => S.data[t]).filter(d => d && !d.err);
   const sortedBuy = [...available]
-    .filter(d => d.totalScore >= S.sim.learn.buyMinScore && (S.marketBull !== false))
-    .sort((a, b) => b.totalScore - a.totalScore)
+    .filter(d => d.netScore >= S.sim.learn.buyMinScore && (S.marketBull !== false))
+    .sort((a, b) => b.netScore - a.netScore)
     .slice(0, 3);
 
   // Sell pass first
@@ -1005,13 +1446,13 @@ function simRunCycle(force = false) {
     const shouldSell =
       pnlPct >= S.sim.learn.targetPct ||
       pnlPct <= S.sim.learn.stopPct ||
-      d.totalScore <= S.sim.learn.sellMaxScore ||
+      d.netScore <= S.sim.learn.sellMaxScore ||
       p.daysHeld >= S.sim.learn.holdDays;
     if (shouldSell) {
       const pnl = (d.price - p.buyPrice) * p.shares;
       S.sim.cash += d.price * p.shares;
       S.sim.closed.push({ ticker: p.ticker, pnl, openedAt: p.openedAt, closedAt: Date.now() });
-      simLog('SELL', p.ticker, d.price, `Rule exit (score ${d.totalScore}/14, held ${p.daysHeld}d)`, pnl);
+      simLog('SELL', p.ticker, d.price, `Rule exit (net score ${d.netScore}, held ${p.daysHeld}d)`, pnl);
     } else {
       remaining.push({ ...p, daysHeld: p.daysHeld + 1 });
     }
@@ -1029,7 +1470,7 @@ function simRunCycle(force = false) {
     if (cost > S.sim.cash) continue;
     S.sim.cash -= cost;
     S.sim.positions.push({ ticker: d.ticker, shares, buyPrice: d.price, openedAt: Date.now(), daysHeld: 0 });
-    simLog('BUY', d.ticker, d.price, `Top setup from monitor list (score ${d.totalScore}/14)`);
+    simLog('BUY', d.ticker, d.price, `Top setup from monitor list (net score ${d.netScore})`);
   }
 
   S.sim.lastRunDate = today;
@@ -1107,7 +1548,7 @@ function renderSim() {
     <div class="sim-k"><small>Cash</small><b>${fmtMoney(S.sim.cash)}</b></div>
     <div class="sim-k"><small>Open Positions</small><b>${S.sim.positions.length}</b></div>
     <div class="sim-k"><small>Weekly P/L</small><b class="${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}${fmtMoney(pnl)} (${pnlPct.toFixed(2)}%)</b></div>
-    <div class="sim-k"><small>Learning Mode</small><b>Buy score >= ${S.sim.learn.buyMinScore}, hold ${S.sim.learn.holdDays}d</b></div>`;
+    <div class="sim-k"><small>Learning Mode</small><b>Buy net score >= ${S.sim.learn.buyMinScore}, hold ${S.sim.learn.holdDays}d</b></div>`;
 
   status.textContent = !S.sim.started
     ? 'Simulator not started yet.'

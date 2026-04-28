@@ -38,13 +38,13 @@ STOCKS = [
 
 def analyze_stock(ticker):
     try:
-        df = yf.download(ticker, period="15d", interval="1d", progress=False, auto_adjust=True)
+        df = yf.download(ticker, period="90d", interval="1d", progress=False, auto_adjust=True)
 
         # yfinance 1.x returns MultiIndex columns for single tickers
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
-        if len(df) < 6:
+        if len(df) < 35:
             return None
 
         close = df["Close"].squeeze()
@@ -75,21 +75,41 @@ def analyze_stock(ticker):
         price = float(latest["Close"])
         ema20 = float(latest["EMA20"])
 
-        # Score: higher = better bullish setup
-        score = 0
+        bullish_score = 0
         if position < 0.5:
-            score += 2
+            bullish_score += 2
         if 30 < rsi < 65:
-            score += 2
+            bullish_score += 2
         if macd_diff > 0:
-            score += 2
+            bullish_score += 2
         if price >= ema20 * 0.97:
-            score += 2
-        # Bonus for near-dip with RSI recovering
+            bullish_score += 2
         if position < 0.35:
-            score += 1
+            bullish_score += 1
         if 35 < rsi < 55:
-            score += 1
+            bullish_score += 1
+
+        bearish_pressure = 0
+        if position > 0.75:
+            bearish_pressure += 2
+        if rsi >= 68:
+            bearish_pressure += 2
+        if macd_diff < 0:
+            bearish_pressure += 2
+        if price < ema20 * 0.985:
+            bearish_pressure += 2
+
+        net_score = bullish_score - bearish_pressure
+        if net_score >= 8:
+            trend = "Strong Bullish"
+        elif net_score >= 4:
+            trend = "Bullish"
+        elif net_score >= 1:
+            trend = "Watch"
+        elif net_score >= -2:
+            trend = "Caution"
+        else:
+            trend = "Bearish"
 
         return {
             "Ticker": ticker,
@@ -97,7 +117,10 @@ def analyze_stock(ticker):
             "RSI": round(rsi, 2),
             "Position": round(position, 2),
             "MACD_diff": round(macd_diff, 4),
-            "Score": score
+            "Bullish_Score": bullish_score,
+            "Bearish_Pressure": bearish_pressure,
+            "Net_Score": net_score,
+            "Trend": trend,
         }
 
     except Exception as e:
@@ -124,8 +147,7 @@ def main():
     print("\n🔍 Running Large Cap Bullish Scanner...\n")
 
     if not market_trend_ok():
-        print("⚠️ Market trend is bearish (S&P below 20 EMA). Avoid trading today.\n")
-        return
+        print("⚠️ Market trend is bearish (S&P below 20 EMA). Rankings are still shown below, but position sizing should stay defensive.\n")
 
     results = []
 
@@ -138,13 +160,19 @@ def main():
         print("❌ Could not fetch data for any stocks.\n")
         return
 
-    df = pd.DataFrame(results).sort_values(by="Score", ascending=False)
+    df = pd.DataFrame(results).sort_values(
+        by=["Net_Score", "Bullish_Score", "Bearish_Pressure", "Ticker"],
+        ascending=[False, False, True, True],
+    )
 
-    print("✅ Top Stocks by Bullish Score:\n")
+    print("✅ Ranked From Most Bullish To Most Bearish:\n")
     print(df.to_string(index=False))
+    print("\n📘 Ranking model:")
+    print("- Bullish score rewards RSI recovery, positive MACD, support-zone pricing, and price holding near EMA20")
+    print("- Bearish pressure penalizes overheated RSI, negative MACD, stretched weekly position, and price falling below EMA20")
+    print("- Net score = Bullish score - Bearish pressure")
 
-    # Only suggest allocation for stocks scoring >= 4
-    top = df[df["Score"] >= 4].head(MAX_POSITIONS)
+    top = df[df["Net_Score"] >= 4].head(MAX_POSITIONS)
     if top.empty:
         print("\n⚠️ No strong setups today. Showing ranked watchlist above for reference.")
     else:
@@ -156,24 +184,24 @@ def main():
         print(f"\n💼 Capital Plan: ${CAPITAL:,.0f} total")
         print(f"   ├─ Deploy now (60%): ${deploy_capital:,.0f} across {n} position(s)")
         print(f"   └─ Reserve (40%):    ${reserve_capital:,.0f} — held to average down on dips\n")
-        print(f"{'Ticker':<8} {'Score':>5} {'Price':>8} {'Entry $':>12} {'Shares':>7} {'Stop Loss':>10} {'Target':>10}")
-        print("-" * 65)
+        total_score = top["Net_Score"].sum()
+        print(f"{'Ticker':<8} {'Net':>5} {'Bull':>5} {'Bear':>5} {'Price':>8} {'Entry $':>12} {'Shares':>7} {'Stop Loss':>10} {'Target':>10}")
+        print("-" * 84)
         for _, row in top.iterrows():
-            # Weight allocation by score so higher-scored stocks get more
-            weight = row["Score"] / total_score
+            weight = row["Net_Score"] / total_score
             entry_amount = deploy_capital * weight
             shares = int(entry_amount / row["Price"])
             stop = row["Price"] * 0.98
             target = row["Price"] * 1.035
-            print(f"{row['Ticker']:<8} {int(row['Score']):>5} {row['Price']:>8.2f} {entry_amount:>12,.0f} {shares:>7} {stop:>10.2f} {target:>10.2f}")
+            print(f"{row['Ticker']:<8} {int(row['Net_Score']):>5} {int(row['Bullish_Score']):>5} {int(row['Bearish_Pressure']):>5} {row['Price']:>8.2f} {entry_amount:>12,.0f} {shares:>7} {stop:>10.2f} {target:>10.2f}")
 
         print(f"\n🔄 Reserve Usage (${reserve_capital:,.0f}):")
         print("   If a stock drops 2–4% after entry, use reserve to average down.")
         reserve_per_stock = reserve_capital / n
         for _, row in top.iterrows():
             avg_down_price = row["Price"] * 0.97   # buy more at -3%
-            avg_shares = int(reserve_per_stock / n / avg_down_price)
-            print(f"   {row['Ticker']}: avg down at ~${avg_down_price:.2f} with ~${reserve_per_stock/n:,.0f} → {avg_shares} more shares")
+            avg_shares = int(reserve_per_stock / avg_down_price)
+            print(f"   {row['Ticker']}: avg down at ~${avg_down_price:.2f} with ~${reserve_per_stock:,.0f} → {avg_shares} more shares")
 
     print("\n📈 Strategy:")
     print("- Entry: 60% capital now, score-weighted")
