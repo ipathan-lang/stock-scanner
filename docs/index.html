@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>📈 Stock Scanner Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --surface2: #1c2128;
+      --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+      --green: #3fb950; --red: #f85149; --yellow: #d29922;
+      --blue: #58a6ff; --purple: #bc8cff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 14px 24px; display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap; position: sticky; top: 0; z-index: 100;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; flex: 1; min-width: 180px; white-space: nowrap; }
+    .hctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #add-input {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 12px; border-radius: 6px; font-size: 0.875rem; outline: none; width: 130px;
+      text-transform: uppercase;
+    }
+    #add-input:focus { border-color: var(--blue); }
+    #add-input::placeholder { text-transform: none; }
+    button { padding: 7px 15px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; background: var(--surface2); color: var(--text); }
+    button:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-p { background: var(--blue) !important; color: #fff !important; border-color: var(--blue) !important; }
+    .btn-p:hover { opacity: 0.85; }
+    .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+    .btn-del { background: transparent !important; color: var(--red) !important; border-color: transparent !important; padding: 3px 8px; font-size: 0.8rem; }
+    .btn-del:hover { background: rgba(248,81,73,.1) !important; }
+    #ts { font-size: 0.75rem; color: var(--muted); margin-left: 4px; }
+
+    /* ── MARKET BANNER ── */
+    #banner { padding: 9px 24px; font-size: 0.85rem; font-weight: 500; border-bottom: 1px solid var(--border); }
+    .b-bull { background: rgba(63,185,80,.08); color: var(--green); }
+    .b-bear { background: rgba(248,81,73,.08); color: var(--red); }
+    .b-neu  { background: rgba(139,148,158,.08); color: var(--muted); }
+
+    /* ── MAIN ── */
+    main { padding: 24px; max-width: 1440px; margin: 0 auto; }
+    section { margin-bottom: 32px; }
+    section > h2 { font-size: 0.95rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+
+    /* ── TABLES ── */
+    .tw { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    thead th {
+      background: var(--surface); padding: 9px 13px; text-align: left;
+      color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: .05em; white-space: nowrap; border-bottom: 1px solid var(--border);
+    }
+    tbody td { padding: 9px 13px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: middle; white-space: nowrap; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(56,68,77,.12); }
+
+    /* ── BADGES ── */
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+    .bg { background: rgba(63,185,80,.13); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+    .br { background: rgba(248,81,73,.13); color: var(--red);   border: 1px solid rgba(248,81,73,.3); }
+    .by { background: rgba(210,153,34,.13); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
+
+    /* ── SCORE BAR ── */
+    .sbar { display: flex; align-items: center; gap: 7px; }
+    .sval { font-weight: 700; min-width: 18px; text-align: right; font-size: 0.85rem; }
+    .strk { height: 5px; background: var(--border); border-radius: 3px; flex: 1; min-width: 50px; }
+    .sfil { height: 100%; border-radius: 3px; transition: width .3s; }
+
+    /* ── COLORS ── */
+    .pos { color: var(--green); } .neg { color: var(--red); }
+
+    /* ── SKELETON ── */
+    .sk { background: linear-gradient(90deg, var(--surface) 25%, rgba(56,68,77,.3) 50%, var(--surface) 75%); background-size: 200px 100%; animation: shim 1.5s infinite; border-radius: 4px; height: 14px; width: 60px; display: inline-block; }
+    @keyframes shim { 0%{background-position:-200px 0} 100%{background-position:calc(200px + 100%) 0} }
+
+    /* ── EMPTY STATE ── */
+    .empty { padding: 36px; text-align: center; color: var(--muted); font-size: 0.875rem; }
+
+    /* ── MODAL ── */
+    .ov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 200; align-items: center; justify-content: center; }
+    .ov.on { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 340px; max-width: 92vw; }
+    .modal h3 { font-size: 1rem; margin-bottom: 4px; }
+    .modal p  { font-size: 0.78rem; color: var(--muted); margin-bottom: 16px; }
+    .modal label { display: block; font-size: 0.78rem; color: var(--muted); margin: 10px 0 3px; }
+    .modal input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 11px; border-radius: 6px; font-size: 0.875rem; outline: none; }
+    .modal input:focus { border-color: var(--blue); }
+    .ma { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+
+    /* ── SPIN ── */
+    .spin { display: inline-block; animation: sp 1s linear infinite; }
+    @keyframes sp { 100% { transform: rotate(360deg); } }
+
+    /* ── TICKER CELL ── */
+    .tcell { font-weight: 700; font-size: 0.9rem; letter-spacing: .02em; }
+
+    /* ── PREDICTION ── */
+    .pred-up   { color: var(--green); font-weight: 600; }
+    .pred-side { color: var(--yellow); font-weight: 600; }
+    .pred-down { color: var(--red); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════ HEADER ════════════════════════════════════ -->
+<header>
+  <h1>📈 Stock Scanner</h1>
+  <div class="hctl">
+    <input id="add-input" type="text" placeholder="Add ticker e.g. NVDA" maxlength="10" />
+    <button class="btn-p" onclick="addWatch()">+ Add Stock</button>
+    <button onclick="refreshAll()" id="rbtn">🔄 Refresh</button>
+    <span id="ts"></span>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════ BANNER ════════════════════════════════════ -->
+<div id="banner" class="b-neu">⟳ Loading market data…</div>
+
+<!-- ════════════════════════════════════ MAIN ════════════════════════════════════ -->
+<main>
+
+  <!-- WATCHLIST -->
+  <section>
+    <h2>📊 Watchlist</h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>Change</th>
+            <th>Signal</th>
+            <th>Score /14</th>
+            <th>RSI</th>
+            <th>MACD Diff</th>
+            <th>Wk Position</th>
+            <th>EMA20</th>
+            <th>Next Earnings</th>
+            <th>Last EPS vs Est</th>
+            <th>Prediction</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="wb"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- PORTFOLIO -->
+  <section>
+    <h2>
+      💼 My Portfolio
+      <button class="btn-sm" onclick="openModal()">+ Add Position</button>
+    </h2>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Shares</th>
+            <th>Bought @</th>
+            <th>Current</th>
+            <th>P&amp;L $</th>
+            <th>P&amp;L %</th>
+            <th>Signal</th>
+            <th>Action</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="pb"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- ════════════════════════════════════ MODAL ════════════════════════════════════ -->
+<div class="ov" id="modal" onclick="modalBg(event)">
+  <div class="modal">
+    <h3>Add Portfolio Position</h3>
+    <p>Track a stock you own and monitor P&amp;L in real time.</p>
+    <label>Ticker Symbol</label>
+    <input id="m-ticker" type="text" placeholder="e.g. AAPL" maxlength="10" oninput="this.value=this.value.toUpperCase()" />
+    <label>Shares</label>
+    <input id="m-shares" type="number" placeholder="e.g. 10" min="0.001" step="any" />
+    <label>Buy Price per Share ($)</label>
+    <input id="m-price" type="number" placeholder="e.g. 250.00" min="0.01" step="any" />
+    <div class="ma">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="btn-p" onclick="addPosition()">Add Position</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════════
+const DEFAULT_WATCHLIST = ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JPM'];
+
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+let S = {
+  watchlist : [],   // ['AAPL', ...]
+  portfolio : [],   // [{ticker, shares, buyPrice}]
+  data      : {},   // {ticker: stockObj | {err:true}}
+  busy      : false
+};
+
+function load() {
+  try {
+    const w = localStorage.getItem('ss_watch');
+    const p = localStorage.getItem('ss_port');
+    if (w) S.watchlist = JSON.parse(w);
+    if (p) S.portfolio  = JSON.parse(p);
+  } catch(e) {}
+  if (!S.watchlist.length) S.watchlist = [...DEFAULT_WATCHLIST];
+}
+
+function save() {
+  localStorage.setItem('ss_watch', JSON.stringify(S.watchlist));
+  localStorage.setItem('ss_port',  JSON.stringify(S.portfolio));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TECHNICAL INDICATORS (mirrors Python algorithm)
+// ══════════════════════════════════════════════════════════════
+function rsi(closes, period = 14) {
+  if (closes.length < period + 1) return 50;
+  let g = 0, l = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i-1];
+    if (d > 0) g += d; else l -= d;
+  }
+  let ag = g / period, al = l / period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    ag = (ag * (period-1) + Math.max(d, 0)) / period;
+    al = (al * (period-1) + Math.max(-d, 0)) / period;
+  }
+  return al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+}
+
+function emaArr(data, period) {
+  if (data.length < period) return new Array(data.length).fill(null);
+  const k = 2 / (period + 1);
+  const out = new Array(period - 1).fill(null);
+  out.push(data.slice(0, period).reduce((a,b)=>a+b) / period);
+  for (let i = period; i < data.length; i++)
+    out.push(data[i] * k + out[out.length-1] * (1-k));
+  return out;
+}
+
+function lastEma(data, period) {
+  const a = emaArr(data, period);
+  return a[a.length-1];
+}
+
+function macd(closes) {
+  const e12 = emaArr(closes, 12);
+  const e26 = emaArr(closes, 26);
+  const line = closes.map((_,i) => e12[i]!==null && e26[i]!==null ? e12[i]-e26[i] : null);
+  const valid = line.filter(v=>v!==null);
+  const sig   = emaArr(valid, 9);
+  const m = valid[valid.length-1] ?? 0;
+  const s = sig[sig.length-1]     ?? 0;
+  return { macd: m, signal: s, diff: m - s };
+}
+
+function score(closes, highs, lows) {
+  if (!closes || closes.length < 26) return null;
+  const price = closes[closes.length-1];
+  const r     = rsi(closes);
+  const mc    = macd(closes);
+  const ema20 = lastEma(closes, 20);
+  const wLow  = Math.min(...lows.slice(-5));
+  const wHigh = Math.max(...highs.slice(-5));
+  const pos   = wHigh===wLow ? 0.5 : (price-wLow)/(wHigh-wLow);
+  let sc = 0;
+  if (pos  < 0.5)          sc += 2;
+  if (r    > 30 && r < 65) sc += 2;
+  if (mc.diff > 0)          sc += 2;
+  if (price >= ema20*0.97) sc += 2;
+  if (pos  < 0.35)         sc += 1;
+  if (r    > 35 && r < 55) sc += 1;
+  return { score: sc, rsi: r, macdDiff: mc.diff, ema20, position: pos, price };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  API / FETCHING
+// ══════════════════════════════════════════════════════════════
+async function fetchJ(url) {
+  const proxies = [
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  ];
+  for (const p of proxies) {
+    try {
+      const r = await fetch(p(url), {signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined});
+      if (!r.ok) continue;
+      return await r.json();
+    } catch(e) { continue; }
+  }
+  throw new Error('All proxies failed for: ' + url);
+}
+
+async function fetchStock(ticker) {
+  const chartUrl   = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
+  const summaryUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2CearningsHistory`;
+
+  const [chart, summary] = await Promise.all([
+    fetchJ(chartUrl),
+    fetchJ(summaryUrl).catch(() => null)
+  ]);
+
+  const res = chart.chart?.result?.[0];
+  if (!res) throw new Error('No chart data for ' + ticker);
+
+  const meta = res.meta;
+  const q    = res.indicators.quote[0];
+
+  // Filter nulls (keep arrays aligned)
+  const valid = [];
+  for (let i = 0; i < q.close.length; i++)
+    if (q.close[i] !== null && q.high[i] !== null && q.low[i] !== null)
+      valid.push({ c: q.close[i], h: q.high[i], l: q.low[i] });
+
+  const closes = valid.map(v=>v.c);
+  const highs  = valid.map(v=>v.h);
+  const lows   = valid.map(v=>v.l);
+
+  const price     = meta.regularMarketPrice ?? closes[closes.length-1];
+  const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length-2] ?? price;
+  const change    = price - prevClose;
+  const changePct = (change / prevClose) * 100;
+
+  const ind = score(closes, highs, lows) || { score:0, rsi:50, macdDiff:0, ema20:price, position:0.5, price };
+
+  // ── Earnings ──
+  let nextEarnings = null, daysToEarnings = null;
+  let lastEPSSurprise = null, lastEPSBeat = false, lastEarningsDate = null;
+
+  if (summary?.quoteSummary?.result?.[0]) {
+    const sr = summary.quoteSummary.result[0];
+
+    const eDates = sr.calendarEvents?.earnings?.earningsDate;
+    if (eDates?.length) {
+      const ts = eDates[0]?.raw;
+      if (ts) { nextEarnings = new Date(ts*1000); daysToEarnings = Math.round((nextEarnings - Date.now()) / 86400000); }
+    }
+
+    const hist = sr.earningsHistory?.history;
+    if (hist?.length) {
+      const last = hist[0];
+      const act  = last.epsActual?.raw;
+      const est  = last.epsEstimate?.raw;
+      const qts  = last.quarter?.raw;
+      if (act != null && est != null) {
+        lastEPSSurprise = +(act - est).toFixed(4);
+        lastEPSBeat     = act > est;
+        if (qts) lastEarningsDate = new Date(qts * 1000);
+      }
+    }
+  }
+
+  // Earnings scoring
+  let totalScore = ind.score;
+  if (lastEPSBeat) totalScore += 2;
+  if (daysToEarnings !== null && daysToEarnings >= 0 && daysToEarnings <= 5) totalScore += 2;
+
+  return { ticker, price, change, changePct, ...ind, totalScore,
+           nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SIGNAL / PREDICTION HELPERS
+// ══════════════════════════════════════════════════════════════
+function signal(d) {
+  if (!d || d.err) return { label:'—', cls:'by' };
+  const s = d.totalScore;
+  if (s >= 8 && d.macdDiff > 0) return { label:'🟢 Strong Buy', cls:'bg' };
+  if (s >= 6)                    return { label:'🟢 Bullish',    cls:'bg' };
+  if (s >= 4)                    return { label:'🟡 Watch',      cls:'by' };
+  if (s >= 2)                    return { label:'🟠 Caution',    cls:'by' };
+  return                                { label:'🔴 Bearish',    cls:'br' };
+}
+
+function prediction(d) {
+  if (!d || d.err) return { text:'—', cls:'' };
+  const s = d.totalScore;
+  if (s >= 8) return { text:'↑ Strong upside expected', cls:'pred-up' };
+  if (s >= 6) return { text:'↑ Likely to rise',         cls:'pred-up' };
+  if (s >= 4) return { text:'→ Sideways / uncertain',   cls:'pred-side' };
+  if (s >= 2) return { text:'↓ May decline further',    cls:'pred-down' };
+  return             { text:'↓ Likely to fall',         cls:'pred-down' };
+}
+
+function action(d, buyPrice) {
+  if (!d || d.err || !d.price) return { text:'Loading…', cls:'' };
+  const pct = (d.price - buyPrice) / buyPrice * 100;
+  if (pct >= 3.5)           return { text:'✅ Take Profit (+3.5%)',  cls:'pos' };
+  if (pct <= -2)            return { text:'🛑 Stop Loss (−2%)',       cls:'neg' };
+  if (d.totalScore >= 6)   return { text:'✋ Hold — bullish',         cls:'pos' };
+  if (d.totalScore >= 4)   return { text:'⚠️ Monitor',               cls:'' };
+  return                          { text:'📉 Consider exit',          cls:'neg' };
+}
+
+function fmtDate(dt) {
+  if (!dt) return 'N/A';
+  return new Date(dt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+}
+
+function scoreBar(sc, max=14) {
+  const pct = Math.min(100, (sc/max)*100);
+  const col = pct>=57 ? 'var(--green)' : pct>=29 ? 'var(--yellow)' : 'var(--red)';
+  return `<div class="sbar"><span class="sval">${sc}</span><div class="strk"><div class="sfil" style="width:${pct}%;background:${col}"></div></div></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ROW RENDERERS
+// ══════════════════════════════════════════════════════════════
+function wRow(ticker, d, loading) {
+  if (loading)
+    return `<tr id="wr-${ticker}"><td class="tcell">${ticker}</td>${'<td><span class="sk"></span></td>'.repeat(11)}<td></td></tr>`;
+
+  if (!d || d.err)
+    return `<tr id="wr-${ticker}">
+      <td class="tcell">${ticker}</td>
+      <td colspan="11" style="color:var(--muted);font-style:italic">⚠ Failed to load — check ticker</td>
+      <td><button class="btn-del btn-sm" onclick="rmWatch('${ticker}')">✕</button></td>
+    </tr>`;
+
+  const sig  = signal(d);
+  const pred = prediction(d);
+  const cc   = d.change >= 0 ? 'pos' : 'neg';
+  const cs   = d.change >= 0 ? '+' : '';
+  const mc   = d.macdDiff > 0 ? 'pos' : 'neg';
+  const rc   = d.rsi > 70 ? 'neg' : d.rsi < 30 ? 'pos' : '';
+
+  let earnCell = 'N/A';
+  if (d.daysToEarnings !== null) {
+    if (d.daysToEarnings < 0)      earnCell = `${fmtDate(d.nextEarnings)} (passed)`;
+    else if (d.daysToEarnings === 0) earnCell = `🔔 <b>Today!</b>`;
+    else if (d.daysToEarnings <= 5)  earnCell = `🔔 <b>${d.daysToEarnings}d</b> (${fmtDate(d.nextEarnings)})`;
+    else                             earnCell = `${fmtDate(d.nextEarnings)} (${d.daysToEarnings}d)`;
+  }
+
+  let epsCell = '<span style="color:var(--muted)">N/A</span>';
+  if (d.lastEPSSurprise !== null) {
+    const ep  = d.lastEPSSurprise >= 0 ? '+' : '';
+    const ec  = d.lastEPSBeat ? 'pos' : 'neg';
+    const ico = d.lastEPSBeat ? '✅' : '❌';
+    epsCell = `<span class="${ec}">${ico} ${ep}$${d.lastEPSSurprise.toFixed(4)}</span>`;
+  }
+
+  return `<tr id="wr-${ticker}">
+    <td class="tcell">${ticker}</td>
+    <td><b>$${d.price.toFixed(2)}</b></td>
+    <td><span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span></td>
+    <td><span class="badge ${sig.cls}">${sig.label}</span></td>
+    <td>${scoreBar(d.totalScore)}</td>
+    <td><span class="${rc}">${d.rsi.toFixed(1)}</span></td>
+    <td><span class="${mc}">${d.macdDiff.toFixed(4)}</span></td>
+    <td>${(d.position*100).toFixed(0)}%</td>
+    <td>$${d.ema20.toFixed(2)}</td>
+    <td>${earnCell}</td>
+    <td>${epsCell}</td>
+    <td><span class="${pred.cls}">${pred.text}</span></td>
+    <td><button class="btn-del btn-sm" onclick="rmWatch('${ticker}')">✕</button></td>
+  </tr>`;
+}
+
+function pRow(pos, d, loading) {
+  const { ticker, shares, buyPrice } = pos;
+  if (loading || !d)
+    return `<tr id="pr-${ticker}">
+      <td class="tcell">${ticker}</td><td>${shares}</td><td>$${(+buyPrice).toFixed(2)}</td>
+      ${'<td><span class="sk"></span></td>'.repeat(5)}
+      <td><button class="btn-del btn-sm" onclick="rmPos('${ticker}')">✕</button></td>
+    </tr>`;
+
+  const cur  = d.err ? null : d.price;
+  const pnlT = cur ? (cur - buyPrice) * shares : 0;
+  const pnlP = cur ? (cur - buyPrice) / buyPrice * 100 : 0;
+  const pc   = pnlT >= 0 ? 'pos' : 'neg';
+  const ps   = pnlT >= 0 ? '+' : '';
+  const sig  = signal(d);
+  const act  = action(d, buyPrice);
+
+  return `<tr id="pr-${ticker}">
+    <td class="tcell">${ticker}</td>
+    <td>${shares}</td>
+    <td>$${(+buyPrice).toFixed(2)}</td>
+    <td><b>${cur ? '$'+cur.toFixed(2) : '—'}</b></td>
+    <td><span class="${pc}">${ps}$${pnlT.toFixed(2)}</span></td>
+    <td><span class="${pc}">${ps}${pnlP.toFixed(2)}%</span></td>
+    <td><span class="badge ${sig.cls}">${sig.label}</span></td>
+    <td><span class="${act.cls}">${act.text}</span></td>
+    <td><button class="btn-del btn-sm" onclick="rmPos('${ticker}')">✕</button></td>
+  </tr>`;
+}
+
+function renderAll(loading) {
+  // Watchlist
+  const wb = document.getElementById('wb');
+  wb.innerHTML = S.watchlist.length
+    ? S.watchlist.map(t => wRow(t, S.data[t], loading)).join('')
+    : `<tr><td colspan="13"><div class="empty">Add a ticker above to start tracking</div></td></tr>`;
+
+  // Portfolio
+  const pb = document.getElementById('pb');
+  pb.innerHTML = S.portfolio.length
+    ? S.portfolio.map(p => pRow(p, S.data[p.ticker], loading)).join('')
+    : `<tr><td colspan="9"><div class="empty">No positions yet — click "+ Add Position" to track a stock you own</div></td></tr>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  REFRESH
+// ══════════════════════════════════════════════════════════════
+async function loadOne(ticker) {
+  try { S.data[ticker] = await fetchStock(ticker); }
+  catch(e) { S.data[ticker] = { err: true }; }
+}
+
+async function refreshAll() {
+  if (S.busy) return;
+  S.busy = true;
+  const btn = document.getElementById('rbtn');
+  btn.innerHTML = '<span class="spin">↻</span> Refreshing…';
+  btn.disabled = true;
+
+  const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
+  renderAll(true);
+
+  // Fetch S&P 500 + all tickers in parallel
+  const [_, ...results] = await Promise.allSettled([
+    fetchStock('^GSPC').then(spy => {
+      const bull = spy.macdDiff > 0 && spy.price >= spy.ema20 * 0.97;
+      const b = document.getElementById('banner');
+      const chg = `$${spy.price.toFixed(2)} (${spy.change>=0?'+':''}${spy.changePct.toFixed(2)}%)`;
+      if (bull) {
+        b.className = 'b-bull';
+        b.innerHTML = `✅ Market Trend: BULLISH — S&P 500 is above its 20 EMA &nbsp;|&nbsp; SPX: ${chg}`;
+      } else {
+        b.className = 'b-bear';
+        b.innerHTML = `⚠️ Market Trend: BEARISH — S&P 500 below 20 EMA. Use caution. &nbsp;|&nbsp; SPX: ${chg}`;
+      }
+    }).catch(() => {
+      const b = document.getElementById('banner');
+      b.className = 'b-neu'; b.innerHTML = '⚠️ Could not load market trend data';
+    }),
+    ...allTickers.map(t => loadOne(t))
+  ]);
+
+  renderAll(false);
+  document.getElementById('ts').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  btn.innerHTML = '🔄 Refresh';
+  btn.disabled = false;
+  S.busy = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  WATCHLIST ACTIONS
+// ══════════════════════════════════════════════════════════════
+function addWatch() {
+  const inp = document.getElementById('add-input');
+  const t   = inp.value.trim().toUpperCase();
+  if (!t) return;
+  if (!S.watchlist.includes(t)) {
+    S.watchlist.push(t); save();
+    renderAll(true);
+    loadOne(t).then(() => renderAll(false));
+  }
+  inp.value = '';
+}
+function rmWatch(ticker) {
+  S.watchlist = S.watchlist.filter(t => t !== ticker);
+  save(); renderAll(false);
+}
+
+document.getElementById('add-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addWatch();
+});
+
+// ══════════════════════════════════════════════════════════════
+//  PORTFOLIO ACTIONS
+// ══════════════════════════════════════════════════════════════
+function openModal()  { document.getElementById('modal').classList.add('on'); document.getElementById('m-ticker').focus(); }
+function closeModal() {
+  document.getElementById('modal').classList.remove('on');
+  ['m-ticker','m-shares','m-price'].forEach(id => document.getElementById(id).value = '');
+}
+function modalBg(e)   { if (e.target === document.getElementById('modal')) closeModal(); }
+
+function addPosition() {
+  const ticker   = document.getElementById('m-ticker').value.trim().toUpperCase();
+  const shares   = parseFloat(document.getElementById('m-shares').value);
+  const buyPrice = parseFloat(document.getElementById('m-price').value);
+  if (!ticker || !shares || !buyPrice || shares <= 0 || buyPrice <= 0) {
+    alert('Please fill in all fields with valid positive numbers.'); return;
+  }
+  S.portfolio = S.portfolio.filter(p => p.ticker !== ticker);
+  S.portfolio.push({ ticker, shares, buyPrice });
+  if (!S.watchlist.includes(ticker)) { S.watchlist.push(ticker); }
+  save(); closeModal();
+  renderAll(true);
+  loadOne(ticker).then(() => renderAll(false));
+}
+
+function rmPos(ticker) {
+  S.portfolio = S.portfolio.filter(p => p.ticker !== ticker);
+  save(); renderAll(false);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+load();
+renderAll(true);
+refreshAll();
+</script>
+</body>
+</html>

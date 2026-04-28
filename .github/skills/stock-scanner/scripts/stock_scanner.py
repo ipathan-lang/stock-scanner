@@ -8,9 +8,6 @@
 import sys
 import os
 import subprocess
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 # --- Auto-install missing packages ---
 def install(package):
@@ -189,41 +186,6 @@ def write_summary(lines):
             f.write("\n".join(lines) + "\n")
 
 
-def send_email(subject, html_body):
-    """Send scan results via Gmail. Reads credentials from environment variables."""
-    sender    = os.environ.get("EMAIL_SENDER")
-    password  = os.environ.get("EMAIL_PASSWORD")
-    recipients = os.environ.get("EMAIL_RECIPIENTS", "")  # comma-separated
-
-    if not sender or not password or not recipients:
-        missing = []
-        if not sender:
-            missing.append("EMAIL_SENDER")
-        if not password:
-            missing.append("EMAIL_PASSWORD")
-        if not recipients:
-            missing.append("EMAIL_RECIPIENTS")
-        print(f"⚠️  Email skipped: missing secret(s): {', '.join(missing)}")
-        return
-
-    to_list = [r.strip() for r in recipients.split(",") if r.strip()]
-    print(f"📨 Email config loaded. Recipients: {len(to_list)}")
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = sender
-    msg["To"]      = ", ".join(to_list)
-    msg.attach(MIMEText(html_body, "html"))
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender, password)
-            server.sendmail(sender, to_list, msg.as_string())
-        print(f"📧 Email sent to: {', '.join(to_list)}")
-    except Exception as e:
-        print(f"⚠️  Email failed: {e}")
-
-
 def market_trend_ok():
     """Returns True if S&P 500 is above its 20 EMA (bullish market)."""
     try:
@@ -382,101 +344,6 @@ def main():
         )
     summary.append("\n> ⚠️ Not financial advice. Always use risk management.")
     write_summary(summary)
-
-    # --- Email Results ---
-    today = pd.Timestamp.today().strftime("%Y-%m-%d")
-    bearish_banner = "<p style='color:darkorange;font-weight:bold'>⚠️ Market is BEARISH — S&P 500 below 20 EMA. Use caution.</p>" if bearish else ""
-
-    entry_rows = ""
-    for _, row in top.iterrows():
-        weight       = row["Score"] / total_score
-        entry_amount = deploy_capital * weight
-        shares       = int(entry_amount / row["Price"])
-        stop         = row["Price"] * 0.98
-        target       = row["Price"] * 1.035
-        eps  = row['EPS_Surprise']
-        eday = row['Earnings_In']
-        soon_flag = " 🔔" if row.get('Earnings_Soon') else ""
-        entry_rows += (
-            f"<tr><td>{row['Ticker']}</td><td>{int(row['Score'])}</td>"
-            f"<td>${row['Price']:.2f}</td><td>${entry_amount:,.0f}</td>"
-            f"<td>{shares}</td><td>${stop:.2f}</td><td>${target:.2f}</td>"
-            f"<td>{('+' if (eps or 0) >= 0 else '') + str(eps) if eps is not None else 'N/A'}</td>"
-            f"<td>{str(eday) + 'd' + soon_flag if eday is not None else 'N/A'}</td></tr>"
-        )
-
-    reserve_rows = ""
-    for _, row in top.iterrows():
-        avg_price  = row["Price"] * 0.97
-        avg_shares = int(reserve_per_position / avg_price)
-        reserve_rows += (
-            f"<tr><td>{row['Ticker']}</td><td>${avg_price:.2f}</td>"
-            f"<td>${reserve_per_position:,.0f}</td><td>{avg_shares}</td></tr>"
-        )
-
-    all_rows = ""
-    for _, r in df.iterrows():
-        eps  = r['EPS_Surprise']
-        eday = r['Earnings_In']
-        soon_flag = " 🔔" if r.get('Earnings_Soon') else ""
-        all_rows += (
-            f"<tr><td>{r['Ticker']}</td><td>{int(r['Score'])}</td>"
-            f"<td>${r['Price']:.2f}</td><td>{r['RSI']:.1f}</td>"
-            f"<td>{r['Position']:.2f}</td><td>{r['MACD_diff']:.4f}</td>"
-            f"<td>{('+' if (eps or 0) >= 0 else '') + str(eps) if eps is not None else 'N/A'}</td>"
-            f"<td>{str(eday) + 'd' + soon_flag if eday is not None else 'N/A'}</td></tr>"
-        )
-
-    th = "style='background:#1a1a2e;color:#fff;padding:6px 12px;text-align:right'"
-    td = "style='padding:5px 12px;border-bottom:1px solid #ddd;text-align:right'"
-    tdl = "style='padding:5px 12px;border-bottom:1px solid #ddd;text-align:left'"
-
-    html = f"""
-    <html><body style='font-family:Arial,sans-serif;color:#222;max-width:900px;margin:auto'>
-    <h2>📈 Stock Scanner — {today}</h2>
-    {bearish_banner}
-    <p><b>Capital:</b> ${CAPITAL:,.0f} &nbsp;|&nbsp;
-       <b>Deploy (60%):</b> ${deploy_capital:,.0f} &nbsp;|&nbsp;
-       <b>Reserve (40%):</b> ${reserve_capital:,.0f}</p>
-
-    <h3>🎯 Entry Positions</h3>
-    <table style='border-collapse:collapse;width:100%'>
-      <tr>
-        <th {th} style='text-align:left'>Ticker(Code)</th>
-        <th {th}>Score</th><th {th}>Price</th><th {th}>Entry $</th>
-        <th {th}>Shares</th><th {th}>Stop (Stop loss)</th><th {th}>Target</th>
-        <th {th}>EPS Surprise</th><th {th}>Earnings In</th>
-      </tr>
-      {entry_rows.replace('<td>', f'<td {td}>').replace('<td>{', f'<td {tdl}>')}
-    </table>
-
-    <h3>🔄 Reserve / Average-Down Plan</h3>
-    <table style='border-collapse:collapse;width:100%'>
-      <tr>
-        <th {th} style='text-align:left'>Ticker</th>
-        <th {th}>Avg-Down Price</th><th {th}>Reserve $</th><th {th}>Extra Shares</th>
-      </tr>
-      {reserve_rows.replace('<td>', f'<td {td}>').replace('<td>{', f'<td {tdl}>')}
-    </table>
-
-    <h3>📊 All Stocks — Ranked by Score</h3>
-    <table style='border-collapse:collapse;width:100%'>
-      <tr>
-        <th {th} style='text-align:left'>Ticker</th>
-        <th {th}>Score</th><th {th}>Price</th><th {th}>RSI</th>
-        <th {th}>Position</th><th {th}>MACD diff</th>
-        <th {th}>EPS Surprise</th><th {th}>Earnings In</th>
-      </tr>
-      {all_rows.replace('<td>', f'<td {td}>').replace('<td>{', f'<td {tdl}>')}
-    </table>
-
-    <p style='color:gray;font-size:12px;margin-top:20px'>
-      ⚠️ Not financial advice. Always use risk management.
-    </p>
-    </body></html>
-    """
-
-    send_email(f"📈 Stock Scan — {today}", html)
 
 
 if __name__ == "__main__":
