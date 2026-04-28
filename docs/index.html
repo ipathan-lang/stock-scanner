@@ -581,17 +581,8 @@ function saveConfig() {
 
 <script>
 // ══════════════════════════════════════════════════════════════
-//  CONFIG
+//  MODEL SPECIFICATION
 // ══════════════════════════════════════════════════════════════
-const DEFAULT_WATCHLIST = ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JPM'];
-const MARKET_TRENDS = [
-  { ticker: 'SPY', label: 'S&P 500' },
-  { ticker: 'QQQ', label: 'Nasdaq 100' },
-  { ticker: 'IWM', label: 'Russell 2000' },
-  { ticker: 'XLK', label: 'Technology' },
-  { ticker: 'XLF', label: 'Financials' }
-];
-
 const MODEL_SPEC = {
   bullish: [
     ['Near weekly support', '+2 when weekly position < 50%'],
@@ -614,8 +605,7 @@ const MODEL_SPEC = {
     ['Near-term earnings catalyst', '+1 when earnings are within 5 days'],
     ['Fresh strength', '+1 when day change is +1.5% or better']
   ]
-};testMode  : false,
-  
+};
 
 // ══════════════════════════════════════════════════════════════
 //  STATE
