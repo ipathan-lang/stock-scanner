@@ -1413,8 +1413,8 @@ function wRow(ticker, d, loading) {
     <td>${earnCell}</td>
     <td>${epsCell}</td>
     <td><span class="${pred.cls}">${pred.text}</span></td>
-    <td contenteditable="true" onblur="updatePosShares('${ticker}', this.textContent)">${shares}</td>
-    <td contenteditable="true" onblur="updatePosBuyPrice('${ticker}', this.textContent)"`;
+    <td><button class="btn-del btn-sm" onclick="rmWatch('${ticker}')">✕</button></td>
+  </tr>`;
 }
 
 function pRow(pos, d, loading) {
