@@ -553,7 +553,21 @@ S ══════════════════════════
 <div class="ov" id="settings-modal" onclick="settingsModalBg(event)">
   <div class="modal" style="width:500px;max-width:94vw">
     <h3>⚙️ Configuration</h3>
-    <p>Cus (user-configurable via settings modal)
+    <p>Customize your default watchlist and market trend proxies.</p>
+    <label>Default Watchlist (comma-separated tickers)</label>
+    <textarea id="s-watchlist" rows="3"></textarea>
+    <label>Market Trend Proxies (ticker:label format, comma-separated)</label>
+    <textarea id="s-proxies" rows="4"></textarea>
+    <div class="ma">
+      <button onclick="closeSettings()">Cancel</button>
+      <button class="btn-p" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  CONFIGURATION
 // ══════════════════════════════════════════════════════════════
 let CONFIG = {
   defaultWatchlist: ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JPM'],
@@ -575,11 +589,8 @@ function loadConfig() {
 
 function saveConfig() {
   localStorage.setItem('ss_config', JSON.stringify(CONFIG));
-}  </div>
-  </div>
-</div>
+}
 
-<script>
 // ══════════════════════════════════════════════════════════════
 //  MODEL SPECIFICATION
 // ══════════════════════════════════════════════════════════════
@@ -618,6 +629,7 @@ let S = {
   seeded    : false,
   marketBull: null,
   marketTrends: [],
+  testMode  : false,
   sim: {
     started      : false,
     enabled      : true,
@@ -670,7 +682,7 @@ async function load() {
     } catch(e) {}
   }
 
-  if (!S.watchlist.length) S.watchlist = [...DEFAULT_WATCHLIST];
+  if (!S.watchlist.length) S.watchlist = [...CONFIG.defaultWatchlist];
   save();
 }
 
@@ -1685,7 +1697,7 @@ async function refreshAll() {
   renderAll(true);
 
   const marketTrendResults = await Promise.all(
-    MARKET_TRENDS.map(async ({ ticker, label }) => {
+    CONFIG.marketTrends.map(async ({ ticker, label }) => {
       try {
         const trend = await fetchStock(ticker);
         return { ...trend, ticker, label, mode: marketMode(trend) };
@@ -1846,8 +1858,6 @@ function saveSettings() {
   saveConfig();
   closeSettings();
   alert('Settings saved! Refresh to apply new market proxies.');
-} renderAll(true);
-  loadOne(ticker).then(() => renderAll(false));
 }
 
 function rmPos(ticker) {
