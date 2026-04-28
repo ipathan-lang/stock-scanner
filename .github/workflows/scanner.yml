@@ -26,6 +26,47 @@ jobs:
       - name: Install dependencies
         run: pip install yfinance pandas ta
 
+      - name: Test email connectivity
+        env:
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
+        run: |
+          python - <<'EOF'
+          import os, smtplib, traceback
+          from email.mime.text import MIMEText
+          from email.mime.multipart import MIMEMultipart
+
+          sender     = os.environ.get("EMAIL_SENDER", "")
+          password   = os.environ.get("EMAIL_PASSWORD", "")
+          recipients = os.environ.get("EMAIL_RECIPIENTS", "")
+
+          print(f"EMAIL_SENDER     : {'SET (' + sender + ')' if sender else 'NOT SET ❌'}")
+          print(f"EMAIL_PASSWORD   : {'SET (hidden)' if password else 'NOT SET ❌'}")
+          print(f"EMAIL_RECIPIENTS : {'SET (' + recipients + ')' if recipients else 'NOT SET ❌'}")
+
+          if not sender or not password or not recipients:
+              print("⛔ Skipping test — one or more secrets are missing.")
+          else:
+              to_list = [r.strip() for r in recipients.split(",") if r.strip()]
+              msg = MIMEMultipart("alternative")
+              msg["Subject"] = "✅ Stock Scanner — Email Test"
+              msg["From"]    = sender
+              msg["To"]      = ", ".join(to_list)
+              msg.attach(MIMEText("<h2>Email test successful!</h2><p>Your stock scanner email is working.</p>", "html"))
+              try:
+                  print("🔌 Connecting to smtp.gmail.com:465 ...")
+                  with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+                      print("🔐 Logging in ...")
+                      server.login(sender, password)
+                      print("📤 Sending ...")
+                      server.sendmail(sender, to_list, msg.as_string())
+                  print(f"✅ Test email sent to: {', '.join(to_list)}")
+              except Exception as e:
+                  print(f"❌ Email FAILED: {e}")
+                  traceback.print_exc()
+          EOF
+
       - name: Run stock scanner
         env:
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
