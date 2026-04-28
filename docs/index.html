@@ -1470,8 +1470,6 @@ async function fetchStock(ticker, skipExtras = false) {
     catalystDrivers.push('Upcoming earnings can act as a catalyst');
   }
 
-  // Cache the result
-  const result = {
   if (changePct >= 1.5) {
     catalystScore += 1;
     catalystDrivers.push('Price is already attracting fresh buyers');
