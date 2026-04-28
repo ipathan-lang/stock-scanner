@@ -51,6 +51,49 @@
       white-space: nowrap;
     }
     .hctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    
+    /* ── TAB NAVIGATION ── */
+    .tab-nav {
+      background: rgba(255, 255, 255, .88);
+      border-bottom: 1px solid var(--border);
+      padding: 0 18px;
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      position: sticky;
+      top: 58px;
+      z-index: 99;
+      backdrop-filter: blur(18px);
+    }
+    .tab-btn {
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .tab-btn:hover {
+      color: var(--ink);
+      border-bottom-color: rgba(30, 99, 217, .25);
+    }
+    .tab-btn.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      background: rgba(30, 99, 217, .04);
+    }
+    
+    /* ── TAB PANELS ── */
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+    }
     #add-input {
       background: rgba(255,255,255,.92);
       border: 1px solid var(--border);
@@ -721,199 +764,233 @@
   </div>
 </header>
 
-<!-- ════════════════════════════════════ MAIN ════════════════════════════════════ -->
+<!-- ════════════════════════════════════ TAB NAVIGATION ════════════════════════════════════ -->
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('overview')">📊 Overview</button>
+  <button class="tab-btn" onclick="switchTab('portfolio')">💼 Portfolio</button>
+  <button class="tab-btn" onclick="switchTab('testlab')">🧪 Test Lab</button>
+  <button class="tab-btn" onclick="switchTab('analysis')">🎯 Analysis</button>
+  <button class="tab-btn" onclick="switchTab('intelligence')">🏛️ Intelligence</button>
+  <button class="tab-btn" onclick="switchTab('watchlist')">📈 Watchlist</button>
+</nav>
+
+<!-- ════════════════════════════════════ MAIN CONTENT ════════════════════════════════════ -->
 <main>
 
-  <section class="hero-grid">
-    <article class="hero-card primary">
-      <div class="hero-kicker">🧠 AI-Powered Market Intelligence</div>
-      <div class="hero-title">Your personal AI trading assistant monitoring markets 24/7</div>
-      <p class="hero-subcopy">IntelliMarket Analyst combines technical analysis, news sentiment, and market context to provide intelligent buy/sell recommendations. Supports stocks, ETFs, and metals with real-time AI decisions in test mode.</p>
-      <div class="hero-meta" id="hero-meta">Loading ranked market context...</div>
-      <div class="hero-stats" id="hero-stats">
-        <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
-        <div class="hero-stat"><span>Market Breadth</span><span>Loading...</span></div>
-      </div>
-    </article>
-
-    <article class="hero-card secondary">
-      <section>
-        <h2>📊 AI Market Pulse</h2>
-        <div id="market-sentiment-bar" class="sentiment-bar" style="display:none;margin-bottom:12px;"></div>
-        <div id="overview-grid" class="overview-grid">
-          <div class="overview-card"><small>Watchlist</small><strong>--</strong></div>
-          <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
-          <div class="overview-card"><small>Bearish</small><strong>--</strong></div>
-          <div class="overview-card"><small>Portfolio</small><strong>--</strong></div>
+  <!-- ═══════════════════ OVERVIEW TAB ═══════════════════ -->
+  <div id="tab-overview" class="tab-panel active">
+    <section class="hero-grid">
+      <article class="hero-card primary">
+        <div class="hero-kicker">🧠 AI-Powered Market Intelligence</div>
+        <div class="hero-title">Your personal AI trading assistant monitoring markets 24/7</div>
+        <p class="hero-subcopy">IntelliMarket Analyst combines technical analysis, news sentiment, and market context to provide intelligent buy/sell recommendations. Supports stocks, ETFs, and metals with real-time AI decisions in test mode.</p>
+        <div class="hero-meta" id="hero-meta">Loading ranked market context...</div>
+        <div class="hero-stats" id="hero-stats">
+          <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
+          <div class="hero-stat"><span>Market Breadth</span><span>Loading...</span></div>
         </div>
-        <div id="market-pulse" class="market-pulse">
-          <div class="empty" style="padding:18px">Loading current market trends...</div>
-        </div>
-      </section>
-    </article>
-  </section>
+      </article>
 
-  <section>
-    <div id="strategy-panel" class="strategy-card"></div>
-  </section>
+      <article class="hero-card secondary">
+        <section>
+          <h2>📊 AI Market Pulse</h2>
+          <div id="market-sentiment-bar" class="sentiment-bar" style="display:none;margin-bottom:12px;"></div>
+          <div id="overview-grid" class="overview-grid">
+            <div class="overview-card"><small>Watchlist</small><strong>--</strong></div>
+            <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
+            <div class="overview-card"><small>Bearish</small><strong>--</strong></div>
+            <div class="overview-card"><small>Portfolio</small><strong>--</strong></div>
+          </div>
+          <div id="market-pulse" class="market-pulse">
+            <div class="empty" style="padding:18px">Loading current market trends...</div>
+          </div>
+        </section>
+      </article>
+    </section>
 
-  <!-- PORTFOLIO -->
-  <section>
-    <h2>
-      💼 My Portfolio
-      <button class="btn-sm" onclick="openModal()">+ Add Position</button>
-      <button class="btn-sm" onclick="toggleTestMode()" id="test-mode-btn">Test Mode: OFF</button>
-      <button class="btn-sm" onclick="toggleAutoRefresh()" id="auto-refresh-btn" style="display:none;">🔄 Auto-Refresh: OFF</button>
-    </h2>
-    <div class="tw">
-      <table>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Shares</th>
-            <th>Bought @</th>
-            <th>Current</th>
-            <th>P&amp;L $</th>
-            <th>P&amp;L %</th>
-            <th>Signal</th>
-            <th>Action</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="pb"></tbody>
-      </table>
-    </div>
-  </section>
+    <section>
+      <div id="strategy-panel" class="strategy-card"></div>
+    </section>
+  </div>
 
-  <!-- SIMPLE ACTION BOARD -->
-  <section>
-    <h2>🧭 Clear Buy/Sell Guidance (Simple Mode)</h2>
-    <div class="coach-grid" id="coach-grid">
-      <div class="empty" style="padding:24px">Loading guidance...</div>
-    </div>
-  </section>
-
-  <!-- NEWS IMPACT ANALYSIS -->
-  <section id="news-impact-sec" style="display:none;">
-    <h2>📰 Market News Impact Analysis</h2>
-    <div id="news-impact-grid" class="news-impact-grid"></div>
-  </section>
-
-  <!-- CONGRESSIONAL TRADING INTELLIGENCE -->
-  <section id="congress-trades-sec" style="display:none;">
-    <h2>🏛️ Congressional Trading Intelligence</h2>
-    <p style="font-size:0.88rem;color:var(--muted);margin:0 0 12px 0;">
-      Track what Congress is trading. Studies show congressional stock picks can outperform the market.
-      <a href="https://www.capitoltrades.com/" target="_blank" rel="noopener" style="color:var(--blue)">View all on CapitolTrades →</a>
-    </p>
-    <div id="congress-trades-grid" class="congress-trades-grid"></div>
-    <div id="congress-watchlist-overlap" style="margin-top:16px;"></div>
-  </section>
-
-  <!-- GOLDEN HOUR TRADING (Opening Range Breakout) -->
-  <section id="golden-hour-sec" style="display:none;">
-    <h2>⏰ Golden Hour Trading</h2>
-    <p style="font-size:0.88rem;color:var(--muted);margin:0 0 16px 0;">
-      Opening Range Breakout (ORB) scanner for the first 2 hours of trading (9:30-11:30 AM EST). 
-      Tracks 30-minute opening range, volume spikes, and VWAP position.
-      <button class="btn-sm" onclick="refreshGoldenHour()" style="margin-left:12px;">🔄 Refresh ORB Data</button>
-    </p>
-    
-    <!-- Pre-Market Analysis -->
-    <div id="premarket-analysis" style="margin-bottom:24px;">
-      <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">📋 Pre-Market Watchlist Analysis</h3>
-      <div id="premarket-grid" class="golden-hour-grid"></div>
-    </div>
-
-    <!-- Live ORB Signals -->
-    <div id="orb-signals">
-      <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">🚀 Opening Range Breakout Signals</h3>
-      <div id="orb-alerts-grid" class="orb-alerts-grid"></div>
-    </div>
-
-    <!-- Data Requirements Notice -->
-    <div style="margin-top:16px;padding:14px;background:rgba(184,132,26,0.1);border:1px solid var(--yellow);border-radius:10px;font-size:0.85rem;">
-      <strong>⚠️ Intraday Data Required:</strong> Full ORB tracking requires 5-minute bar data, real-time volume, and VWAP calculations. 
-      Currently showing daily analysis with ORB potential scoring. For live alerts, integrate with 
-      <a href="https://polygon.io/" target="_blank" style="color:var(--blue)">Polygon.io</a> or 
-      <a href="https://alpaca.markets/" target="_blank" style="color:var(--blue)">Alpaca Markets</a> APIs.
-    </div>
-  </section>
-
-  <!-- WATCHLIST -->
-  <section>
-    <h2>📊 Ranked Market Board</h2>
-    <div id="rank-list" class="rank-list">
-      <div class="empty">Loading ranked setups...</div>
-    </div>
-  </section>
-
-  <section class="desktop-metrics">
-    <h2>🧮 Deep Metrics</h2>
-    <div class="tw">
-      <table>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Price</th>
-            <th>Change</th>
-            <th>Signal</th>
-            <th>Net</th>
-            <th>Bull</th>
-            <th>Bear</th>
-            <th>Conviction</th>
-            <th>RSI</th>
-            <th>MACD Diff</th>
-            <th>Wk Position</th>
-            <th>EMA20</th>
-            <th>Next Earnings</th>
-            <th>Last EPS vs Est</th>
-            <th>Prediction</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="wb"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- PAPER TRADING LAB -->
-  <section>
-    <h2>🧪 Weekly Test Trading Lab</h2>
-    <div class="sim-wrap">
-      <div class="sim-controls">
-        <label style="font-size:.8rem;color:var(--muted)">Start Amount ($)</label>
-        <input id="sim-start" type="number" min="100" step="100" value="50000" style="width:130px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px" />
-        <button class="btn-p" onclick="simStart()">Start Simulation</button>
-        <button onclick="simToggle()" id="sim-toggle">Pause</button>
-        <button onclick="simRunNow()">Run Today</button>
-        <button onclick="simReset()">Reset</button>
-        <button onclick="exportSimLog()">📥 Export JSON</button>
-        <span id="sim-status" style="font-size:.77rem;color:var(--muted)"></span>
-      </div>
-      <div class="sim-kpi" id="sim-kpi"></div>
-      <div class="sim-log">
+  <!-- ═══════════════════ PORTFOLIO TAB ═══════════════════ -->
+  <div id="tab-portfolio" class="tab-panel">
+    <section>
+      <h2>
+        💼 My Portfolio
+        <button class="btn-sm" onclick="openModal()">+ Add Position</button>
+        <button class="btn-sm" onclick="toggleTestMode()" id="test-mode-btn">Test Mode: OFF</button>
+        <button class="btn-sm" onclick="toggleAutoRefresh()" id="auto-refresh-btn" style="display:none;">🔄 Auto-Refresh: OFF</button>
+        <button class="btn-sm" onclick="exportTradeHistory()" id="export-trades-btn" style="display:none;">📊 Export Trades</button>
+      </h2>
+      <div class="tw">
         <table>
           <thead>
-            <tr><th>Date</th><th>Stock</th><th>Action</th><th>Price</th><th>Reason</th><th>P/L</th></tr>
+            <tr>
+              <th>Ticker</th>
+              <th>Shares</th>
+              <th>Bought @</th>
+              <th>Current</th>
+              <th>P&amp;L $</th>
+              <th>P&amp;L %</th>
+              <th>Signal</th>
+              <th>Action</th>
+              <th></th>
+            </tr>
           </thead>
-          <tbody id="sim-log-body"></tbody>
+          <tbody id="pb"></tbody>
         </table>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- PORTFOLIO INSIGHTS -->
-  <section id="insights-section">
-    <h2>🧠 Suggestions &amp; Why (Bottom Summary)</h2>
-    <div id="sumbar" class="sumbar" style="display:none"></div>
-    <div class="insights-grid" id="insights-grid">
-      <div class="empty" style="padding:36px;color:var(--muted)">Add positions to see personalised suggestions</div>
-    </div>
-  </section>
+    <section id="portfolio-insights">
+      <h2>📊 Portfolio Insights</h2>
+      <div class="insights-grid" id="portfolio-insights-grid">
+        <div class="empty" style="padding:24px">Add positions to see AI insights</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══════════════════ TEST LAB TAB ═══════════════════ -->
+  <div id="tab-testlab" class="tab-panel">
+    <section>
+      <h2>🧪 Weekly Test Trading Lab</h2>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
+        Simulate AI-driven trading strategies without risking real money. The system learns from performance and adjusts buy/sell thresholds automatically.
+      </p>
+      <div class="sim-wrap">
+        <div class="sim-controls">
+          <label style="font-size:.8rem;color:var(--muted)">Start Amount ($)</label>
+          <input id="sim-start" type="number" min="100" step="100" value="50000" style="width:130px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px" />
+          <button class="btn-p" onclick="simStart()">Start Simulation</button>
+          <button onclick="simToggle()" id="sim-toggle">Pause</button>
+          <button onclick="simRunNow()">Run Today</button>
+          <button onclick="simReset()">Reset</button>
+          <button onclick="exportSimLog()">📥 Export JSON</button>
+          <span id="sim-status" style="font-size:.77rem;color:var(--muted)"></span>
+        </div>
+        <div class="sim-kpi" id="sim-kpi"></div>
+        <div class="sim-log">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Stock</th><th>Action</th><th>Price</th><th>Reason</th><th>P/L</th></tr>
+            </thead>
+            <tbody id="sim-log-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══════════════════ ANALYSIS TAB ═══════════════════ -->
+  <div id="tab-analysis" class="tab-panel">
+    <section>
+      <h2>🧭 Clear Buy/Sell Guidance</h2>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
+        Plain-language AI recommendations with timing guidance for your watchlist stocks.
+      </p>
+      <div class="coach-grid" id="coach-grid">
+        <div class="empty" style="padding:24px">Loading guidance...</div>
+      </div>
+    </section>
+
+    <section class="desktop-metrics">
+      <h2>🧮 Deep Technical Metrics</h2>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Price</th>
+              <th>Change</th>
+              <th>Signal</th>
+              <th>Net</th>
+              <th>Bull</th>
+              <th>Bear</th>
+              <th>Conviction</th>
+              <th>RSI</th>
+              <th>MACD Diff</th>
+              <th>Wk Position</th>
+              <th>EMA20</th>
+              <th>Next Earnings</th>
+              <th>Last EPS vs Est</th>
+              <th>Prediction</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="wb"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══════════════════ INTELLIGENCE TAB ═══════════════════ -->
+  <div id="tab-intelligence" class="tab-panel">
+    <!-- CONGRESSIONAL TRADING -->
+    <section id="congress-trades-sec">
+      <h2>🏛️ Congressional Trading Intelligence</h2>
+      <p style="font-size:0.88rem;color:var(--muted);margin:0 0 12px 0;">
+        Track what Congress is trading. Studies show congressional stock picks can outperform the market.
+        <a href="https://www.capitoltrades.com/" target="_blank" rel="noopener" style="color:var(--blue)">View all on CapitolTrades →</a>
+      </p>
+      <div id="congress-trades-grid" class="congress-trades-grid"></div>
+      <div id="congress-watchlist-overlap" style="margin-top:16px;"></div>
+    </section>
+
+    <!-- GOLDEN HOUR TRADING -->
+    <section id="golden-hour-sec">
+      <h2>⏰ Golden Hour Trading</h2>
+      <p style="font-size:0.88rem;color:var(--muted);margin:0 0 16px 0;">
+        Opening Range Breakout (ORB) scanner for the first 2 hours of trading (9:30-11:30 AM EST). 
+        Tracks 30-minute opening range, volume spikes, and VWAP position.
+        <button class="btn-sm" onclick="refreshGoldenHour()" style="margin-left:12px;">🔄 Refresh ORB Data</button>
+      </p>
+      
+      <!-- Pre-Market Analysis -->
+      <div id="premarket-analysis" style="margin-bottom:24px;">
+        <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">📋 Pre-Market Watchlist Analysis</h3>
+        <div id="premarket-grid" class="golden-hour-grid"></div>
+      </div>
+
+      <!-- Live ORB Signals -->
+      <div id="orb-signals">
+        <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">🚀 Opening Range Breakout Signals</h3>
+        <div id="orb-alerts-grid" class="orb-alerts-grid"></div>
+      </div>
+
+      <!-- Data Requirements Notice -->
+      <div style="margin-top:16px;padding:14px;background:rgba(184,132,26,0.1);border:1px solid var(--yellow);border-radius:10px;font-size:0.85rem;">
+        <strong>⚠️ Intraday Data Required:</strong> Full ORB tracking requires 5-minute bar data, real-time volume, and VWAP calculations. 
+        Currently showing daily analysis with ORB potential scoring. For live alerts, integrate with 
+        <a href="https://polygon.io/" target="_blank" style="color:var(--blue)">Polygon.io</a> or 
+        <a href="https://alpaca.markets/" target="_blank" style="color:var(--blue)">Alpaca Markets</a> APIs.
+      </div>
+    </section>
+
+    <!-- NEWS IMPACT ANALYSIS -->
+    <section id="news-impact-sec">
+      <h2>📰 Market News Impact Analysis</h2>
+      <div id="news-impact-grid" class="news-impact-grid"></div>
+    </section>
+  </div>
+
+  <!-- ═══════════════════ WATCHLIST TAB ═══════════════════ -->
+  <div id="tab-watchlist" class="tab-panel">
+    <section>
+      <h2>📊 Ranked Market Board</h2>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
+        Your watchlist ranked by AI scoring system. Stocks with higher net scores show stronger bullish setups.
+      </p>
+      <div id="rank-list" class="rank-list">
+        <div class="empty">Loading ranked setups...</div>
+      </div>
+    </section>
+  </div>
+
 
 </main>
-S ════════════════════════════════════ -->
+
+<!-- ════════════════════════════════════ MODALS ════════════════════════════════════ -->
 <div class="ov" id="modal" onclick="modalBg(event)">
   <div class="modal">
     <h3>Add Portfolio Position</h3>
@@ -2168,12 +2245,12 @@ function insightForPosition(pos, d) {
 }
 
 function renderInsights(loading) {
-  const grid   = document.getElementById('insights-grid');
+  const grid   = document.getElementById('portfolio-insights-grid');
   const sumbar = document.getElementById('sumbar');
 
   if (!S.portfolio.length) {
     grid.innerHTML = `<div class="empty" style="padding:36px;color:var(--muted)">Add positions to see personalised suggestions</div>`;
-    sumbar.style.display = 'none';
+    if (sumbar) sumbar.style.display = 'none';
     return;
   }
 
@@ -2186,7 +2263,7 @@ function renderInsights(loading) {
           <span class="badge by"><span class="sk" style="width:60px"></span></span>
         </div>
       </div>`).join('');
-    sumbar.style.display = 'none';
+    if (sumbar) sumbar.style.display = 'none';
     return;
   }
 
@@ -2200,15 +2277,17 @@ function renderInsights(loading) {
     const totalPnlPct = totalCost ? (totalPnl / totalCost) * 100 : 0;
     const pc = totalPnl >= 0 ? 'pos' : 'neg';
     const ps = totalPnl >= 0 ? '+' : '';
-    sumbar.style.display = 'flex';
-    sumbar.innerHTML = `
-      <div class="sumitem"><span>Total Value</span><span>$${totalValue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-      <div class="sumitem"><span>Total Cost</span><span>$${totalCost.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-      <div class="sumitem"><span>Total P&amp;L</span><span class="${pc}">${ps}$${Math.abs(totalPnl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-      <div class="sumitem"><span>Return</span><span class="${pc}">${ps}${totalPnlPct.toFixed(2)}%</span></div>
-      <div class="sumitem"><span>Positions</span><span>${insights.length}</span></div>`;
+    if (sumbar) {
+      sumbar.style.display = 'flex';
+      sumbar.innerHTML = `
+        <div class="sumitem"><span>Total Value</span><span>$${totalValue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+        <div class="sumitem"><span>Total Cost</span><span>$${totalCost.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+        <div class="sumitem"><span>Total P&amp;L</span><span class="${pc}">${ps}$${Math.abs(totalPnl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+        <div class="sumitem"><span>Return</span><span class="${pc}">${ps}${totalPnlPct.toFixed(2)}%</span></div>
+        <div class="sumitem"><span>Positions</span><span>${insights.length}</span></div>`;
+    }
   } else {
-    sumbar.style.display = 'none';
+    if (sumbar) sumbar.style.display = 'none';
   }
 
   // ── Cards ──
@@ -2386,7 +2465,27 @@ function simRunCycle(force = false) {
     if (shouldSell) {
       const pnl = (d.price - p.buyPrice) * p.shares;
       S.sim.cash += d.price * p.shares;
-      S.sim.closed.push({ ticker: p.ticker, pnl, openedAt: p.openedAt, closedAt: Date.now() });
+      
+      // Enhanced trade tracking for performance analysis
+      const now = new Date();
+      const entryDate = new Date(p.openedAt);
+      S.sim.closed.push({ 
+        ticker: p.ticker, 
+        pnl, 
+        openedAt: p.openedAt, 
+        closedAt: Date.now(),
+        // Enhanced fields for analyzer
+        entryPrice: p.buyPrice,
+        exitPrice: d.price,
+        shares: p.shares,
+        entryDate: entryDate.toISOString().split('T')[0],
+        entryTime: entryDate.toTimeString().substring(0, 5),
+        exitDate: now.toISOString().split('T')[0],
+        exitTime: now.toTimeString().substring(0, 5),
+        setupType: p.setupType || 'Auto Trade',
+        daysHeld: p.daysHeld
+      });
+      
       simLog('SELL', p.ticker, d.price, `Rule exit (net score ${d.netScore}, held ${p.daysHeld}d)`, pnl);
     } else {
       remaining.push({ ...p, daysHeld: p.daysHeld + 1 });
@@ -2403,8 +2502,24 @@ function simRunCycle(force = false) {
     if (shares <= 0) continue;
     const cost = shares * d.price;
     if (cost > S.sim.cash) continue;
+    
+    // Determine setup type based on stock data
+    let setupType = 'Auto Trade';
+    if (d.netScore >= 8) setupType = 'Momentum';
+    else if (d.rsi < 40 && d.change > 0) setupType = 'Range Break';
+    else if (d.position > 0.7 && d.macdDiff > 0) setupType = 'Trending';
+    else if (d.position < 0.3 && d.change > 0) setupType = 'VWAP Bounce';
+    else if (d.volume > d.avgVolume * 1.5) setupType = 'News';
+    
     S.sim.cash -= cost;
-    S.sim.positions.push({ ticker: d.ticker, shares, buyPrice: d.price, openedAt: Date.now(), daysHeld: 0 });
+    S.sim.positions.push({ 
+      ticker: d.ticker, 
+      shares, 
+      buyPrice: d.price, 
+      openedAt: Date.now(), 
+      daysHeld: 0,
+      setupType: setupType 
+    });
     simLog('BUY', d.ticker, d.price, `Top setup from monitor list (net score ${d.netScore})`);
   }
 
@@ -2618,13 +2733,93 @@ function updatePosBuyPrice(ticker, newVal) {
 function toggleTestMode() {
   S.testMode = !S.testMode;
   const autoBtn = document.getElementById('auto-refresh-btn');
+  const exportBtn = document.getElementById('export-trades-btn');
+  
   if (autoBtn) {
     autoBtn.style.display = S.testMode ? 'inline-block' : 'none';
     if (!S.testMode && S.autoRefresh) {
       toggleAutoRefresh(); // turn off auto-refresh when exiting test mode
     }
   }
+  
+  if (exportBtn) {
+    exportBtn.style.display = S.testMode ? 'inline-block' : 'none';
+  }
+  
   renderAll(false);
+}
+
+// Export trade history for performance analysis
+function exportTradeHistory() {
+  if (!S.sim.closed || S.sim.closed.length === 0) {
+    alert('No closed trades to export. Complete some test trades first.');
+    return;
+  }
+  
+  // Enhanced CSV format with coaching data
+  const csvHeader = 'Symbol,Entry Date,Entry Time,Entry Price,Exit Date,Exit Time,Exit Price,Shares,P&L,Setup Type,Trade Number,Previous Trades PnL,Days Held\n';
+  
+  const csvRows = S.sim.closed.map((trade, idx) => {
+    // Calculate trade number and previous trades context
+    const tradeNumber = idx + 1;
+    const recentTrades = S.sim.closed.slice(Math.max(0, idx - 2), idx);
+    const prevPnLs = recentTrades.map(t => t.pnl?.toFixed(2) || '0.00').join('|');
+    
+    return [
+      trade.ticker,
+      trade.entryDate || new Date(trade.openedAt).toISOString().split('T')[0],
+      trade.entryTime || new Date(trade.openedAt).toTimeString().substring(0, 5),
+      trade.entryPrice?.toFixed(2) || '0.00',
+      trade.exitDate || new Date(trade.closedAt).toISOString().split('T')[0],
+      trade.exitTime || new Date(trade.closedAt).toTimeString().substring(0, 5),
+      trade.exitPrice?.toFixed(2) || '0.00',
+      trade.shares || 0,
+      trade.pnl?.toFixed(2) || '0.00',
+      trade.setupType || 'Auto Trade',
+      tradeNumber,
+      prevPnLs || 'N/A',
+      trade.daysHeld || 0
+    ].join(',');
+  }).join('\n');
+  
+  const csvContent = csvHeader + csvRows;
+  
+  // Create download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  const filename = `trades_${new Date().toISOString().split('T')[0]}.csv`;
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  // Enhanced alert with coaching info
+  const recentLosses = S.sim.closed.slice(-3).filter(t => t.pnl < 0).length;
+  let coachingTip = '';
+  
+  if (recentLosses >= 2) {
+    coachingTip = '\n\n⚠️  COACHING ALERT: You have 2+ recent losses. Consider stopping for the day.';
+  }
+  
+  const avgPnL = S.sim.closed.reduce((sum, t) => sum + (t.pnl || 0), 0) / S.sim.closed.length;
+  const winRate = (S.sim.closed.filter(t => t.pnl > 0).length / S.sim.closed.length * 100).toFixed(1);
+  
+  alert(`✅ Exported ${S.sim.closed.length} trades to ${filename}
+  
+📊 Quick Stats:
+• Win Rate: ${winRate}%
+• Avg P&L: $${avgPnL.toFixed(2)}
+${coachingTip}
+
+🎓 Run coaching analysis:
+python trade_journal_coach.py ${filename}
+
+📈 Run performance analysis:
+python analyze_trades.py ${filename}`);
 }
 
 function toggleAutoRefresh() {
@@ -2727,10 +2922,50 @@ function rmPos(ticker) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ══════════════════════════════════════════════════════════════
+function switchTab(tabName) {
+  // Hide all tab panels
+  const panels = document.querySelectorAll('.tab-panel');
+  panels.forEach(panel => panel.classList.remove('active'));
+  
+  // Remove active class from all tab buttons
+  const buttons = document.querySelectorAll('.tab-btn');
+  buttons.forEach(btn => btn.classList.remove('active'));
+  
+  // Show selected tab panel
+  const selectedPanel = document.getElementById(`tab-${tabName}`);
+  if (selectedPanel) {
+    selectedPanel.classList.add('active');
+  }
+  
+  // Highlight active tab button
+  const activeBtn = Array.from(buttons).find(btn => 
+    btn.textContent.toLowerCase().includes(tabName.toLowerCase()) ||
+    btn.onclick.toString().includes(tabName)
+  );
+  if (activeBtn) {
+    activeBtn.classList.add('active');
+  }
+  
+  // Store active tab in localStorage
+  localStorage.setItem('ss_activeTab', tabName);
+}
+
+// Load active tab on page load
+function loadActiveTab() {
+  const savedTab = localStorage.getItem('ss_activeTab');
+  if (savedTab) {
+    switchTab(savedTab);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════
 (async () => {
   await load();
+  loadActiveTab();
   renderAll(true);
   refreshAll();
 })();
