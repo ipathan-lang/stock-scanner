@@ -978,9 +978,16 @@
   <div id="tab-watchlist" class="tab-panel">
     <section>
       <h2>📊 Ranked Market Board</h2>
-      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:12px;">
         Your watchlist ranked by AI scoring system. Stocks with higher net scores show stronger bullish setups.
       </p>
+      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+        <button class="btn-sm" onclick="setWatchlistFilter('all')" id="filter-all" style="background:var(--blue);color:white;">🔍 All Stocks</button>
+        <button class="btn-sm" onclick="setWatchlistFilter('bullish')" id="filter-bullish">📈 Most Bullish</button>
+        <button class="btn-sm" onclick="setWatchlistFilter('bearish')" id="filter-bearish">📉 Most Bearish</button>
+        <button class="btn-sm" onclick="setWatchlistFilter('weeklow')" id="filter-weeklow">💎 Near Week Low</button>
+        <button class="btn-sm" onclick="setWatchlistFilter('earnings')" id="filter-earnings">📅 Earnings Soon</button>
+      </div>
       <div id="rank-list" class="rank-list">
         <div class="empty">Loading ranked setups...</div>
       </div>
@@ -1028,7 +1035,13 @@
 //  CONFIGURATION
 // ══════════════════════════════════════════════════════════════
 let CONFIG = {
-  defaultWatchlist: ['AAPL','MSFT','NVDA','TSLA','META','AMZN','GOOGL','JPM'],
+  defaultWatchlist: [
+    'AAPL','MSFT','GOOGL','AMZN','NVDA','TSLA','META',  // Tech giants (>$500B)
+    'BRK.B','JPM','V','MA',                             // Financials (>$400B)
+    'LLY','UNH','JNJ',                                  // Healthcare (>$400B)
+    'WMT','PG','HD',                                    // Consumer (>$400B)
+    'XOM'                                                // Energy (>$500B)
+  ],
   marketTrends: [
     { ticker: 'SPY', label: 'S&P 500' },
     { ticker: 'QQQ', label: 'Nasdaq 100' },
@@ -1092,6 +1105,7 @@ let S = {
   autoRefreshInterval: null,
   newsImpact: [],
   marketSentiment: null,
+  watchlistFilter: 'all',  // 'all', 'bullish', 'bearish'
   sim: {
     started      : false,
     enabled      : true,
@@ -1164,6 +1178,16 @@ function fmtClock(dt) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function sortStocks(list) {
@@ -1977,9 +2001,28 @@ function renderRankings(loading) {
     return;
   }
 
-  const ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean));
+  let ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean));
+  
+  // Apply filter
+  if (S.watchlistFilter === 'bullish') {
+    ranked = ranked.filter(d => d.netScore >= 4);
+  } else if (S.watchlistFilter === 'bearish') {
+    ranked = ranked.filter(d => d.netScore <= -2);
+  } else if (S.watchlistFilter === 'weeklow') {
+    ranked = ranked.filter(d => d.position < 0.35); // Near weekly low
+  } else if (S.watchlistFilter === 'earnings') {
+    ranked = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 7);
+  }
+  
   if (!ranked.length) {
-    el.innerHTML = `<div class="empty">Add a ticker to build the ranked board.</div>`;
+    const filterLabels = {
+      all: 'Add a ticker to build the ranked board.',
+      bullish: 'No strongly bullish stocks found (net score >= 4).',
+      bearish: 'No bearish stocks found (net score <= -2).',
+      weeklow: 'No stocks near weekly lows (position < 35%).',
+      earnings: 'No stocks with earnings in the next 7 days.'
+    };
+    el.innerHTML = `<div class="empty">${filterLabels[S.watchlistFilter] || filterLabels.all}</div>`;
     return;
   }
 
@@ -2686,6 +2729,26 @@ function addWatch() {
 function rmWatch(ticker) {
   S.watchlist = S.watchlist.filter(t => t !== ticker);
   save(); renderAll(false);
+}
+
+function setWatchlistFilter(filter) {
+  S.watchlistFilter = filter;
+  
+  // Update button styles
+  ['all', 'bullish', 'bearish', 'weeklow', 'earnings'].forEach(f => {
+    const btn = document.getElementById(`filter-${f}`);
+    if (btn) {
+      if (f === filter) {
+        btn.style.background = 'var(--blue)';
+        btn.style.color = 'white';
+      } else {
+        btn.style.background = '';
+        btn.style.color = '';
+      }
+    }
+  });
+  
+  renderRankings(false);
 }
 
 document.getElementById('add-input').addEventListener('keydown', e => {
