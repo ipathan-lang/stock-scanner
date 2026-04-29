@@ -1096,6 +1096,7 @@ let S = {
   watchlist : [],
   portfolio : [],   // [{ticker, shares, buyPrice, note?}]
   data      : {},   // {ticker: stockObj | {err:true}}
+  dataCache : {},   // localStorage-backed cache with timestamps
   busy      : false,
   seeded    : false,
   marketBull: null,
@@ -1106,6 +1107,7 @@ let S = {
   newsImpact: [],
   marketSentiment: null,
   watchlistFilter: 'all',  // 'all', 'bullish', 'bearish'
+  lastDataRefresh: null,
   sim: {
     started      : false,
     enabled      : true,
@@ -1133,8 +1135,24 @@ async function load() {
     const w = localStorage.getItem('ss_watch');
     const p = localStorage.getItem('ss_port');
     const sim = localStorage.getItem('ss_sim');
+    const cache = localStorage.getItem('ss_cache');
+    const filter = localStorage.getItem('ss_filter');
+    
     if (w) S.watchlist = JSON.parse(w);
     if (p) S.portfolio  = JSON.parse(p);
+    if (cache) {
+      try {
+        S.dataCache = JSON.parse(cache);
+        // Load cached data into S.data for immediate display
+        Object.keys(S.dataCache).forEach(ticker => {
+          const cached = S.dataCache[ticker];
+          if (cached && cached.data) {
+            S.data[ticker] = cached.data;
+          }
+        });
+      } catch(e) { S.dataCache = {}; }
+    }
+    if (filter) S.watchlistFilter = filter;
     if (sim) {
       const parsedSim = JSON.parse(sim);
       S.sim = { ...S.sim, ...parsedSim, learn: { ...S.sim.learn, ...(parsedSim.learn || {}) } };
@@ -1166,6 +1184,14 @@ function save() {
   localStorage.setItem('ss_watch', JSON.stringify(S.watchlist));
   localStorage.setItem('ss_port',  JSON.stringify(S.portfolio));
   localStorage.setItem('ss_sim',   JSON.stringify(S.sim));
+  localStorage.setItem('ss_filter', S.watchlistFilter);
+  // Save cache (limit to 50 stocks to avoid storage issues)
+  try {
+    const cacheKeys = Object.keys(S.dataCache).slice(0, 50);
+    const limitedCache = {};
+    cacheKeys.forEach(k => limitedCache[k] = S.dataCache[k]);
+    localStorage.setItem('ss_cache', JSON.stringify(limitedCache));
+  } catch(e) { console.warn('Cache save failed:', e); }
 }
 
 function fmtMoney(v) {
@@ -1325,6 +1351,29 @@ function detectAssetType(ticker) {
 }
 
 async function fetchStock(ticker) {
+  // Check cache first (5 minute TTL for fresh data, 24 hours for fallback)
+  const cached = S.dataCache[ticker];
+  const now = Date.now();
+  const FRESH_TTL = 5 * 60 * 1000;  // 5 minutes
+  const STALE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+  
+  if (cached && cached.timestamp) {
+    const age = now - cached.timestamp;
+    // Return fresh cached data immediately
+    if (age < FRESH_TTL) {
+      return cached.data;
+    }
+    // For stale data, return it but continue to fetch fresh data in background
+    if (age < STALE_TTL) {
+      setTimeout(() => fetchStockFresh(ticker).catch(() => {}), 0);
+      return cached.data;
+    }
+  }
+  
+  return await fetchStockFresh(ticker);
+}
+
+async function fetchStockFresh(ticker) {
   const chartUrl   = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
   const summaryUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2CearningsHistory`;
   const newsUrl    = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
@@ -1441,8 +1490,17 @@ async function fetchStock(ticker) {
 
   const assetType = detectAssetType(ticker);
 
-  return { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
+  const result = { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
            nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate, headlines, assetType };
+  
+  // Cache the result
+  S.dataCache[ticker] = {
+    data: result,
+    timestamp: Date.now()
+  };
+  save();
+  
+  return result;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2665,8 +2723,18 @@ function renderSim() {
 //  REFRESH
 // ══════════════════════════════════════════════════════════════
 async function loadOne(ticker) {
-  try { S.data[ticker] = await fetchStock(ticker); }
-  catch(e) { S.data[ticker] = { err: true }; }
+  try { 
+    S.data[ticker] = await fetchStock(ticker); 
+  }
+  catch(e) { 
+    // Try to use cached data on error
+    if (S.dataCache[ticker] && S.dataCache[ticker].data) {
+      S.data[ticker] = S.dataCache[ticker].data;
+      console.warn(`Using cached data for ${ticker} (API failed)`);
+    } else {
+      S.data[ticker] = { err: true };
+    }
+  }
 }
 
 async function refreshAll() {
@@ -2679,6 +2747,14 @@ async function refreshAll() {
   const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
   renderAll(true);
 
+  // Batch load stocks in chunks to avoid overwhelming the API
+  const BATCH_SIZE = 5;
+  const batches = [];
+  for (let i = 0; i < allTickers.length; i += BATCH_SIZE) {
+    batches.push(allTickers.slice(i, i + BATCH_SIZE));
+  }
+  
+  // Load market trends first (smaller, more critical)
   const marketTrendResults = await Promise.all(
     CONFIG.marketTrends.map(async ({ ticker, label }) => {
       try {
@@ -2702,14 +2778,31 @@ async function refreshAll() {
     S.marketBull = null;
   }
 
-  await Promise.allSettled(allTickers.map(t => loadOne(t)));
+  // Load stocks in batches with progressive rendering
+  for (let i = 0; i < batches.length; i++) {
+    await Promise.allSettled(batches[i].map(t => loadOne(t)));
+    if (i === 0 || i === batches.length - 1) {
+      renderAll(false); // Render after first batch and final batch
+    }
+  }
 
+  S.lastDataRefresh = Date.now();
   simRunCycle(false);
   renderAll(false);
-  document.getElementById('ts').textContent = 'Updated: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+  const freshness = getCacheAge();
+  const tsEl = document.getElementById('ts');
+  tsEl.textContent = 'Updated: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+  if (freshness > 30) {
+    tsEl.title = `Some data may be cached (${freshness} min old)`;
+    tsEl.style.color = 'var(--orange)';
+  } else {
+    tsEl.title = 'Live data';
+    tsEl.style.color = '';
+  }
   btn.innerHTML = '🔄 Refresh';
   btn.disabled = false;
   S.busy = false;
+  save();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2733,6 +2826,7 @@ function rmWatch(ticker) {
 
 function setWatchlistFilter(filter) {
   S.watchlistFilter = filter;
+  save(); // Persist filter selection
   
   // Update button styles
   ['all', 'bullish', 'bearish', 'weeklow', 'earnings'].forEach(f => {
@@ -2749,6 +2843,26 @@ function setWatchlistFilter(filter) {
   });
   
   renderRankings(false);
+}
+
+function getCacheAge() {
+  // Return average cache age in minutes
+  const ages = Object.values(S.dataCache)
+    .filter(c => c.timestamp)
+    .map(c => Date.now() - c.timestamp);
+  if (ages.length === 0) return 0;
+  const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
+  return Math.round(avgAge / 60000);
+}
+
+function getCacheAge() {
+  // Return average cache age in minutes
+  const ages = Object.values(S.dataCache)
+    .filter(c => c.timestamp)
+    .map(c => Date.now() - c.timestamp);
+  if (ages.length === 0) return 0;
+  const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
+  return Math.round(avgAge / 60000);
 }
 
 document.getElementById('add-input').addEventListener('keydown', e => {
@@ -3021,6 +3135,8 @@ function loadActiveTab() {
   if (savedTab) {
     switchTab(savedTab);
   }
+  // Restore filter button state
+  setTimeout(() => setWatchlistFilter(S.watchlistFilter), 100);
 }
 
 // ══════════════════════════════════════════════════════════════
