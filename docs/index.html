@@ -1023,6 +1023,15 @@
     <textarea id="s-watchlist" rows="3"></textarea>
     <label>Market Trend Proxies (ticker:label format, comma-separated)</label>
     <textarea id="s-proxies" rows="4"></textarea>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1)">
+      <label style="display:block;margin-bottom:8px">💾 Export / Import Data</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportWatchlist()" style="font-size:12px">📥 Export Watchlist</button>
+        <button onclick="exportPortfolio()" style="font-size:12px">📥 Export Portfolio</button>
+        <button onclick="importData()" style="font-size:12px">📤 Import JSON</button>
+      </div>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+    </div>
     <div class="ma">
       <button onclick="closeSettings()">Cancel</button>
       <button class="btn-p" onclick="saveSettings()">Save</button>
@@ -3155,6 +3164,74 @@ function saveSettings() {
   saveConfig();
   closeSettings();
   alert('Settings saved! Refresh to apply new market proxies.');
+}
+
+function exportWatchlist() {
+  const data = JSON.stringify(S.watchlist, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'watchlist.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportPortfolio() {
+  const data = JSON.stringify(S.portfolio, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'portfolio.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData() {
+  document.getElementById('import-file').click();
+}
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const filename = file.name.toLowerCase();
+      
+      if (filename.includes('watchlist')) {
+        if (Array.isArray(data)) {
+          S.watchlist = data;
+          save();
+          alert(`Imported ${data.length} tickers to watchlist!`);
+          renderAll(true);
+        } else {
+          alert('Invalid watchlist format. Expected array of tickers.');
+        }
+      } else if (filename.includes('portfolio')) {
+        if (Array.isArray(data) && data.every(p => p.ticker && p.shares && p.buyPrice)) {
+          S.portfolio = data;
+          // Add portfolio tickers to watchlist
+          data.forEach(p => { if (!S.watchlist.includes(p.ticker)) S.watchlist.push(p.ticker); });
+          save();
+          alert(`Imported ${data.length} positions to portfolio!`);
+          renderAll(true);
+        } else {
+          alert('Invalid portfolio format. Expected array with ticker, shares, and buyPrice.');
+        }
+      } else {
+        alert('Please name your file "watchlist.json" or "portfolio.json"');
+      }
+    } catch (err) {
+      alert('Failed to parse JSON file: ' + err.message);
+    }
+    // Reset input
+    event.target.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function rmPos(ticker) {

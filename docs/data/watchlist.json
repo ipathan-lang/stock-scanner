@@ -1,1 +1,8 @@
-["AAPL","MSFT","NVDA","TSLA","META","AMZN","GOOGL","JPM","GLD","VXUS"]
+[
+  "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","ORCL","AVGO","ADBE","CRM","NFLX","AMD","INTC",
+  "BRK.B","JPM","V","MA","BAC","WFC","MS","GS",
+  "LLY","UNH","JNJ","ABBV","MRK","TMO","PFE","NVO",
+  "WMT","COST","HD","PG","NKE","MCD","LOW","TM","BABA",
+  "XOM","CVX","SHEL",
+  "SPY","QQQ","IWM","VTI","VOO","IVV","XLK","XLF","XLE","XLV","XLY","XLP","VXUS","GLD","SLV","TLT"
+]
