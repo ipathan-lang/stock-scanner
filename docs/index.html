@@ -1135,7 +1135,6 @@ let S = {
   watchlist : [],
   portfolio : [],   // [{ticker, shares, buyPrice, note?}]
   data      : {},   // {ticker: stockObj | {err:true}}
-  dataCache : {},   // localStorage-backed cache with timestamps
   busy      : false,
   seeded    : false,
   marketBull: null,
@@ -1171,26 +1170,10 @@ let S = {
 // ── Load: JSON files first (source of truth), then localStorage fallback ──
 async function load() {
   try {
-    // Get localStorage values
-    const w = localStorage.getItem('ss_watch');
-    const p = localStorage.getItem('ss_port');
+    // Get localStorage values (no cache - always fetch fresh)
     const sim = localStorage.getItem('ss_sim');
-    const cache = localStorage.getItem('ss_cache');
     const filter = localStorage.getItem('ss_filter');
     
-    // Load cached data first for immediate display
-    if (cache) {
-      try {
-        S.dataCache = JSON.parse(cache);
-        // Load cached data into S.data for immediate display
-        Object.keys(S.dataCache).forEach(ticker => {
-          const cached = S.dataCache[ticker];
-          if (cached && cached.data) {
-            S.data[ticker] = cached.data;
-          }
-        });
-      } catch(e) { S.dataCache = {}; }
-    }
     if (filter) S.watchlistFilter = filter;
     if (sim) {
       const parsedSim = JSON.parse(sim);
@@ -1239,13 +1222,7 @@ function save() {
   localStorage.setItem('ss_port',  JSON.stringify(S.portfolio));
   localStorage.setItem('ss_sim',   JSON.stringify(S.sim));
   localStorage.setItem('ss_filter', S.watchlistFilter);
-  // Save cache (limit to 50 stocks to avoid storage issues)
-  try {
-    const cacheKeys = Object.keys(S.dataCache).slice(0, 50);
-    const limitedCache = {};
-    cacheKeys.forEach(k => limitedCache[k] = S.dataCache[k]);
-    localStorage.setItem('ss_cache', JSON.stringify(limitedCache));
-  } catch(e) { console.warn('Cache save failed:', e); }
+  // No caching - always fetch fresh data
 }
 
 function fmtMoney(v) {
@@ -1386,9 +1363,18 @@ async function fetchJ(url) {
     u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
     u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   ];
+  // Add cache-busting timestamp to ensure fresh data
+  const cacheBuster = `&_t=${Date.now()}`;
   for (const p of proxies) {
     try {
-      const r = await fetch(p(url), {signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined});
+      const r = await fetch(p(url + cacheBuster), {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
+        cache: 'no-store',  // Disable browser caching
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (!r.ok) continue;
       return await r.json();
     } catch(e) { continue; }
@@ -1405,30 +1391,8 @@ function detectAssetType(ticker) {
   return 'Stock';
 }
 
+// Always fetch fresh data - no caching
 async function fetchStock(ticker) {
-  // Check cache first (5 minute TTL for fresh data, 24 hours for fallback)
-  const cached = S.dataCache[ticker];
-  const now = Date.now();
-  const FRESH_TTL = 5 * 60 * 1000;  // 5 minutes
-  const STALE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-  
-  if (cached && cached.timestamp) {
-    const age = now - cached.timestamp;
-    // Return fresh cached data immediately
-    if (age < FRESH_TTL) {
-      return cached.data;
-    }
-    // For stale data, return it but continue to fetch fresh data in background
-    if (age < STALE_TTL) {
-      setTimeout(() => fetchStockFresh(ticker).catch(() => {}), 0);
-      return cached.data;
-    }
-  }
-  
-  return await fetchStockFresh(ticker);
-}
-
-async function fetchStockFresh(ticker) {
   const chartUrl   = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
   const summaryUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2CearningsHistory`;
   const newsUrl    = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
@@ -1570,13 +1534,7 @@ async function fetchStockFresh(ticker) {
   const result = { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
            nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate, headlines, assetType };
   
-  // Cache the result
-  S.dataCache[ticker] = {
-    data: result,
-    timestamp: Date.now()
-  };
-  save();
-  
+  // No caching - always return fresh data
   return result;
 }
 
@@ -2810,17 +2768,21 @@ function renderSim() {
 // ══════════════════════════════════════════════════════════════
 //  REFRESH
 // ══════════════════════════════════════════════════════════════
-async function loadOne(ticker) {
-  try { 
-    S.data[ticker] = await fetchStock(ticker); 
-  }
-  catch(e) { 
-    // Try to use cached data on error
-    if (S.dataCache[ticker] && S.dataCache[ticker].data) {
-      S.data[ticker] = S.dataCache[ticker].data;
-      console.warn(`Using cached data for ${ticker} (API failed)`);
-    } else {
-      S.data[ticker] = { err: true };
+async function loadOne(ticker, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try { 
+      S.data[ticker] = await fetchStock(ticker);
+      return;  // Success - exit retry loop
+    }
+    catch(e) { 
+      if (attempt === retries) {
+        // Final attempt failed - mark as error
+        S.data[ticker] = { err: true };
+        console.warn(`API failed for ${ticker} after ${retries + 1} attempts:`, e.message);
+      } else {
+        // Retry after short delay
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      }
     }
   }
 }
@@ -2835,8 +2797,8 @@ async function refreshAll() {
   const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
   renderAll(true);
 
-  // Batch load stocks in chunks to avoid overwhelming the API
-  const BATCH_SIZE = 5;
+  // Batch load stocks in larger chunks for faster real-time updates
+  const BATCH_SIZE = 10;  // Increased from 5 for better performance
   const batches = [];
   for (let i = 0; i < allTickers.length; i += BATCH_SIZE) {
     batches.push(allTickers.slice(i, i + BATCH_SIZE));
@@ -2877,16 +2839,10 @@ async function refreshAll() {
   S.lastDataRefresh = Date.now();
   simRunCycle(false);
   renderAll(false);
-  const freshness = getCacheAge();
   const tsEl = document.getElementById('ts');
   tsEl.textContent = 'Updated: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
-  if (freshness > 30) {
-    tsEl.title = `Some data may be cached (${freshness} min old)`;
-    tsEl.style.color = 'var(--orange)';
-  } else {
-    tsEl.title = 'Live data';
-    tsEl.style.color = '';
-  }
+  tsEl.title = 'Real-time data';
+  tsEl.style.color = '';
   btn.innerHTML = '🔄 Refresh';
   btn.disabled = false;
   S.busy = false;
@@ -2933,25 +2889,7 @@ function setWatchlistFilter(filter) {
   renderRankings(false);
 }
 
-function getCacheAge() {
-  // Return average cache age in minutes
-  const ages = Object.values(S.dataCache)
-    .filter(c => c.timestamp)
-    .map(c => Date.now() - c.timestamp);
-  if (ages.length === 0) return 0;
-  const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
-  return Math.round(avgAge / 60000);
-}
-
-function getCacheAge() {
-  // Return average cache age in minutes
-  const ages = Object.values(S.dataCache)
-    .filter(c => c.timestamp)
-    .map(c => Date.now() - c.timestamp);
-  if (ages.length === 0) return 0;
-  const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
-  return Math.round(avgAge / 60000);
-}
+// Removed cache age tracking - no caching in real-time mode
 
 document.getElementById('add-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') addWatch();
