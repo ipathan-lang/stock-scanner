@@ -1168,17 +1168,17 @@ let S = {
   }
 };
 
-// ── Load: localStorage first, then fall back to JSON data files ──
+// ── Load: JSON files first (source of truth), then localStorage fallback ──
 async function load() {
   try {
+    // Get localStorage values
     const w = localStorage.getItem('ss_watch');
     const p = localStorage.getItem('ss_port');
     const sim = localStorage.getItem('ss_sim');
     const cache = localStorage.getItem('ss_cache');
     const filter = localStorage.getItem('ss_filter');
     
-    if (w) S.watchlist = JSON.parse(w);
-    if (p) S.portfolio  = JSON.parse(p);
+    // Load cached data first for immediate display
     if (cache) {
       try {
         S.dataCache = JSON.parse(cache);
@@ -1198,23 +1198,38 @@ async function load() {
     }
   } catch(e) {}
 
-  // First visit: seed from data files
-  if (!S.watchlist.length && !S.portfolio.length) {
-    try {
-      const [wj, pj] = await Promise.all([
-        fetch('./data/watchlist.json').then(r => r.ok ? r.json() : null),
-        fetch('./data/portfolio.json').then(r => r.ok ? r.json() : null)
-      ]);
-      if (Array.isArray(wj) && wj.length) S.watchlist = wj;
-      if (Array.isArray(pj) && pj.length) {
-        S.portfolio = pj;
-        // Make sure portfolio tickers are in watchlist
-        pj.forEach(p => { if (!S.watchlist.includes(p.ticker)) S.watchlist.push(p.ticker); });
-      }
+  // Always try to load from JSON files first (source of truth for consistency across users)
+  try {
+    const [wj, pj] = await Promise.all([
+      fetch('./data/watchlist.json').then(r => r.ok ? r.json() : null),
+      fetch('./data/portfolio.json').then(r => r.ok ? r.json() : null)
+    ]);
+    
+    // Get localStorage as fallback
+    const w = localStorage.getItem('ss_watch');
+    const p = localStorage.getItem('ss_port');
+    
+    // If JSON files exist and have data, use them as source of truth
+    if (Array.isArray(wj) && wj.length) {
+      S.watchlist = wj;
       S.seeded = true;
-    } catch(e) {}
-  }
+    } else if (w) {
+      // Fallback to localStorage if JSON not available
+      S.watchlist = JSON.parse(w);
+    }
+    
+    if (Array.isArray(pj) && pj.length) {
+      S.portfolio = pj;
+      // Make sure portfolio tickers are in watchlist
+      pj.forEach(p => { if (!S.watchlist.includes(p.ticker)) S.watchlist.push(p.ticker); });
+      S.seeded = true;
+    } else if (p) {
+      // Fallback to localStorage if JSON not available
+      S.portfolio = JSON.parse(p);
+    }
+  } catch(e) {}
 
+  // If still empty, use CONFIG default
   if (!S.watchlist.length) S.watchlist = [...CONFIG.defaultWatchlist];
   save();
 }
