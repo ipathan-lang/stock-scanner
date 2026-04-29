@@ -2119,9 +2119,9 @@ function renderRankings(loading) {
   
   // Apply filter
   if (S.watchlistFilter === 'bullish') {
-    ranked = ranked.filter(d => d.netScore >= 4);
+    ranked = ranked.filter(d => d.netScore >= 5); // Strong bullish bias (stricter)
   } else if (S.watchlistFilter === 'bearish') {
-    ranked = ranked.filter(d => d.netScore <= -1);
+    ranked = ranked.filter(d => d.netScore <= 1); // Bearish, weak, or cautious (more inclusive)
   } else if (S.watchlistFilter === 'weeklow') {
     ranked = ranked.filter(d => d.position < 0.35); // Near weekly low
   } else if (S.watchlistFilter === 'earnings') {
