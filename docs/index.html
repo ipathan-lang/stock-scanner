@@ -1036,11 +1036,18 @@
 // ══════════════════════════════════════════════════════════════
 let CONFIG = {
   defaultWatchlist: [
-    'AAPL','MSFT','GOOGL','AMZN','NVDA','TSLA','META',  // Tech giants (>$500B)
-    'BRK.B','JPM','V','MA',                             // Financials (>$400B)
-    'LLY','UNH','JNJ',                                  // Healthcare (>$400B)
-    'WMT','PG','HD',                                    // Consumer (>$400B)
-    'XOM'                                                // Energy (>$500B)
+    // Tech (200B+)
+    'AAPL','MSFT','GOOGL','AMZN','NVDA','META','TSLA','ORCL','AVGO','ADBE','CRM','NFLX','AMD','INTC',
+    // Finance (200B+)
+    'BRK.B','JPM','V','MA','BAC','WFC','MS','GS',
+    // Healthcare (200B+)
+    'LLY','UNH','JNJ','ABBV','MRK','TMO','PFE','NVO',
+    // Consumer (200B+)
+    'WMT','COST','HD','PG','NKE','MCD','LOW','TM','BABA',
+    // Energy & Industrial (200B+)
+    'XOM','CVX','SHEL',
+    // ETFs (Major market/sector)
+    'SPY','QQQ','IWM','VTI','VOO','IVV','XLK','XLF','XLE','XLV','XLY','XLP','VXUS','GLD','SLV','TLT'
   ],
   marketTrends: [
     { ticker: 'SPY', label: 'S&P 500' },
@@ -1341,7 +1348,7 @@ async function fetchJ(url) {
   throw new Error('All proxies failed for: ' + url);
 }
 function detectAssetType(ticker) {
-  const etfs = ['SPY','QQQ','IWM','XLK','XLF','XLE','XLV','VTI','VOO','IVV','AGG','BND'];
+  const etfs = ['SPY','QQQ','IWM','XLK','XLF','XLE','XLV','XLY','XLP','VTI','VOO','IVV','AGG','BND','VXUS','TLT'];
   const metals = ['GLD','SLV','GDX','GDXJ','COPX','USO','UNG'];
   const crypto = ['BTC-USD','ETH-USD','DOGE-USD'];
   if (etfs.includes(ticker)) return 'ETF';
@@ -2065,7 +2072,7 @@ function renderRankings(loading) {
   if (S.watchlistFilter === 'bullish') {
     ranked = ranked.filter(d => d.netScore >= 4);
   } else if (S.watchlistFilter === 'bearish') {
-    ranked = ranked.filter(d => d.netScore <= -2);
+    ranked = ranked.filter(d => d.netScore <= -1);
   } else if (S.watchlistFilter === 'weeklow') {
     ranked = ranked.filter(d => d.position < 0.35); // Near weekly low
   } else if (S.watchlistFilter === 'earnings') {
@@ -2076,9 +2083,9 @@ function renderRankings(loading) {
     const filterLabels = {
       all: 'Add a ticker to build the ranked board.',
       bullish: 'No strongly bullish stocks found (net score >= 4).',
-      bearish: 'No bearish stocks found (net score <= -2).',
+      bearish: 'No bearish stocks found (net score <= -1).',
       weeklow: 'No stocks near weekly lows (position < 35%).',
-      earnings: 'No stocks with earnings in the next 7 days.'
+      earnings: 'No stocks with earnings in the next 7 days. Note: Earnings data may be unavailable for ETFs and some securities.'
     };
     el.innerHTML = `<div class="empty">${filterLabels[S.watchlistFilter] || filterLabels.all}</div>`;
     return;
