@@ -1058,13 +1058,26 @@ let CONFIG = {
   ],
   // Manual earnings calendar (fallback when API fails) - Update weekly
   earningsCalendar: {
+    // Week of Apr 29 (Mega-cap Tech Day)
     'MSFT': '2026-04-29',   // Wed Apr 29 AMC
     'GOOGL': '2026-04-29',  // Wed Apr 29 AMC
     'AMZN': '2026-04-29',   // Wed Apr 29 AMC
     'META': '2026-04-29',   // Wed Apr 29 AMC
-    'AAPL': '2026-05-01',   // Thu May 1 AMC (example)
-    'NVDA': '2026-05-28',   // Wed May 28 AMC (example)
-    'TSLA': '2026-04-23'    // Last week (example past date)
+    // Week of May 5 (Consumer & Finance)
+    'AAPL': '2026-05-01',   // Thu May 1 AMC
+    'JPM': '2026-05-05',    // Mon May 5 BMO
+    'V': '2026-05-06',      // Tue May 6 AMC
+    'MA': '2026-05-06',     // Tue May 6 AMC
+    'WMT': '2026-05-07',    // Wed May 7 BMO
+    'PG': '2026-05-08',     // Thu May 8 BMO
+    'BAC': '2026-05-08',    // Thu May 8 BMO
+    'JNJ': '2026-05-08',    // Thu May 8 BMO
+    // Week of May 12 (Tech & Retail)
+    'NVDA': '2026-05-13',   // Tue May 13 AMC
+    'NFLX': '2026-05-14',   // Wed May 14 AMC
+    'HD': '2026-05-14',     // Wed May 14 BMO
+    'COST': '2026-05-15',   // Thu May 15 AMC
+    'TSLA': '2026-04-23'    // Past date (already reported)
   }
 };
 
@@ -2095,7 +2108,7 @@ function renderRankings(loading) {
   } else if (S.watchlistFilter === 'weeklow') {
     ranked = ranked.filter(d => d.position < 0.35); // Near weekly low
   } else if (S.watchlistFilter === 'earnings') {
-    ranked = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 7);
+    ranked = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14);
   }
   
   if (!ranked.length) {
@@ -2104,7 +2117,7 @@ function renderRankings(loading) {
       bullish: 'No strongly bullish stocks found (net score >= 4).',
       bearish: 'No bearish stocks found (net score <= -1).',
       weeklow: 'No stocks near weekly lows (position < 35%).',
-      earnings: 'No stocks with earnings in the next 7 days. Note: Earnings data may be unavailable for ETFs and some securities.'
+      earnings: 'No stocks with earnings in the next 14 days. Note: Earnings data may be unavailable for ETFs and some securities.'
     };
     el.innerHTML = `<div class="empty">${filterLabels[S.watchlistFilter] || filterLabels.all}</div>`;
     return;
@@ -2122,6 +2135,14 @@ function renderRankings(loading) {
       assetBadge = `<span class="asset-type-badge ${badgeClass}">${d.assetType}</span>`;
     }
     
+    // Earnings date badge
+    let earningsBadge = '';
+    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
+      const earningsDate = new Date(d.nextEarnings).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const daysText = d.daysToEarnings === 0 ? 'TODAY' : d.daysToEarnings === 1 ? 'Tomorrow' : `${d.daysToEarnings}d`;
+      earningsBadge = `<span style="display:inline-block;margin-left:8px;font-size:0.7rem;padding:4px 8px;border-radius:6px;background:rgba(30,99,217,0.12);color:var(--blue);font-weight:700;">📅 ${earningsDate} (${daysText})</span>`;
+    }
+    
     const newsHtml = (d.headlines?.length)
       ? d.headlines.map(h => `<div style="font-size:0.75rem;padding:6px 0;border-bottom:1px dashed var(--border)"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
       : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
@@ -2131,7 +2152,7 @@ function renderRankings(loading) {
           <div class="rank-id">
             <span class="rank-no">#${index + 1}</span>
             <div>
-              <div class="rank-symbol">${d.ticker} ${assetBadge}</div>
+              <div class="rank-symbol">${d.ticker} ${assetBadge}${earningsBadge}</div>
               <div class="rank-price">$${d.price.toFixed(2)} · ${d.change >= 0 ? '+' : ''}${d.changePct.toFixed(2)}%</div>
             </div>
           </div>
