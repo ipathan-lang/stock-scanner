@@ -1326,27 +1326,28 @@ function score(closes, highs, lows) {
   const pos   = wHigh===wLow ? 0.5 : (price-wLow)/(wHigh-wLow);
   let bullishScore = 0;
   const bullishDrivers = [];
-  if (pos < 0.5) {
+  // Strict criteria - require genuine bullish setup
+  if (pos < 0.4) {
     bullishScore += 2;
     bullishDrivers.push('Trading in the lower half of the weekly range');
   }
-  if (r > 30 && r < 65) {
+  if (r > 35 && r < 60) {
     bullishScore += 2;
     bullishDrivers.push('RSI is in a healthy recovery zone');
   }
-  if (mc.diff > 0) {
+  if (mc.diff > 0 && mc.diff > 0.5) {
     bullishScore += 2;
-    bullishDrivers.push('MACD is above its signal line');
+    bullishDrivers.push('MACD is above its signal line with momentum');
   }
-  if (price >= ema20 * 0.97) {
+  if (price >= ema20 * 0.99) {
     bullishScore += 2;
     bullishDrivers.push('Price is holding close to EMA20 support');
   }
-  if (pos < 0.35) {
+  if (pos < 0.30) {
     bullishScore += 1;
     bullishDrivers.push('Price is near the recent support pocket');
   }
-  if (r > 35 && r < 55) {
+  if (r > 40 && r < 55) {
     bullishScore += 1;
     bullishDrivers.push('Momentum is balanced, not overheated');
   }
@@ -1475,11 +1476,12 @@ async function fetchStockFresh(ticker) {
 
   let bearishScore = 0;
   const bearishDrivers = [];
-  if (ind.position > 0.75) {
+  // Harsh criteria - catch bearish setups early
+  if (ind.position > 0.70) {
     bearishScore += 2;
     bearishDrivers.push('Price is already near the top of the weekly range');
   }
-  if (ind.rsi >= 68) {
+  if (ind.rsi >= 65) {
     bearishScore += 2;
     bearishDrivers.push('RSI is overheated and pullback risk is higher');
   }
@@ -1487,13 +1489,21 @@ async function fetchStockFresh(ticker) {
     bearishScore += 2;
     bearishDrivers.push('MACD is below the signal line');
   }
-  if (price < ind.ema20 * 0.985) {
+  if (price < ind.ema20 * 0.99) {
     bearishScore += 2;
     bearishDrivers.push('Price is losing EMA20 trend support');
   }
-  if (changePct <= -2) {
+  if (changePct <= -1) {
     bearishScore += 1;
-    bearishDrivers.push('Daily move is showing fresh downside pressure');
+    bearishDrivers.push('Daily move is showing downside pressure');
+  }
+  if (changePct <= -3) {
+    bearishScore += 2;
+    bearishDrivers.push('Strong daily decline signals weakness');
+  }
+  if (changePct <= -5) {
+    bearishScore += 2;
+    bearishDrivers.push('Major daily selloff is a red flag');
   }
   if (lastEPSSurprise !== null && lastEPSSurprise < 0) {
     bearishScore += 1;
@@ -1510,9 +1520,13 @@ async function fetchStockFresh(ticker) {
     catalystScore += 1;
     catalystDrivers.push('Upcoming earnings can act as a catalyst');
   }
-  if (changePct >= 1.5) {
+  if (changePct >= 2) {
     catalystScore += 1;
     catalystDrivers.push('Price is already attracting fresh buyers');
+  }
+  if (changePct >= 4) {
+    catalystScore += 1;
+    catalystDrivers.push('Strong daily rally shows momentum');
   }
 
   const netScore = ind.bullishScore + catalystScore - bearishScore;
@@ -1955,20 +1969,23 @@ function renderGoldenHour() {
 function signal(d) {
   if (!d || d.err) return { label:'—', cls:'by' };
   const s = d.netScore;
-  if (s >= 8 && d.macdDiff > 0) return { label:'Strong Bullish', cls:'bg' };
-  if (s >= 4)                   return { label:'Bullish',        cls:'bg' };
-  if (s >= 1)                   return { label:'Balanced Watch', cls:'by' };
-  if (s >= -2)                  return { label:'Cautious',       cls:'by' };
+  // Stricter thresholds for more accurate signals
+  if (s >= 7 && d.macdDiff > 0) return { label:'Strong Bullish', cls:'bg' };
+  if (s >= 5)                   return { label:'Bullish',        cls:'bg' };
+  if (s >= 2)                   return { label:'Balanced Watch', cls:'by' };
+  if (s >= 0)                   return { label:'Cautious',       cls:'by' };
+  if (s >= -3)                  return { label:'Weak',           cls:'br' };
   return                               { label:'Bearish',        cls:'br' };
 }
 
 function prediction(d) {
   if (!d || d.err) return { text:'—', cls:'' };
   const s = d.netScore;
-  if (s >= 8) return { text:'Upside setup is dominant',     cls:'pred-up' };
-  if (s >= 4) return { text:'Bias remains positive',        cls:'pred-up' };
-  if (s >= 1) return { text:'Balanced, wait for trigger',   cls:'pred-side' };
-  if (s >= -2) return { text:'Downside risk is building',   cls:'pred-down' };
+  if (s >= 7) return { text:'Upside setup is dominant',     cls:'pred-up' };
+  if (s >= 5) return { text:'Bias remains positive',        cls:'pred-up' };
+  if (s >= 2) return { text:'Balanced, wait for trigger',   cls:'pred-side' };
+  if (s >= 0) return { text:'Downside risk is building',    cls:'pred-down' };
+  if (s >= -3) return { text:'Weak setup, avoid entry',     cls:'pred-down' };
   return              { text:'Bearish pressure is dominant', cls:'pred-down' };
 }
 
@@ -2114,8 +2131,8 @@ function renderRankings(loading) {
   if (!ranked.length) {
     const filterLabels = {
       all: 'Add a ticker to build the ranked board.',
-      bullish: 'No strongly bullish stocks found (net score >= 4).',
-      bearish: 'No bearish stocks found (net score <= -1).',
+      bullish: 'No strongly bullish stocks found (net score >= 5).',
+      bearish: 'No bearish or weak stocks found (net score <= 1).'
       weeklow: 'No stocks near weekly lows (position < 35%).',
       earnings: 'No stocks with earnings in the next 14 days. Note: Earnings data may be unavailable for ETFs and some securities.'
     };
