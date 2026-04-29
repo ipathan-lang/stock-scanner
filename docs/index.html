@@ -1055,7 +1055,17 @@ let CONFIG = {
     { ticker: 'IWM', label: 'Russell 2000' },
     { ticker: 'XLK', label: 'Technology' },
     { ticker: 'XLF', label: 'Financials' }
-  ]
+  ],
+  // Manual earnings calendar (fallback when API fails) - Update weekly
+  earningsCalendar: {
+    'MSFT': '2026-04-29',   // Wed Apr 29 AMC
+    'GOOGL': '2026-04-29',  // Wed Apr 29 AMC
+    'AMZN': '2026-04-29',   // Wed Apr 29 AMC
+    'META': '2026-04-29',   // Wed Apr 29 AMC
+    'AAPL': '2026-05-01',   // Thu May 1 AMC (example)
+    'NVDA': '2026-05-28',   // Wed May 28 AMC (example)
+    'TSLA': '2026-04-23'    // Last week (example past date)
+  }
 };
 
 function loadConfig() {
@@ -1439,6 +1449,15 @@ async function fetchStockFresh(ticker) {
         if (qts) lastEarningsDate = new Date(qts * 1000);
       }
     }
+  }
+  
+  // Fallback to manual calendar if API failed
+  if (daysToEarnings === null && CONFIG.earningsCalendar && CONFIG.earningsCalendar[ticker]) {
+    try {
+      const earningsDateStr = CONFIG.earningsCalendar[ticker];
+      nextEarnings = new Date(earningsDateStr + 'T16:00:00-04:00'); // 4PM ET (after market)
+      daysToEarnings = Math.round((nextEarnings - Date.now()) / 86400000);
+    } catch(e) { /* ignore parse errors */ }
   }
 
   let bearishScore = 0;
