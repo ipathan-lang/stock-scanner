@@ -1264,6 +1264,75 @@ let S = {
   }
 };
 
+const SHARED_DATA_SYNC_MS = 90000;
+
+async function fetchSharedJson(path) {
+  const url = `${path}${path.includes('?') ? '&' : '?'}_=${Date.now()}`;
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
+    }
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function arraysEqualShallow(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+async function syncSharedDataFromServer() {
+  if (S.busy) return;
+
+  try {
+    const [wjRaw, pjRaw, tjRaw] = await Promise.all([
+      fetchSharedJson('./data/watchlist.json'),
+      fetchSharedJson('./data/portfolio.json'),
+      fetchSharedJson('./data/trackedStocks.json')
+    ]);
+
+    const wj = Array.isArray(wjRaw) ? wjRaw : [];
+    const pj = Array.isArray(pjRaw) ? pjRaw : [];
+    const tj = Array.isArray(tjRaw) ? tjRaw : [];
+
+    const mergedWatch = [...wj];
+    pj.forEach(p => {
+      if (p && p.ticker && !mergedWatch.includes(p.ticker)) mergedWatch.push(p.ticker);
+    });
+    tj.forEach(t => {
+      if (t && !mergedWatch.includes(t)) mergedWatch.push(t);
+    });
+
+    const portfolioChanged = JSON.stringify(S.portfolio) !== JSON.stringify(pj);
+    const trackedChanged = !arraysEqualShallow(S.trackedStocks, tj);
+    const watchChanged = !arraysEqualShallow(S.watchlist, mergedWatch);
+
+    if (!portfolioChanged && !trackedChanged && !watchChanged) return;
+
+    S.portfolio = pj;
+    S.trackedStocks = tj;
+    S.watchlist = mergedWatch;
+    save();
+    renderAll(false);
+
+    const tsEl = document.getElementById('ts');
+    if (tsEl) {
+      tsEl.textContent = 'Synced: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+      tsEl.title = 'Latest shared data loaded from server';
+      tsEl.style.color = 'var(--green)';
+    }
+  } catch(e) {
+    // Keep silent - periodic sync should not disrupt normal app usage.
+  }
+}
+
 // ── Load: JSON files ONLY (source of truth for all users) ──
 async function load() {
   try {
@@ -1275,9 +1344,9 @@ async function load() {
   // ALWAYS load from JSON files (source of truth - same data on all devices)
   try {
     const [wj, pj, tj] = await Promise.all([
-      fetch('./data/watchlist.json?_=' + Date.now()).then(r => r.ok ? r.json() : null),
-      fetch('./data/portfolio.json?_=' + Date.now()).then(r => r.ok ? r.json() : null),
-      fetch('./data/trackedStocks.json?_=' + Date.now()).then(r => r.ok ? r.json() : null)
+      fetchSharedJson('./data/watchlist.json'),
+      fetchSharedJson('./data/portfolio.json'),
+      fetchSharedJson('./data/trackedStocks.json')
     ]);
     
     // Load watchlist from JSON (no localStorage fallback)
@@ -4016,6 +4085,13 @@ function loadActiveTab() {
   loadActiveTab();
   renderAll(true);
   refreshAll();
+
+  // Keep clients aligned with latest JSON updates from GitHub Pages.
+  setInterval(syncSharedDataFromServer, SHARED_DATA_SYNC_MS);
+  window.addEventListener('focus', syncSharedDataFromServer);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) syncSharedDataFromServer();
+  });
 })();
 </script>
 </body>
