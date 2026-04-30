@@ -1111,6 +1111,17 @@
 
 <script>
 // ══════════════════════════════════════════════════════════════
+//  URL CLEANUP - Remove version parameters for clean URLs
+// ══════════════════════════════════════════════════════════════
+(function() {
+  if (window.location.search) {
+    // Clean URL by removing all query parameters
+    const cleanUrl = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════
 //  CONFIGURATION
 // ══════════════════════════════════════════════════════════════
 let CONFIG = {
