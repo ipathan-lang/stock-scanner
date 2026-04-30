@@ -3364,7 +3364,15 @@ async function searchStock() {
     // Fetch stock data
     const stockData = await fetchStock(ticker);
     
-    // Create search result row with "Add to Watchlist" button
+    // Automatically add to watchlist if not already there
+    const isInWatchlist = S.watchlist.includes(ticker);
+    if (!isInWatchlist) {
+      S.watchlist.push(ticker);
+      save();
+      console.log(`✓ ${ticker} automatically added to watchlist`);
+    }
+    
+    // Create search result row
     const sig = signal(stockData);
     const pred = prediction(stockData);
     const cc = stockData.change >= 0 ? 'pos' : 'neg';
@@ -3395,10 +3403,9 @@ async function searchStock() {
       epsCell = `<span class="${ec}">${ico} ${ep}$${stockData.lastEPSSurprise.toFixed(4)}</span>`;
     }
 
-    const isInWatchlist = S.watchlist.includes(ticker);
-    const actionBtn = isInWatchlist 
-      ? '<span style="color:var(--muted);font-size:0.85rem">✓ In Watchlist</span>'
-      : `<button class="btn-p btn-sm" onclick="addToWatchlistFromSearch('${ticker}')">+ Add to Watchlist</button>`;
+    const statusMsg = isInWatchlist 
+      ? '<span style="color:var(--green);font-size:0.85rem">✓ Already in Watchlist</span>'
+      : '<span style="color:var(--green);font-size:0.85rem">✓ Added to Watchlist</span>';
 
     searchBody.innerHTML = `<tr style="background:rgba(30,99,217,0.08);">
       <td class="tcell"><b>${ticker}</b>${assetBadge}</td>
@@ -3416,7 +3423,7 @@ async function searchStock() {
       <td>${earnCell}</td>
       <td>${epsCell}</td>
       <td><span class="${pred.cls}">${pred.text}</span></td>
-      <td>${actionBtn}</td>
+      <td>${statusMsg}</td>
     </tr>`;
 
     // Store in data cache for future use
@@ -3429,6 +3436,9 @@ async function searchStock() {
       // Note: In production, you would POST this to a server to update trackedStocks.json
       // For now, it will be tracked in this session and users can export/import
     }
+    
+    // Refresh all views to show the new watchlist item
+    renderAll(false);
 
   } catch (e) {
     searchBody.innerHTML = `<tr><td colspan="16"><div class="empty" style="color:var(--red)">⚠ Failed to load ${ticker} — ${e.message || 'Check ticker symbol'}</div></td></tr>`;
