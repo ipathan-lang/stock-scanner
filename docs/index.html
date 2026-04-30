@@ -2412,7 +2412,7 @@ function toggleMarketPulseDetail(category) {
     filtered = ranked.filter(d => d.netScore <= -2);
     title = '📉 Bearish Risk (Score ≤ -2)';
   } else if (category === 'portfolio') {
-    filtered = S.portfolio.map(p => S.data[p.ticker]).filter(Boolean);
+    filtered = S.portfolio.map(p => S.data[p.ticker]).filter(d => d && !d.err);
     title = '💼 Portfolio Stocks';
   } else if (category === 'most-bullish') {
     filtered = ranked.filter(d => d.netScore >= 7).slice(0, 10);
@@ -2558,7 +2558,7 @@ function renderRankings(loading) {
     return;
   }
 
-  let ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean));
+  let ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(d => d && !d.err));
   
   // Apply filter
   if (S.watchlistFilter === 'bullish') {
