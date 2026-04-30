@@ -809,6 +809,20 @@
 
   <!-- ═══════════════════ OVERVIEW TAB ═══════════════════ -->
   <div id="tab-overview" class="tab-panel active">
+    <!-- API ERROR BANNER -->
+    <div id="api-error-banner" style="display:none;padding:16px;margin-bottom:16px;background:rgba(239,83,80,0.1);border:1px solid var(--red);border-radius:12px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:1.5rem;">⚠️</span>
+        <div style="flex:1;">
+          <strong style="color:var(--red);font-size:0.95rem;">API Rate Limited</strong>
+          <p style="font-size:0.85rem;color:var(--muted);margin-top:4px;">
+            Yahoo Finance APIs are temporarily rate-limited. Data loading may be slow. 
+            <button class="btn-sm" onclick="location.reload()" style="margin-left:8px;">🔄 Retry</button>
+          </p>
+        </div>
+      </div>
+    </div>
+    
     <!-- MY PORTFOLIO & ACTIONS -->
     <section>
       <h2>
@@ -1441,21 +1455,35 @@ function score(closes, highs, lows) {
 async function fetchJ(url) {
   const proxies = [
     u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
     u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`
   ];
   // Add cache-busting timestamp to ensure fresh data
   const cacheBuster = `&_t=${Date.now()}`;
-  for (const p of proxies) {
+  
+  for (let i = 0; i < proxies.length; i++) {
+    const p = proxies[i];
     try {
+      // Add delay between retries to avoid rate limiting
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 500 * i));
+      
       const r = await fetch(p(url + cacheBuster), {
-        signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
-        cache: 'no-store'  // Disable browser caching
+        signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined,
+        cache: 'no-store'
       });
-      if (!r.ok) continue;
+      if (!r.ok) {
+        console.warn(`Proxy ${i+1} returned ${r.status} for ${url}`);
+        continue;
+      }
       return await r.json();
-    } catch(e) { continue; }
+    } catch(e) { 
+      console.warn(`Proxy ${i+1} failed:`, e.message);
+      continue; 
+    }
   }
-  throw new Error('All proxies failed for: ' + url);
+  console.error('All proxies failed for:', url);
+  throw new Error('All proxies failed');
 }
 function detectAssetType(ticker) {
   const etfs = ['SPY','QQQ','IWM','XLK','XLF','XLE','XLV','XLY','XLP','VTI','VOO','IVV','AGG','BND','VXUS','TLT'];
@@ -2100,7 +2128,15 @@ function renderOverviewPortfolio(loading) {
     const d = S.data[ticker];
     
     if (!d || d.err) {
-      return `<div class="portfolio-card"><strong>${ticker}</strong><p style="color:var(--muted);font-size:0.85rem;margin-top:8px;">Waiting for data...</p></div>`;
+      return `<div class="portfolio-card">
+        <strong>${ticker}</strong>
+        <p style="color:var(--muted);font-size:0.85rem;margin-top:8px;">
+          ${d?.err ? '⚠️ Failed to load data - API rate limited. Refresh in 1 minute.' : '⏳ Loading data...'}
+        </p>
+        <p style="color:var(--muted);font-size:0.75rem;margin-top:4px;">
+          Shares: ${shares} · Bought @ $${(+buyPrice).toFixed(2)}
+        </p>
+      </div>`;
     }
     
     const sig = signal(d);
@@ -3175,6 +3211,14 @@ async function loadOne(ticker, retries = 2) {
         // Final attempt failed - mark as error
         S.data[ticker] = { err: true };
         console.warn(`API failed for ${ticker} after ${retries + 1} attempts:`, e.message);
+        // Track API failures
+        if (!window.apiFailureCount) window.apiFailureCount = 0;
+        window.apiFailureCount++;
+        // Show error banner if multiple failures
+        if (window.apiFailureCount >= 3) {
+          const banner = document.getElementById('api-error-banner');
+          if (banner) banner.style.display = 'block';
+        }
       } else {
         // Retry after short delay
         await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
@@ -3186,6 +3230,11 @@ async function loadOne(ticker, retries = 2) {
 async function refreshAll() {
   if (S.busy) return;
   S.busy = true;
+  
+  // Reset failure counter on new refresh
+  window.apiFailureCount = 0;
+  const banner = document.getElementById('api-error-banner');
+  if (banner) banner.style.display = 'none';
 
   // Prioritize portfolio stocks and tracked stocks
   const portfolioTickers = S.portfolio.map(p => p.ticker);
