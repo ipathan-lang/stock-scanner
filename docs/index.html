@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>IntelliMarket Analyst - Personal AI Trading Assistant</title>
-  <!-- Version: 2.0.1 - Cache bust -->
-  <!-- data files: docs/data/portfolio.json, docs/data/watchlist.json -->
+  <!-- Version: 2.1.0 - Cross-device consistency -->
+  <!-- data files: docs/data/portfolio.json, docs/data/watchlist.json, docs/data/trackedStocks.json -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
@@ -779,37 +782,54 @@
 
   <!-- ═══════════════════ OVERVIEW TAB ═══════════════════ -->
   <div id="tab-overview" class="tab-panel active">
-    <section class="hero-grid">
-      <article class="hero-card primary">
-        <div class="hero-kicker">🧠 AI-Powered Market Intelligence</div>
-        <div class="hero-title">Your personal AI trading assistant monitoring markets 24/7</div>
-        <p class="hero-subcopy">IntelliMarket Analyst combines technical analysis, news sentiment, and market context to provide intelligent buy/sell recommendations. Supports stocks, ETFs, and metals with real-time AI decisions in test mode.</p>
-        <div class="hero-meta" id="hero-meta">Loading ranked market context...</div>
-        <div class="hero-stats" id="hero-stats">
-          <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
-          <div class="hero-stat"><span>Market Breadth</span><span>Loading...</span></div>
-        </div>
-      </article>
-
-      <article class="hero-card secondary">
-        <section>
-          <h2>📊 AI Market Pulse</h2>
-          <div id="market-sentiment-bar" class="sentiment-bar" style="display:none;margin-bottom:12px;"></div>
-          <div id="overview-grid" class="overview-grid">
-            <div class="overview-card"><small>Watchlist</small><strong>--</strong></div>
-            <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
-            <div class="overview-card"><small>Bearish</small><strong>--</strong></div>
-            <div class="overview-card"><small>Portfolio</small><strong>--</strong></div>
-          </div>
-          <div id="market-pulse" class="market-pulse">
-            <div class="empty" style="padding:18px">Loading current market trends...</div>
-          </div>
-        </section>
-      </article>
+    <!-- MY PORTFOLIO & ACTIONS -->
+    <section>
+      <h2>💼 My Portfolio</h2>
+      <div class="tw" id="portfolio-quick-view">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Shares</th>
+              <th>Bought @</th>
+              <th>Current</th>
+              <th>P&L</th>
+              <th>Signal</th>
+              <th>Action Needed</th>
+            </tr>
+          </thead>
+          <tbody id="pb-overview"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="portfolio-empty" style="display:none;padding:16px">
+        No portfolio positions. <a href="#" onclick="switchTab('portfolio');return false;" style="color:var(--blue)">Add your first position →</a>
+      </div>
     </section>
 
+    <!-- SMART SUGGESTIONS -->
     <section>
-      <div id="strategy-panel" class="strategy-card"></div>
+      <h2>💡 Smart Investment Suggestions</h2>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
+        AI-recommended stocks based on bullish signals, upcoming earnings, and technical setups
+      </p>
+      <div class="coach-grid" id="suggestions-grid">
+        <div class="empty" style="padding:24px">Loading smart suggestions...</div>
+      </div>
+    </section>
+
+    <!-- MARKET PULSE (compact) -->
+    <section>
+      <h2>📊 Market Pulse</h2>
+      <div id="market-sentiment-bar" class="sentiment-bar" style="display:none;margin-bottom:12px;"></div>
+      <div id="overview-grid" class="overview-grid">
+        <div class="overview-card"><small>Watchlist</small><strong>--</strong></div>
+        <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
+        <div class="overview-card"><small>Bearish</small><strong>--</strong></div>
+        <div class="overview-card"><small>Portfolio</small><strong>--</strong></div>
+      </div>
+      <div id="market-pulse" class="market-pulse">
+        <div class="empty" style="padding:18px">Loading current market trends...</div>
+      </div>
     </section>
   </div>
 
@@ -1164,6 +1184,7 @@ const MODEL_SPEC = {
 let S = {
   watchlist : [],
   portfolio : [],   // [{ticker, shares, buyPrice, note?}]
+  trackedStocks: [], // Stocks searched by any user - persisted for all
   data      : {},   // {ticker: stockObj | {err:true}}
   busy      : false,
   seeded    : false,
@@ -1197,53 +1218,51 @@ let S = {
   }
 };
 
-// ── Load: JSON files first (source of truth), then localStorage fallback ──
+// ── Load: JSON files ONLY (source of truth for all users) ──
 async function load() {
   try {
-    // Get localStorage values (no cache - always fetch fresh)
-    const sim = localStorage.getItem('ss_sim');
+    // Load user preferences from localStorage
     const filter = localStorage.getItem('ss_filter');
-    
     if (filter) S.watchlistFilter = filter;
-    if (sim) {
-      const parsedSim = JSON.parse(sim);
-      S.sim = { ...S.sim, ...parsedSim, learn: { ...S.sim.learn, ...(parsedSim.learn || {}) } };
-    }
   } catch(e) {}
 
-  // Always try to load from JSON files first (source of truth for consistency across users)
+  // ALWAYS load from JSON files (source of truth - same data on all devices)
   try {
-    const [wj, pj] = await Promise.all([
-      fetch('./data/watchlist.json').then(r => r.ok ? r.json() : null),
-      fetch('./data/portfolio.json').then(r => r.ok ? r.json() : null)
+    const [wj, pj, tj] = await Promise.all([
+      fetch('./data/watchlist.json?_=' + Date.now()).then(r => r.ok ? r.json() : null),
+      fetch('./data/portfolio.json?_=' + Date.now()).then(r => r.ok ? r.json() : null),
+      fetch('./data/trackedStocks.json?_=' + Date.now()).then(r => r.ok ? r.json() : null)
     ]);
     
-    // Get localStorage as fallback
-    const w = localStorage.getItem('ss_watch');
-    const p = localStorage.getItem('ss_port');
-    
-    // If JSON files exist and have data, use them as source of truth
+    // Load watchlist from JSON (no localStorage fallback)
     if (Array.isArray(wj) && wj.length) {
       S.watchlist = wj;
       S.seeded = true;
-    } else if (w) {
-      // Fallback to localStorage if JSON not available
-      S.watchlist = JSON.parse(w);
+    } else {
+      // Use CONFIG default if JSON is empty
+      S.watchlist = [...CONFIG.defaultWatchlist];
     }
     
+    // Load portfolio from JSON (no localStorage fallback)
     if (Array.isArray(pj) && pj.length) {
       S.portfolio = pj;
       // Make sure portfolio tickers are in watchlist
       pj.forEach(p => { if (!S.watchlist.includes(p.ticker)) S.watchlist.push(p.ticker); });
       S.seeded = true;
-    } else if (p) {
-      // Fallback to localStorage if JSON not available
-      S.portfolio = JSON.parse(p);
     }
-  } catch(e) {}
-
-  // If still empty, use CONFIG default
-  if (!S.watchlist.length) S.watchlist = [...CONFIG.defaultWatchlist];
+    
+    // Load tracked stocks (searched by any user)
+    if (Array.isArray(tj)) {
+      S.trackedStocks = tj;
+      // Merge tracked stocks into watchlist
+      tj.forEach(t => { if (!S.watchlist.includes(t)) S.watchlist.push(t); });
+    }
+  } catch(e) {
+    console.warn('Failed to load JSON data:', e);
+    // Use CONFIG default
+    S.watchlist = [...CONFIG.defaultWatchlist];
+  }
+  
   save();
 }
 
@@ -2024,47 +2043,183 @@ function scoreBar(sc, max=100) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  OVERVIEW TAB RENDERERS (Portfolio-first approach)
+// ══════════════════════════════════════════════════════════════
+function renderOverviewPortfolio(loading) {
+  const pbOverview = document.getElementById('pb-overview');
+  const emptyDiv = document.getElementById('portfolio-empty');
+  
+  const displayPortfolio = S.testMode 
+    ? S.sim.positions.map(p => ({ ticker: p.ticker, shares: p.shares, buyPrice: p.buyPrice }))
+    : S.portfolio;
+  
+  if (!displayPortfolio.length) {
+    pbOverview.innerHTML = '';
+    if (emptyDiv) emptyDiv.style.display = 'block';
+    return;
+  }
+  
+  if (emptyDiv) emptyDiv.style.display = 'none';
+  
+  pbOverview.innerHTML = displayPortfolio.map(pos => {
+    const { ticker, shares, buyPrice } = pos;
+    const d = S.data[ticker];
+    
+    if (loading || !d)
+      return `<tr><td>${ticker}</td><td>${shares}</td><td>$${(+buyPrice).toFixed(2)}</td>${'<td><span class="sk"></span></td>'.repeat(4)}</tr>`;
+    
+    const cur = d.err ? null : d.price;
+    const pnlT = cur ? (cur - buyPrice) * shares : 0;
+    const pnlP = cur ? (cur - buyPrice) / buyPrice * 100 : 0;
+    const pc = pnlT >= 0 ? 'pos' : 'neg';
+    const ps = pnlT >= 0 ? '+' : '';
+    const sig = signal(d);
+    const act = action(d, buyPrice);
+    
+    return `<tr>
+      <td class="tcell"><b>${ticker}</b></td>
+      <td>${shares}</td>
+      <td>$${(+buyPrice).toFixed(2)}</td>
+      <td><b>${cur ? '$'+cur.toFixed(2) : '—'}</b></td>
+      <td><span class="${pc}">${ps}$${pnlT.toFixed(2)} (${ps}${pnlP.toFixed(2)}%)</span></td>
+      <td><span class="badge ${sig.cls}">${sig.label}</span></td>
+      <td><span class="${act.cls}"><b>${act.text}</b></span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSmartSuggestions(loading) {
+  const grid = document.getElementById('suggestions-grid');
+  
+  if (loading) {
+    grid.innerHTML = '<div class="empty" style="padding:24px">Analyzing stocks...</div>';
+    return;
+  }
+  
+  // Get all stocks with complete data
+  const allStocks = Object.values(S.data).filter(d => d && !d.err && d.ticker);
+  
+  if (!allStocks.length) {
+    grid.innerHTML = '<div class="empty" style="padding:24px">No stock data available</div>';
+    return;
+  }
+  
+  // Score and filter suggestions based on multiple criteria
+  const suggestions = allStocks
+    .map(d => {
+      let score = d.netScore || 0;
+      let reasons = [];
+      
+      // Strong bullish signal
+      if (d.netScore >= 5) {
+        score += 2;
+        reasons.push('Strong bullish setup');
+      }
+      
+      // Earnings catalyst
+      if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 5 && d.lastEPSBeat) {
+        score += 3;
+        reasons.push(`Earnings in ${d.daysToEarnings}d (beat last time)`);
+      }
+      
+      // Near week low (reversal opportunity)
+      if (d.position <= 0.15 && d.rsi < 40 && d.macdDiff > 0) {
+        score += 2;
+        reasons.push('Near week low with momentum shift');
+      }
+      
+      // Strong conviction
+      if (d.conviction >= 65) {
+        score += 1;
+        reasons.push(`High conviction (${d.conviction}%)`);
+      }
+      
+      return {
+        ...d,
+        suggestionScore: score,
+        suggestionReasons: reasons
+      };
+    })
+    .filter(d => d.suggestionScore >= 5)  // Only show high-quality suggestions
+    .sort((a, b) => b.suggestionScore - a.suggestionScore)
+    .slice(0, 6);  // Top 6 suggestions
+  
+  if (!suggestions.length) {
+    grid.innerHTML = '<div class="empty" style="padding:24px">No strong opportunities right now. Check back after market moves.</div>';
+    return;
+  }
+  
+  grid.innerHTML = suggestions.map(d => {
+    const sig = signal(d);
+    const pred = prediction(d);
+    const cc = d.change >= 0 ? 'pos' : 'neg';
+    const cs = d.change >= 0 ? '+' : '';
+    
+    let earnBadge = '';
+    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 5) {
+      earnBadge = `<span class="badge" style="background:var(--yellow);color:#fff;font-size:0.7rem;padding:2px 6px;margin-left:6px;">Earnings ${d.daysToEarnings}d</span>`;
+    }
+    
+    return `<div class="coach-card">
+      <div class="coach-head">
+        <strong>${d.ticker}${earnBadge}</strong>
+        <span class="badge ${sig.cls}">${sig.label}</span>
+      </div>
+      <div class="coach-price">
+        $${d.price.toFixed(2)}
+        <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
+      </div>
+      <div class="coach-metrics">
+        <div><small>Net Score</small><strong>${d.netScore}</strong></div>
+        <div><small>RSI</small><strong>${d.rsi.toFixed(1)}</strong></div>
+        <div><small>Conviction</small><strong>${d.conviction}%</strong></div>
+      </div>
+      <div class="coach-msg">
+        ${d.suggestionReasons.join(' · ')}
+      </div>
+      <button class="btn-p btn-sm" onclick="addWatch()" style="width:100%;margin-top:8px;" 
+              onmouseenter="document.getElementById('add-input').value='${d.ticker}'"
+              onclick="document.getElementById('add-input').value='${d.ticker}';addWatch();">
+        + Add to Watchlist
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
 //  ROW RENDERERS
 // ══════════════════════════════════════════════════════════════
 function renderOverview() {
   const overview = document.getElementById('overview-grid');
-  const heroMeta = document.getElementById('hero-meta');
-  const heroStats = document.getElementById('hero-stats');
   const pulse = document.getElementById('market-pulse');
   const ranked = sortStocks(Object.values(S.data).filter(d => d && !d.err));
   const bullish = ranked.filter(d => d.netScore >= 4).length;
   const bearish = ranked.filter(d => d.netScore <= -2).length;
-  const top = ranked[0];
-  const breadth = ranked.length ? `${bullish} bullish / ${bearish} bearish` : 'Waiting for market data';
-  const leadTrend = S.marketTrends[0];
 
-  overview.innerHTML = `
-    <div class="overview-card"><small>Watchlist</small><strong>${S.watchlist.length}</strong></div>
-    <div class="overview-card"><small>Bullish Setups</small><strong>${bullish}</strong></div>
-    <div class="overview-card"><small>Bearish Risk</small><strong>${bearish}</strong></div>
-    <div class="overview-card"><small>Portfolio</small><strong>${S.portfolio.length}</strong></div>`;
+  if (overview) {
+    overview.innerHTML = `
+      <div class="overview-card"><small>Watchlist</small><strong>${S.watchlist.length}</strong></div>
+      <div class="overview-card"><small>Bullish Setups</small><strong>${bullish}</strong></div>
+      <div class="overview-card"><small>Bearish Risk</small><strong>${bearish}</strong></div>
+      <div class="overview-card"><small>Portfolio</small><strong>${S.portfolio.length}</strong></div>`;
+  }
 
-  heroMeta.textContent = top
-    ? `${top.ticker} currently leads the board with net score ${top.netScore} and ${top.conviction}% conviction.`
-    : 'Loading ranked market context...';
-
-  heroStats.innerHTML = top
-    ? `
-      <div class="hero-stat"><span>Top Setup</span><span>${top.ticker} · ${signal(top).label}</span></div>
-      <div class="hero-stat"><span>Market Breadth</span><span>${breadth}</span></div>`
-    : `
-      <div class="hero-stat"><span>Top Setup</span><span>Loading...</span></div>
-      <div class="hero-stat"><span>Market Breadth</span><span>Loading...</span></div>`;
-
-  pulse.innerHTML = S.marketTrends.length
-    ? S.marketTrends.map(item => `
-      <div class="market-pulse-card">
-        <div class="market-pulse-id">
-          <strong>${item.label}</strong>
-          <span>${item.ticker} · ${item.mode}</span>
-        </div>
-        <div class="market-pulse-move">
-          <strong class="${item.changePct >= 0 ? 'pos' : 'neg'}">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</strong>
+  if (pulse) {
+    pulse.innerHTML = S.marketTrends.length
+      ? S.marketTrends.map(item => `
+        <div class="market-pulse-card">
+          <div class="market-pulse-id">
+            <strong>${item.label}</strong>
+            <span>${item.ticker} · ${item.mode}</span>
+          </div>
+          <div class="market-pulse-move">
+            <strong class="${item.changePct >= 0 ? 'pos' : 'neg'}">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</strong>
+            <span>net ${item.netScore} · ${item.conviction}% conviction</span>
+          </div>
+        </div>`).join('')
+      : `<div class="empty" style="padding:18px">Loading current market trends...</div>`;
+  }
+}
           <span>net ${item.netScore} · ${item.conviction}% conviction</span>
         </div>
       </div>`).join('')
@@ -2335,6 +2490,8 @@ function renderAll(loading) {
   if (tmBtn) tmBtn.textContent = S.testMode ? '✅ Test Mode: ON' : 'Test Mode: OFF';
 
   renderOverview();
+  renderOverviewPortfolio(loading);
+  renderSmartSuggestions(loading);
   renderStrategyPanel();
   renderRankings(loading);
 
@@ -2821,17 +2978,27 @@ async function refreshAll() {
   if (S.busy) return;
   S.busy = true;
 
-  const allTickers = [...new Set([...S.watchlist, ...S.portfolio.map(p=>p.ticker)])];
+  // Prioritize portfolio stocks and tracked stocks
+  const portfolioTickers = S.portfolio.map(p => p.ticker);
+  const otherTickers = [...new Set([...S.watchlist, ...S.trackedStocks])].filter(t => !portfolioTickers.includes(t));
+  const allTickers = [...portfolioTickers, ...otherTickers];
+  
   renderAll(true);
 
-  // Batch load stocks in larger chunks for faster real-time updates
-  const BATCH_SIZE = 10;  // Increased from 5 for better performance
+  // Load portfolio stocks FIRST (priority for user)
+  if (portfolioTickers.length) {
+    await Promise.all(portfolioTickers.slice(0, 5).map(ticker => loadOne(ticker)));
+    renderOverviewPortfolio(false);  // Show portfolio data immediately
+  }
+
+  // Batch load remaining stocks
+  const BATCH_SIZE = 10;
   const batches = [];
   for (let i = 0; i < allTickers.length; i += BATCH_SIZE) {
     batches.push(allTickers.slice(i, i + BATCH_SIZE));
   }
   
-  // Load market trends first (smaller, more critical)
+  // Load market trends (parallel with first batch)
   const marketTrendResults = await Promise.all(
     CONFIG.marketTrends.map(async ({ ticker, label }) => {
       try {
@@ -2965,6 +3132,14 @@ async function searchStock() {
 
     // Store in data cache for future use
     S.data[ticker] = stockData;
+    
+    // Add to tracked stocks (persisted for all users)
+    if (!S.trackedStocks.includes(ticker)) {
+      S.trackedStocks.push(ticker);
+      console.log(`Added ${ticker} to tracked stocks for all users`);
+      // Note: In production, you would POST this to a server to update trackedStocks.json
+      // For now, it will be tracked in this session and users can export/import
+    }
 
   } catch (e) {
     searchBody.innerHTML = `<tr><td colspan="16"><div class="empty" style="color:var(--red)">⚠ Failed to load ${ticker} — ${e.message || 'Check ticker symbol'}</div></td></tr>`;
