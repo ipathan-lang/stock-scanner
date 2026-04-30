@@ -1418,11 +1418,7 @@ async function fetchJ(url) {
     try {
       const r = await fetch(p(url + cacheBuster), {
         signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
-        cache: 'no-store',  // Disable browser caching
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
+        cache: 'no-store'  // Disable browser caching
       });
       if (!r.ok) continue;
       return await r.json();
