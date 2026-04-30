@@ -2415,21 +2415,65 @@ function toggleMarketPulseDetail(category) {
   } else {
     const stocksHtml = filtered.slice(0, 20).map(d => {
       const sig = signal(d);
-      const priceColor = d.changePct >= 0 ? 'var(--pos)' : 'var(--neg)';
-      const priceSign = d.changePct >= 0 ? '+' : '';
-      return `
-        <div class="stock-item">
-          <div>
-            <span class="stock-ticker">${d.ticker}</span>
-            <span style="margin-left:8px;font-size:0.75rem;padding:3px 6px;border-radius:4px;background:${sig.color}15;color:${sig.color};font-weight:600;">${sig.label}</span>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-weight:600;color:var(--ink);">$${d.price.toFixed(2)}</div>
-            <div class="stock-price" style="color:${priceColor};">${priceSign}${d.changePct.toFixed(2)}%</div>
-          </div>
-        </div>`;
+      const cc = d.change >= 0 ? 'pos' : 'neg';
+      const cs = d.change >= 0 ? '+' : '';
+      
+      // Earnings badge
+      let earnBadge = '';
+      if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
+        earnBadge = `<span class="badge" style="background:var(--blue);color:#fff;font-size:0.7rem;padding:2px 6px;margin-left:6px;">📅 ${d.daysToEarnings === 0 ? 'Today' : d.daysToEarnings + 'd'}</span>`;
+      }
+      
+      // Build explanation based on category and metrics
+      let reasons = [];
+      if (d.netScore >= 7) reasons.push(`Strong bullish (score ${d.netScore})`);
+      else if (d.netScore >= 4) reasons.push(`Bullish setup (score ${d.netScore})`);
+      else if (d.netScore <= -4) reasons.push(`Strong bearish (score ${d.netScore})`);
+      else if (d.netScore <= -2) reasons.push(`Bearish risk (score ${d.netScore})`);
+      else reasons.push(`Net score ${d.netScore}`);
+      
+      if (d.conviction >= 70) reasons.push(`High conviction (${d.conviction}%)`);
+      else if (d.conviction >= 50) reasons.push(`Medium conviction (${d.conviction}%)`);
+      
+      if (d.rsi < 30) reasons.push('Oversold (RSI ' + d.rsi.toFixed(1) + ')');
+      else if (d.rsi > 70) reasons.push('Overbought (RSI ' + d.rsi.toFixed(1) + ')');
+      
+      if (d.position < 0.20) reasons.push('Near week low');
+      else if (d.position > 0.80) reasons.push('Near week high');
+      
+      if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
+        if (d.lastEPSBeat) reasons.push('Beat last earnings');
+        else reasons.push('Upcoming earnings');
+      }
+      
+      const explanation = reasons.slice(0, 3).join(' · ');
+      
+      // Check if in portfolio
+      const isInPortfolio = S.portfolio.some(p => p.ticker === d.ticker);
+      
+      return `<div class="coach-card">
+      <div class="coach-head">
+        <strong>${d.ticker}${earnBadge}</strong>
+        <span class="badge ${sig.cls}">${sig.label}</span>
+      </div>
+      <div class="coach-price">
+        $${d.price.toFixed(2)}
+        <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
+      </div>
+      <div class="coach-metrics">
+        <div><small>Net Score</small><strong>${d.netScore}</strong></div>
+        <div><small>RSI</small><strong>${d.rsi.toFixed(1)}</strong></div>
+        <div><small>Conviction</small><strong>${d.conviction}%</strong></div>
+      </div>
+      <div class="coach-msg">
+        ${explanation}
+      </div>
+      ${isInPortfolio 
+        ? '<div style="text-align:center;padding:8px;color:var(--muted);font-size:0.85rem;">✓ In Portfolio</div>'
+        : `<button class="btn-p btn-sm" onclick="openModalWithTicker('${d.ticker}')" style="width:100%;margin-top:8px;">💼 Add to Portfolio</button>`}
+    </div>`;
     }).join('');
-    detailDiv.innerHTML = `<div class="overview-card-expanded"><strong>${title}</strong>${stocksHtml}</div>`;
+    detailDiv.innerHTML = `<div class="overview-card-expanded"><strong style="font-size:1.2rem;margin-bottom:16px;display:block;">${title}</strong><div class="coach-grid">${stocksHtml}</div></div>`;
   }
   
   detailDiv.style.display = 'block';
