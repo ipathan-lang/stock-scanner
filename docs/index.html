@@ -392,6 +392,32 @@
       flex-direction: column;
       gap: 8px;
     }
+    .coach-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px; }
+    .coach-head strong { font-size: 1.15rem; }
+    .coach-price { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .coach-price span { font-size: 0.85rem; font-weight: 600; }
+    .coach-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 10px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin: 4px 0;
+    }
+    .coach-metrics > div { display: flex; flex-direction: column; gap: 3px; }
+    .coach-metrics small { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .coach-metrics strong { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .coach-msg {
+      font-size: 0.78rem;
+      color: var(--muted);
+      padding: 6px 10px;
+      background: rgba(30,99,217,0.06);
+      border-radius: 8px;
+      border-left: 3px solid var(--blue);
+      line-height: 1.5;
+    }
     .coach-top { display: flex; align-items: center; gap: 8px; }
     .coach-top h3 { font-size: 0.92rem; }
     .coach-pill { font-size: 0.72rem; padding: 4px 9px; border-radius: 100px; font-weight: 700; }
