@@ -400,15 +400,15 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 8px;
-      padding: 10px;
+      padding: 10px 12px;
       background: rgba(255,255,255,0.04);
       border-radius: 10px;
       border: 1px solid var(--border);
       margin: 4px 0;
     }
-    .coach-metrics > div { display: flex; flex-direction: column; gap: 3px; }
-    .coach-metrics small { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .coach-metrics strong { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .coach-metrics > div { display: flex; flex-direction: column; gap: 4px; }
+    .coach-metrics small { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; }
+    .coach-metrics strong { font-size: 1.05rem; font-weight: 700; display: block; }
     .coach-msg {
       font-size: 0.78rem;
       color: var(--muted);
@@ -2278,9 +2278,9 @@ function renderOverviewPortfolio(loading) {
       </div>
       
       <div class="coach-metrics">
-        <div><small>Net Score</small><strong>${d.netScore}</strong></div>
-        <div><small>RSI</small><strong>${d.rsi.toFixed(1)}</strong></div>
-        <div><small>Conviction</small><strong>${d.conviction}%</strong></div>
+        <div><small>Net Score</small><strong style="color:${d.netScore > 0 ? 'var(--pos)' : d.netScore < 0 ? 'var(--neg)' : 'var(--muted)'}">${d.netScore}</strong></div>
+        <div><small>RSI</small><strong style="color:${d.rsi < 30 ? 'var(--pos)' : d.rsi > 70 ? 'var(--neg)' : 'var(--text)'}">${d.rsi.toFixed(1)}</strong></div>
+        <div><small>Conviction</small><strong style="color:${d.conviction >= 65 ? 'var(--pos)' : d.conviction < 40 ? 'var(--neg)' : 'var(--text)'}">${d.conviction}%</strong></div>
       </div>
       <div class="coach-msg">
         ${explanation}
@@ -2292,15 +2292,15 @@ function renderOverviewPortfolio(loading) {
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;font-size:0.85rem;margin-bottom:12px;">
             <div>
               <div style="color:var(--muted);font-size:0.7rem;">MACD Diff</div>
-              <div style="font-weight:700;margin-top:2px;">${d.macdDiff.toFixed(4)}</div>
+              <div style="font-weight:700;margin-top:2px;color:${d.macdDiff > 0 ? 'var(--pos)' : 'var(--neg)'}">${d.macdDiff.toFixed(4)}</div>
             </div>
             <div>
               <div style="color:var(--muted);font-size:0.7rem;">Week Position</div>
-              <div style="font-weight:700;margin-top:2px;">${(d.position * 100).toFixed(0)}%</div>
+              <div style="font-weight:700;margin-top:2px;color:${d.position < 0.35 ? 'var(--pos)' : d.position > 0.75 ? 'var(--neg)' : 'var(--text)'}">${(d.position * 100).toFixed(0)}%</div>
             </div>
             <div>
               <div style="color:var(--muted);font-size:0.7rem;">Bull / Bear</div>
-              <div style="font-weight:700;margin-top:2px;">${d.bullishScore} / ${d.bearishScore}</div>
+              <div style="font-weight:700;margin-top:2px;"><span style="color:var(--pos)">${d.bullishScore}</span> / <span style="color:var(--neg)">${d.bearishScore}</span></div>
             </div>
             <div>
               <div style="color:var(--muted);font-size:0.7rem;">P&L %</div>
@@ -2409,9 +2409,9 @@ function renderSmartSuggestions(loading) {
         <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
       </div>
       <div class="coach-metrics">
-        <div><small>Net Score</small><strong>${d.netScore}</strong></div>
-        <div><small>RSI</small><strong>${d.rsi.toFixed(1)}</strong></div>
-        <div><small>Conviction</small><strong>${d.conviction}%</strong></div>
+        <div><small>Net Score</small><strong style="color:${d.netScore > 0 ? 'var(--pos)' : d.netScore < 0 ? 'var(--neg)' : 'var(--muted)'}">${d.netScore}</strong></div>
+        <div><small>RSI</small><strong style="color:${d.rsi < 30 ? 'var(--pos)' : d.rsi > 70 ? 'var(--neg)' : 'var(--text)'}">${d.rsi.toFixed(1)}</strong></div>
+        <div><small>Conviction</small><strong style="color:${d.conviction >= 65 ? 'var(--pos)' : d.conviction < 40 ? 'var(--neg)' : 'var(--text)'}">${d.conviction}%</strong></div>
       </div>
       <div class="coach-msg">
         ${d.suggestionReasons.join(' · ')}
@@ -2519,9 +2519,9 @@ function toggleMarketPulseDetail(category) {
         <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
       </div>
       <div class="coach-metrics">
-        <div><small>Net Score</small><strong>${d.netScore}</strong></div>
-        <div><small>RSI</small><strong>${d.rsi.toFixed(1)}</strong></div>
-        <div><small>Conviction</small><strong>${d.conviction}%</strong></div>
+        <div><small>Net Score</small><strong style="color:${d.netScore > 0 ? 'var(--pos)' : d.netScore < 0 ? 'var(--neg)' : 'var(--muted)'}">${d.netScore}</strong></div>
+        <div><small>RSI</small><strong style="color:${d.rsi < 30 ? 'var(--pos)' : d.rsi > 70 ? 'var(--neg)' : 'var(--text)'}">${d.rsi.toFixed(1)}</strong></div>
+        <div><small>Conviction</small><strong style="color:${d.conviction >= 65 ? 'var(--pos)' : d.conviction < 40 ? 'var(--neg)' : 'var(--text)'}">${d.conviction}%</strong></div>
       </div>
       <div class="coach-msg">
         ${explanation}
