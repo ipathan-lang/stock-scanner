@@ -188,18 +188,31 @@
     .overview-card:active { transform: translateY(0); }
     .overview-card small { display: block; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
     .overview-card strong { display: block; margin-top: 6px; font-size: 1.18rem; color: var(--ink); }
-    .overview-card-expanded { margin-top: 12px; padding: 12px; background: rgba(30,99,217,0.04); border-radius: 8px; font-size: 0.85rem; }
-    .overview-card-expanded .stock-item { padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-    .overview-card-expanded .stock-item:last-child { border-bottom: none; }
-    .overview-card-expanded .stock-ticker { font-weight: 700; color: var(--ink); }
-    .overview-card-expanded .stock-price { color: var(--muted); font-size: 0.8rem; }
-    .portfolio-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-    .portfolio-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .portfolio-card-ticker { font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+    .overview-card-expanded { margin-top: 12px; padding: 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 0.85rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .overview-card-expanded > strong { display: block; font-size: 0.9rem; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); color: var(--ink); }
+    .overview-card-expanded .stock-item { padding: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--bg); margin-bottom: 6px; border-radius: 6px; }
+    .overview-card-expanded .stock-item:last-child { margin-bottom: 0; }
+    .overview-card-expanded .stock-ticker { font-weight: 700; color: var(--ink); font-size: 0.9rem; }
+    .overview-card-expanded .stock-price { color: var(--muted); font-size: 0.75rem; }
+    .portfolio-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .portfolio-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .portfolio-card-ticker { font-size: 1.3rem; font-weight: 700; color: var(--ink); }
+    .portfolio-card-price { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
     .portfolio-card-signal { font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 600; }
-    .portfolio-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+    .portfolio-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; }
     .portfolio-card-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-    .portfolio-card-value { font-size: 1rem; font-weight: 600; color: var(--ink); }
+    .portfolio-card-value { font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+    .portfolio-card-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; padding: 12px; background: var(--bg); border-radius: 8px; }
+    .portfolio-card-metric { text-align: center; }
+    .portfolio-card-metric-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .portfolio-card-metric-value { font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-top: 4px; }
+    .portfolio-card-drivers { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .portfolio-card-news { margin-top: 12px; padding: 10px; background: var(--bg); border-radius: 8px; font-size: 0.75rem; }
+    .portfolio-card-news-title { font-weight: 700; margin-bottom: 6px; color: var(--ink); }
+    .portfolio-card-news-item { padding: 6px 0; border-bottom: 1px dashed var(--border); }
+    .portfolio-card-news-item:last-child { border-bottom: none; }
+    .portfolio-card-details { margin-top: 12px; font-size: 0.8rem; }
+    .portfolio-card-details-btn { font-size: 0.75rem; padding: 6px 12px; }
     .market-pulse { display: grid; gap: 10px; margin-top: 14px; }
     .market-pulse-card {
       display: flex;
@@ -782,7 +795,7 @@
 </header>
 
 <!-- ════════════════════════════════════ TAB NAVIGATION ════════════════════════════════════ -->
-<nav class="tab-nav">
+<nav class="tab-nav" style="display:none;">
   <button class="tab-btn active" onclick="switchTab('overview')">📊 Overview</button>
   <button class="tab-btn" onclick="switchTab('portfolio')">💼 Portfolio</button>
   <button class="tab-btn" onclick="switchTab('testlab')">🧪 Test Lab</button>
@@ -798,10 +811,13 @@
   <div id="tab-overview" class="tab-panel active">
     <!-- MY PORTFOLIO & ACTIONS -->
     <section>
-      <h2>💼 My Portfolio</h2>
+      <h2>
+        💼 My Portfolio
+        <button class="btn-sm" onclick="openModal()" style="float:right;">+ Add Position</button>
+      </h2>
       <div id="portfolio-cards-view"></div>
       <div class="empty" id="portfolio-empty" style="display:none;padding:16px">
-        No portfolio positions. <a href="#" onclick="switchTab('portfolio');return false;" style="color:var(--blue)">Add your first position →</a>
+        No portfolio positions. <a href="#" onclick="openModal();return false;" style="color:var(--blue)">Add your first position →</a>
       </div>
     </section>
 
@@ -2083,33 +2099,116 @@ function renderOverviewPortfolio(loading) {
     const pnlPercent = ((cur / buyPrice - 1) * 100);
     const plColor = pnlDollar >= 0 ? 'var(--pos)' : 'var(--neg)';
     const plSign = pnlDollar >= 0 ? '+' : '';
+    const priceColor = d.changePct >= 0 ? 'var(--pos)' : 'var(--neg)';
+    const priceSign = d.changePct >= 0 ? '+' : '';
+    const detailId = `portfolio-detail-${ticker}`;
+    
+    // Asset type badge
+    let assetBadge = '';
+    if (d.assetType && d.assetType !== 'Stock') {
+      const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
+      assetBadge = `<span class="asset-type-badge ${badgeClass}" style="margin-left:8px;font-size:0.7rem;padding:3px 8px;border-radius:4px;font-weight:600;">${d.assetType}</span>`;
+    }
+    
+    // Earnings badge
+    let earningsBadge = '';
+    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
+      const earningsDate = new Date(d.nextEarnings).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const daysText = d.daysToEarnings === 0 ? 'TODAY' : d.daysToEarnings === 1 ? 'Tomorrow' : `${d.daysToEarnings}d`;
+      earningsBadge = `<span style="display:inline-block;margin-left:8px;font-size:0.7rem;padding:4px 8px;border-radius:6px;background:rgba(30,99,217,0.12);color:var(--blue);font-weight:700;">📅 ${earningsDate} (${daysText})</span>`;
+    }
+    
+    // Bullish/Bearish drivers
+    const bullishDrivers = (d.bullishDrivers || []).slice(0, 2).map(x => `<div class="reason-pill" style="font-size:0.75rem;padding:6px 8px;background:rgba(32,201,151,0.1);border-radius:6px;margin-bottom:6px;"><strong style="color:var(--pos);">Bullish:</strong> ${x}</div>`).join('');
+    const bearishDrivers = (d.bearishDrivers || []).slice(0, 2).map(x => `<div class="reason-pill" style="font-size:0.75rem;padding:6px 8px;background:rgba(239,83,80,0.1);border-radius:6px;margin-bottom:6px;"><strong style="color:var(--neg);">Bearish:</strong> ${x}</div>`).join('');
+    const catalystDrivers = (d.catalystDrivers || []).slice(0, 1).map(x => `<div class="reason-pill" style="font-size:0.75rem;padding:6px 8px;background:rgba(30,99,217,0.1);border-radius:6px;margin-bottom:6px;"><strong style="color:var(--blue);">Catalyst:</strong> ${x}</div>`).join('');
+    
+    // News
+    const newsHtml = (d.headlines?.length)
+      ? d.headlines.map(h => `<div class="portfolio-card-news-item"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
+      : '<div style="color:var(--muted)">No recent headlines</div>';
     
     return `
       <div class="portfolio-card">
         <div class="portfolio-card-header">
-          <span class="portfolio-card-ticker">${ticker}</span>
+          <div>
+            <div class="portfolio-card-ticker">${ticker}${assetBadge}${earningsBadge}</div>
+            <div class="portfolio-card-price" style="color:${priceColor};">$${cur.toFixed(2)} · ${priceSign}${d.changePct.toFixed(2)}%</div>
+          </div>
           <span class="portfolio-card-signal" style="background:${sig.color}22;color:${sig.color};">${sig.label}</span>
         </div>
+        
         <div class="portfolio-card-grid">
-          <div class="portfolio-card-item">
+          <div>
             <div class="portfolio-card-label">Shares</div>
             <div class="portfolio-card-value">${shares}</div>
           </div>
-          <div class="portfolio-card-item">
+          <div>
             <div class="portfolio-card-label">Bought @</div>
             <div class="portfolio-card-value">$${(+buyPrice).toFixed(2)}</div>
           </div>
-          <div class="portfolio-card-item">
-            <div class="portfolio-card-label">Current</div>
-            <div class="portfolio-card-value">$${cur.toFixed(2)}</div>
+          <div>
+            <div class="portfolio-card-label">Current Value</div>
+            <div class="portfolio-card-value">$${(cur * shares).toFixed(2)}</div>
           </div>
-          <div class="portfolio-card-item">
+          <div>
             <div class="portfolio-card-label">P&L</div>
-            <div class="portfolio-card-value" style="color:${plColor};">${plSign}$${Math.abs(pnlDollar).toFixed(2)} (${plSign}${pnlPercent.toFixed(2)}%)</div>
+            <div class="portfolio-card-value" style="color:${plColor};">${plSign}$${Math.abs(pnlDollar).toFixed(2)}</div>
           </div>
         </div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:0.85rem;color:var(--muted);">
-          ${pred}
+        
+        <div class="portfolio-card-metrics">
+          <div class="portfolio-card-metric">
+            <div class="portfolio-card-metric-label">Net Score</div>
+            <div class="portfolio-card-metric-value">${d.netScore}</div>
+          </div>
+          <div class="portfolio-card-metric">
+            <div class="portfolio-card-metric-label">Bull / Bear</div>
+            <div class="portfolio-card-metric-value">${d.bullishScore} / ${d.bearishScore}</div>
+          </div>
+          <div class="portfolio-card-metric">
+            <div class="portfolio-card-metric-label">Conviction</div>
+            <div class="portfolio-card-metric-value">${d.conviction}%</div>
+          </div>
+        </div>
+        
+        <div style="padding:10px;background:rgba(30,99,217,0.05);border-radius:8px;font-size:0.85rem;color:var(--muted);margin-bottom:12px;">
+          <strong style="color:var(--ink);">Outlook:</strong> ${pred}
+        </div>
+        
+        <button class="btn-sm portfolio-card-details-btn" onclick="toggleDetails('${detailId}')" style="width:100%;margin-bottom:8px;">🔍 Show Technical Details</button>
+        
+        <div id="${detailId}" style="display:none;" class="portfolio-card-details">
+          <div class="portfolio-card-grid" style="padding:12px;background:var(--bg);border-radius:8px;">
+            <div>
+              <div class="portfolio-card-label">RSI</div>
+              <div class="portfolio-card-value" style="font-size:0.95rem;">${d.rsi.toFixed(1)}</div>
+            </div>
+            <div>
+              <div class="portfolio-card-label">MACD Diff</div>
+              <div class="portfolio-card-value" style="font-size:0.95rem;">${d.macdDiff.toFixed(4)}</div>
+            </div>
+            <div>
+              <div class="portfolio-card-label">Weekly Position</div>
+              <div class="portfolio-card-value" style="font-size:0.95rem;">${(d.position * 100).toFixed(0)}%</div>
+            </div>
+            <div>
+              <div class="portfolio-card-label">P&L %</div>
+              <div class="portfolio-card-value" style="font-size:0.95rem;color:${plColor};">${plSign}${pnlPercent.toFixed(2)}%</div>
+            </div>
+          </div>
+          
+          <div class="portfolio-card-drivers">
+            <div style="font-weight:700;font-size:0.8rem;margin-bottom:8px;color:var(--ink);">📊 Score Drivers</div>
+            ${bullishDrivers}
+            ${bearishDrivers}
+            ${catalystDrivers}
+          </div>
+          
+          <div class="portfolio-card-news">
+            <div class="portfolio-card-news-title">📰 Recent News</div>
+            ${newsHtml}
+          </div>
         </div>
       </div>`;
   });
