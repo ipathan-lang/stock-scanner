@@ -1453,30 +1453,61 @@ function score(closes, highs, lows) {
 //  API / FETCHING
 // ══════════════════════════════════════════════════════════════
 async function fetchJ(url) {
-  const proxies = [
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://thingproxy.freeboard.io/fetch/${u}`
-  ];
   // Add cache-busting timestamp to ensure fresh data
   const cacheBuster = `&_t=${Date.now()}`;
+  const urlWithCache = url + cacheBuster;
+  
+  // Try direct API call first (sometimes works from GitHub Pages)
+  try {
+    const directResponse = await fetch(urlWithCache, {
+      signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined,
+      cache: 'no-store',
+      mode: 'cors'
+    });
+    if (directResponse.ok) {
+      const data = await directResponse.json();
+      console.log('✓ Direct API success for:', url.substring(0, 60));
+      return data;
+    }
+  } catch(e) {
+    // Direct call failed due to CORS - fallback to proxies
+    console.log('Direct API blocked, trying proxies...');
+  }
+  
+  // Fallback to CORS proxies
+  const proxies = [
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://proxy.cors.sh/${u}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+  ];
   
   for (let i = 0; i < proxies.length; i++) {
     const p = proxies[i];
     try {
       // Add delay between retries to avoid rate limiting
-      if (i > 0) await new Promise(resolve => setTimeout(resolve, 500 * i));
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
       
-      const r = await fetch(p(url + cacheBuster), {
+      const r = await fetch(p(urlWithCache), {
         signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined,
         cache: 'no-store'
       });
+      
       if (!r.ok) {
-        console.warn(`Proxy ${i+1} returned ${r.status} for ${url}`);
+        console.warn(`Proxy ${i+1} returned ${r.status}`);
         continue;
       }
-      return await r.json();
+      
+      const text = await r.text();
+      // Check if response is HTML error page
+      if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
+        console.warn(`Proxy ${i+1} returned HTML error page`);
+        continue;
+      }
+      
+      const data = JSON.parse(text);
+      console.log(`✓ Proxy ${i+1} success`);
+      return data;
     } catch(e) { 
       console.warn(`Proxy ${i+1} failed:`, e.message);
       continue; 
