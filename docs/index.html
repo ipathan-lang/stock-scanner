@@ -3340,12 +3340,22 @@ async function searchStock() {
     // Fetch stock data
     const stockData = await fetchStock(ticker);
     
+    // Store in data cache FIRST
+    S.data[ticker] = stockData;
+    
     // Automatically add to watchlist if not already there
     const isInWatchlist = S.watchlist.includes(ticker);
+    let addedNow = false;
     if (!isInWatchlist) {
       S.watchlist.push(ticker);
       save();
+      addedNow = true;
       console.log(`✓ ${ticker} automatically added to watchlist`);
+    }
+    
+    // Add to tracked stocks
+    if (!S.trackedStocks.includes(ticker)) {
+      S.trackedStocks.push(ticker);
     }
     
     // Create search result row
@@ -3353,8 +3363,6 @@ async function searchStock() {
     const pred = prediction(stockData);
     const cc = stockData.change >= 0 ? 'pos' : 'neg';
     const cs = stockData.change >= 0 ? '+' : '';
-    const mc = stockData.macdDiff > 0 ? 'pos' : 'neg';
-    const rc = stockData.rsi > 70 ? 'neg' : stockData.rsi < 30 ? 'pos' : '';
 
     // Asset type badge
     let assetBadge = '';
@@ -3363,25 +3371,9 @@ async function searchStock() {
       assetBadge = `<span class="asset-type-badge ${badgeClass}">${stockData.assetType}</span>`;
     }
 
-    let earnCell = 'N/A';
-    if (stockData.daysToEarnings !== null) {
-      if (stockData.daysToEarnings < 0)      earnCell = `${fmtDate(stockData.nextEarnings)} (passed)`;
-      else if (stockData.daysToEarnings === 0) earnCell = `🔔 <b>Today!</b>`;
-      else if (stockData.daysToEarnings <= 5)  earnCell = `🔔 <b>${stockData.daysToEarnings}d</b> (${fmtDate(stockData.nextEarnings)})`;
-      else                             earnCell = `${fmtDate(stockData.nextEarnings)} (${stockData.daysToEarnings}d)`;
-    }
-
-    let epsCell = '<span style="color:var(--muted)">N/A</span>';
-    if (stockData.lastEPSSurprise !== null) {
-      const ep  = stockData.lastEPSSurprise >= 0 ? '+' : '';
-      const ec  = stockData.lastEPSBeat ? 'pos' : 'neg';
-      const ico = stockData.lastEPSBeat ? '✅' : '❌';
-      epsCell = `<span class="${ec}">${ico} ${ep}$${stockData.lastEPSSurprise.toFixed(4)}</span>`;
-    }
-
-    const statusMsg = isInWatchlist 
-      ? '<span style="color:var(--green);font-size:0.85rem">✓ Already in Watchlist</span>'
-      : '<span style="color:var(--green);font-size:0.85rem">✓ Added to Watchlist</span>';
+    const statusMsg = addedNow
+      ? '<span style="color:var(--green);font-size:0.9rem;font-weight:700;">✅ Successfully Added to Watchlist!</span>'
+      : '<span style="color:var(--blue);font-size:0.9rem;">✓ Already in Your Watchlist</span>';
 
     // Check if already in portfolio
     const isInPortfolio = S.portfolio.some(p => p.ticker === ticker);
@@ -3404,6 +3396,18 @@ async function searchStock() {
       : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
 
     searchBody.innerHTML = `
+      <div style="padding:16px;background:${addedNow ? 'rgba(76,175,80,0.15)' : 'rgba(30,99,217,0.08)'};border:2px solid ${addedNow ? 'var(--green)' : 'var(--blue)'};border-radius:12px;margin-bottom:24px;">
+        <div style="text-align:center;padding:12px 0;">
+          <div style="font-size:2.5rem;margin-bottom:8px;">${addedNow ? '✅' : '🔍'}</div>
+          ${statusMsg}
+          <div style="margin-top:8px;">
+            <button class="btn-sm" onclick="document.querySelector('#rank-list').scrollIntoView({behavior:'smooth'})" style="background:var(--blue);color:white;">
+              📊 View in Ranked Board
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <div class="portfolio-card" style="background:linear-gradient(135deg, rgba(30,99,217,0.08) 0%, rgba(30,99,217,0.02) 100%);border:2px solid var(--blue);">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;">
           <div>
@@ -3414,7 +3418,6 @@ async function searchStock() {
                 ? `<span style="font-size:0.7rem;padding:4px 8px;border-radius:6px;background:rgba(30,99,217,0.12);color:var(--blue);font-weight:700;">📅 Earnings in ${stockData.daysToEarnings === 0 ? 'TODAY' : stockData.daysToEarnings + 'd'}</span>`
                 : ''}
             </div>
-            <div style="font-size:0.85rem;color:var(--muted);">${statusMsg}</div>
           </div>
           <span class="badge ${sig.cls}" style="font-size:0.9rem;padding:8px 16px;">${sig.label}</span>
         </div>
@@ -3444,7 +3447,7 @@ async function searchStock() {
           </div>
         </div>
         
-        <details style="margin-bottom:12px;">
+        <details open style="margin-bottom:12px;">
           <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">📊 Technical Metrics</summary>
           <div style="padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:8px;">
             <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;font-size:0.85rem;">
@@ -3456,14 +3459,14 @@ async function searchStock() {
           </div>
         </details>
         
-        <details style="margin-bottom:12px;">
+        <details open style="margin-bottom:12px;">
           <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">🎯 Bullish Drivers</summary>
           <div style="padding:12px;background:rgba(76,175,80,0.05);border-radius:8px;margin-top:8px;">
             ${bullishPills}
           </div>
         </details>
         
-        <details style="margin-bottom:12px;">
+        <details open style="margin-bottom:12px;">
           <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">⚠️ Bearish Concerns</summary>
           <div style="padding:12px;background:rgba(239,83,80,0.05);border-radius:8px;margin-top:8px;">
             ${bearishPills}
@@ -3492,28 +3495,18 @@ async function searchStock() {
         </div>
       </div>
     `;
-
-    // Store in data cache for future use
-    S.data[ticker] = stockData;
     
-    // Add to tracked stocks (persisted for all users)
-    if (!S.trackedStocks.includes(ticker)) {
-      S.trackedStocks.push(ticker);
-      console.log(`Added ${ticker} to tracked stocks for all users`);
-      // Note: In production, you would POST this to a server to update trackedStocks.json
-      // For now, it will be tracked in this session and users can export/import
-    }
-    
-    // Refresh all views to show the new watchlist item
-    renderAll(false);
-    
-    // Scroll to search results to show the detailed card
-    setTimeout(() => {
-      searchSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
+    // Refresh the ranked board to show the new stock
+    renderRankings(false);
+    renderOverview();
     
     // Clear input for next search
     inp.value = '';
+    
+    // Scroll to search results
+    setTimeout(() => {
+      searchSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
 
   } catch (e) {
     searchBody.innerHTML = `<div class="empty" style="color:var(--red)">⚠ Failed to load ${ticker} — ${e.message || 'Check ticker symbol'}</div>`;
