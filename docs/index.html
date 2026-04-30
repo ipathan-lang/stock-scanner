@@ -2223,6 +2223,8 @@ function renderOverview() {
 
 function renderStrategyPanel() {
   const panel = document.getElementById('strategy-panel');
+  if (!panel) return; // Element doesn't exist in current tab
+  
   const marketLine = S.marketBull === null
     ? 'Market pulse is waiting for index and sector trend data.'
     : S.marketBull
