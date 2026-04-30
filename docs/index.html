@@ -183,9 +183,23 @@
     .hero-stat span:first-child { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
     .hero-stat span:last-child { margin-top: 5px; font-size: 1.05rem; font-weight: 800; }
     .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .overview-card { padding: 14px; }
+    .overview-card { padding: 14px; cursor: pointer; transition: all 0.2s ease; }
+    .overview-card:hover { background: var(--card-hover, rgba(30,99,217,0.08)); transform: translateY(-2px); }
+    .overview-card:active { transform: translateY(0); }
     .overview-card small { display: block; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
     .overview-card strong { display: block; margin-top: 6px; font-size: 1.18rem; color: var(--ink); }
+    .overview-card-expanded { margin-top: 12px; padding: 12px; background: rgba(30,99,217,0.04); border-radius: 8px; font-size: 0.85rem; }
+    .overview-card-expanded .stock-item { padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .overview-card-expanded .stock-item:last-child { border-bottom: none; }
+    .overview-card-expanded .stock-ticker { font-weight: 700; color: var(--ink); }
+    .overview-card-expanded .stock-price { color: var(--muted); font-size: 0.8rem; }
+    .portfolio-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .portfolio-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .portfolio-card-ticker { font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+    .portfolio-card-signal { font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 600; }
+    .portfolio-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+    .portfolio-card-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .portfolio-card-value { font-size: 1rem; font-weight: 600; color: var(--ink); }
     .market-pulse { display: grid; gap: 10px; margin-top: 14px; }
     .market-pulse-card {
       display: flex;
@@ -785,22 +799,7 @@
     <!-- MY PORTFOLIO & ACTIONS -->
     <section>
       <h2>💼 My Portfolio</h2>
-      <div class="tw" id="portfolio-quick-view">
-        <table>
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Shares</th>
-              <th>Bought @</th>
-              <th>Current</th>
-              <th>P&L</th>
-              <th>Signal</th>
-              <th>Action Needed</th>
-            </tr>
-          </thead>
-          <tbody id="pb-overview"></tbody>
-        </table>
-      </div>
+      <div id="portfolio-cards-view"></div>
       <div class="empty" id="portfolio-empty" style="display:none;padding:16px">
         No portfolio positions. <a href="#" onclick="switchTab('portfolio');return false;" style="color:var(--blue)">Add your first position →</a>
       </div>
@@ -822,12 +821,17 @@
       <h2>📊 Market Pulse</h2>
       <div id="market-sentiment-bar" class="sentiment-bar" style="display:none;margin-bottom:12px;"></div>
       <div id="overview-grid" class="overview-grid">
-        <div class="overview-card"><small>Watchlist</small><strong>--</strong></div>
-        <div class="overview-card"><small>Bullish</small><strong>--</strong></div>
-        <div class="overview-card"><small>Bearish</small><strong>--</strong></div>
-        <div class="overview-card"><small>Portfolio</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('watchlist')"><small>Watchlist</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('bullish')"><small>Bullish Setups</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('bearish')"><small>Bearish Risk</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('portfolio')"><small>Portfolio</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('most-bullish')"><small>💹 Most Bullish</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('most-bearish')"><small>📉 Most Bearish</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('weeklow')"><small>💎 Near Week Low</small><strong>--</strong></div>
+        <div class="overview-card" onclick="toggleMarketPulseDetail('earnings')"><small>📅 Earnings Soon</small><strong>--</strong></div>
       </div>
-      <div id="market-pulse" class="market-pulse">
+      <div id="market-pulse-detail" style="display:none;"></div>
+      <div id="market-pulse" class="market-pulse" style="display:none;">
         <div class="empty" style="padding:18px">Loading current market trends...</div>
       </div>
     </section>
@@ -2042,46 +2046,74 @@ function scoreBar(sc, max=100) {
 //  OVERVIEW TAB RENDERERS (Portfolio-first approach)
 // ══════════════════════════════════════════════════════════════
 function renderOverviewPortfolio(loading) {
-  const pbOverview = document.getElementById('pb-overview');
+  const cardsView = document.getElementById('portfolio-cards-view');
   const emptyDiv = document.getElementById('portfolio-empty');
+  if (!cardsView) return;
   
   const displayPortfolio = S.testMode 
     ? S.sim.positions.map(p => ({ ticker: p.ticker, shares: p.shares, buyPrice: p.buyPrice }))
     : S.portfolio;
   
+  if (loading) {
+    cardsView.innerHTML = `<div class="empty" style="padding:18px;">Loading portfolio positions...</div>`;
+    if (emptyDiv) emptyDiv.style.display = 'none';
+    return;
+  }
+  
   if (!displayPortfolio.length) {
-    pbOverview.innerHTML = '';
+    cardsView.innerHTML = '';
     if (emptyDiv) emptyDiv.style.display = 'block';
     return;
   }
   
   if (emptyDiv) emptyDiv.style.display = 'none';
   
-  pbOverview.innerHTML = displayPortfolio.map(pos => {
+  const cards = displayPortfolio.map(pos => {
     const { ticker, shares, buyPrice } = pos;
     const d = S.data[ticker];
     
-    if (loading || !d)
-      return `<tr><td>${ticker}</td><td>${shares}</td><td>$${(+buyPrice).toFixed(2)}</td>${'<td><span class="sk"></span></td>'.repeat(4)}</tr>`;
+    if (!d || d.err) {
+      return `<div class="portfolio-card"><strong>${ticker}</strong><p style="color:var(--muted);font-size:0.85rem;margin-top:8px;">Waiting for data...</p></div>`;
+    }
     
-    const cur = d.err ? null : d.price;
-    const pnlT = cur ? (cur - buyPrice) * shares : 0;
-    const pnlP = cur ? (cur - buyPrice) / buyPrice * 100 : 0;
-    const pc = pnlT >= 0 ? 'pos' : 'neg';
-    const ps = pnlT >= 0 ? '+' : '';
     const sig = signal(d);
-    const act = action(d, buyPrice);
+    const pred = prediction(d);
+    const cur = d.price;
+    const pnlDollar = (cur - buyPrice) * shares;
+    const pnlPercent = ((cur / buyPrice - 1) * 100);
+    const plColor = pnlDollar >= 0 ? 'var(--pos)' : 'var(--neg)';
+    const plSign = pnlDollar >= 0 ? '+' : '';
     
-    return `<tr>
-      <td class="tcell"><b>${ticker}</b></td>
-      <td>${shares}</td>
-      <td>$${(+buyPrice).toFixed(2)}</td>
-      <td><b>${cur ? '$'+cur.toFixed(2) : '—'}</b></td>
-      <td><span class="${pc}">${ps}$${pnlT.toFixed(2)} (${ps}${pnlP.toFixed(2)}%)</span></td>
-      <td><span class="badge ${sig.cls}">${sig.label}</span></td>
-      <td><span class="${act.cls}"><b>${act.text}</b></span></td>
-    </tr>`;
-  }).join('');
+    return `
+      <div class="portfolio-card">
+        <div class="portfolio-card-header">
+          <span class="portfolio-card-ticker">${ticker}</span>
+          <span class="portfolio-card-signal" style="background:${sig.color}22;color:${sig.color};">${sig.label}</span>
+        </div>
+        <div class="portfolio-card-grid">
+          <div class="portfolio-card-item">
+            <div class="portfolio-card-label">Shares</div>
+            <div class="portfolio-card-value">${shares}</div>
+          </div>
+          <div class="portfolio-card-item">
+            <div class="portfolio-card-label">Bought @</div>
+            <div class="portfolio-card-value">$${(+buyPrice).toFixed(2)}</div>
+          </div>
+          <div class="portfolio-card-item">
+            <div class="portfolio-card-label">Current</div>
+            <div class="portfolio-card-value">$${cur.toFixed(2)}</div>
+          </div>
+          <div class="portfolio-card-item">
+            <div class="portfolio-card-label">P&L</div>
+            <div class="portfolio-card-value" style="color:${plColor};">${plSign}$${Math.abs(pnlDollar).toFixed(2)} (${plSign}${pnlPercent.toFixed(2)}%)</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:0.85rem;color:var(--muted);">
+          ${pred}
+        </div>
+      </div>`;
+  });
+  cardsView.innerHTML = cards.join('');
 }
 
 function renderSmartSuggestions(loading) {
@@ -2185,19 +2217,93 @@ function renderSmartSuggestions(loading) {
 // ══════════════════════════════════════════════════════════════
 //  ROW RENDERERS
 // ══════════════════════════════════════════════════════════════
+function toggleMarketPulseDetail(category) {
+  const detailDiv = document.getElementById('market-pulse-detail');
+  if (!detailDiv) return;
+  
+  const ranked = sortStocks(Object.values(S.data).filter(d => d && !d.err));
+  let filtered = [];
+  let title = '';
+  
+  if (category === 'watchlist') {
+    filtered = ranked;
+    title = '📈 All Watchlist Stocks';
+  } else if (category === 'bullish') {
+    filtered = ranked.filter(d => d.netScore >= 4);
+    title = '📈 Bullish Setups (Score ≥ 4)';
+  } else if (category === 'bearish') {
+    filtered = ranked.filter(d => d.netScore <= -2);
+    title = '📉 Bearish Risk (Score ≤ -2)';
+  } else if (category === 'portfolio') {
+    filtered = S.portfolio.map(p => S.data[p.ticker]).filter(Boolean);
+    title = '💼 Portfolio Stocks';
+  } else if (category === 'most-bullish') {
+    filtered = ranked.filter(d => d.netScore >= 7).slice(0, 10);
+    title = '💹 Most Bullish Stocks (Score ≥ 7)';
+  } else if (category === 'most-bearish') {
+    filtered = ranked.filter(d => d.netScore <= -4).slice(0, 10);
+    title = '📉 Most Bearish Stocks (Score ≤ -4)';
+  } else if (category === 'weeklow') {
+    filtered = ranked.filter(d => d.position < 0.35);
+    title = '💎 Near Week Low (Position < 35%)';
+  } else if (category === 'earnings') {
+    filtered = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14);
+    title = '📅 Earnings Soon (Next 14 Days)';
+  }
+  
+  if (detailDiv.style.display === 'block' && detailDiv.dataset.category === category) {
+    detailDiv.style.display = 'none';
+    detailDiv.dataset.category = '';
+    return;
+  }
+  
+  if (!filtered.length) {
+    detailDiv.innerHTML = `<div class="overview-card-expanded"><strong>${title}</strong><p style="margin-top:8px;color:var(--muted);">No stocks found in this category</p></div>`;
+  } else {
+    const stocksHtml = filtered.slice(0, 20).map(d => {
+      const sig = signal(d);
+      const priceColor = d.changePct >= 0 ? 'var(--pos)' : 'var(--neg)';
+      const priceSign = d.changePct >= 0 ? '+' : '';
+      return `
+        <div class="stock-item">
+          <div>
+            <span class="stock-ticker">${d.ticker}</span>
+            <span style="margin-left:8px;font-size:0.75rem;padding:3px 6px;border-radius:4px;background:${sig.color}15;color:${sig.color};font-weight:600;">${sig.label}</span>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:600;color:var(--ink);">$${d.price.toFixed(2)}</div>
+            <div class="stock-price" style="color:${priceColor};">${priceSign}${d.changePct.toFixed(2)}%</div>
+          </div>
+        </div>`;
+    }).join('');
+    detailDiv.innerHTML = `<div class="overview-card-expanded"><strong>${title}</strong>${stocksHtml}</div>`;
+  }
+  
+  detailDiv.style.display = 'block';
+  detailDiv.dataset.category = category;
+}
+
 function renderOverview() {
   const overview = document.getElementById('overview-grid');
   const pulse = document.getElementById('market-pulse');
   const ranked = sortStocks(Object.values(S.data).filter(d => d && !d.err));
   const bullish = ranked.filter(d => d.netScore >= 4).length;
   const bearish = ranked.filter(d => d.netScore <= -2).length;
+  const mostBullish = ranked.filter(d => d.netScore >= 7).length;
+  const mostBearish = ranked.filter(d => d.netScore <= -4).length;
+  const weekLow = ranked.filter(d => d.position < 0.35).length;
+  const earningsSoon = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14).length;
 
   if (overview) {
     overview.innerHTML = `
-      <div class="overview-card"><small>Watchlist</small><strong>${S.watchlist.length}</strong></div>
-      <div class="overview-card"><small>Bullish Setups</small><strong>${bullish}</strong></div>
-      <div class="overview-card"><small>Bearish Risk</small><strong>${bearish}</strong></div>
-      <div class="overview-card"><small>Portfolio</small><strong>${S.portfolio.length}</strong></div>`;
+      <div class="overview-card" onclick="toggleMarketPulseDetail('watchlist')"><small>Watchlist</small><strong>${S.watchlist.length}</strong></div>
+      <div class="overview-card" onclick="toggleMarketPulseDetail('bullish')"><small>Bullish Setups</small><strong>${bullish}</strong></div>
+      <div class="overview-card" onclick="toggleMarketPulseDetail('bearish')"><small>Bearish Risk</small><strong>${bearish}</strong></div>
+      <div class="overview-card" onclick="toggleMarketPulseDetail('portfolio')"><small>Portfolio</small><strong>${S.portfolio.length}</strong></div>
+      <div class="overview-card" onclick="toggleMarketPulseDetail('most-bullish')"><small>💹 Most Bullish</small><strong>${mostBullish}</strong></div>
+      <div class="overview-card" onclick="toggleMarketPulseDetail('most-bearish')"><small>📉 Most Bearish</small><strong>${mostBearish}</strong></div>
+      <div class="overview-card" onclick="toggleMarketPulseDetail('weeklow')"><small>💎 Near Week Low</small><strong>${weekLow}</strong></div>
+      <div class="overview-card" onclick="toggleMarketPulseDetail('earnings')"><small>📅 Earnings Soon</small><strong>${earningsSoon}</strong></div>`;
   }
 
   if (pulse) {
