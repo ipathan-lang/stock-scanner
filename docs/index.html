@@ -86,7 +86,7 @@
       border-color: transparent !important;
     }
     .btn-p:hover { opacity: .9; }
-    #ts { font-size: 0.73rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
+    #refresh-btn { min-width: 108px; text-align: center; }
 
     /* ── MARKET BAR ── */
     #market-bar {
@@ -291,7 +291,6 @@
     <button class="btn-p" onclick="searchStock()">Search</button>
     <button onclick="manualRefresh()" id="refresh-btn">&#x21BB; Refresh</button>
   </div>
-  <span id="ts">Loading…</span>
 </header>
 
 <div id="market-bar">
@@ -798,8 +797,7 @@ async function refreshAll() {
   S.busy = true;
 
   const refreshBtn = document.getElementById('refresh-btn');
-  if (refreshBtn) refreshBtn.disabled = true;
-  document.getElementById('ts').textContent = 'Refreshing…';
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.innerHTML = '&#x21BB; Refreshing…'; }
 
   // Market bar first (fast, parallel)
   await Promise.all(MARKET_TICKERS.map(t => loadOne(t)));
@@ -816,8 +814,12 @@ async function refreshAll() {
   }
 
   S.busy = false;
-  if (refreshBtn) refreshBtn.disabled = false;
-  document.getElementById('ts').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  if (refreshBtn) {
+    refreshBtn.disabled = false;
+    const t = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    refreshBtn.innerHTML = `&#x21BB; Updated ${t}`;
+    setTimeout(() => { if (refreshBtn) refreshBtn.innerHTML = '&#x21BB; Refresh'; }, 8000);
+  }
   renderList();
 }
 
@@ -839,12 +841,18 @@ async function searchStock() {
 
   S.pinnedTicker = ticker;
   renderList();
-  document.getElementById('ts').textContent = `Loading ${ticker}…`;
+  const sb = document.getElementById('refresh-btn');
+  if (sb) { sb.disabled = true; sb.innerHTML = `&#x21BB; Loading ${ticker}…`; }
 
   await loadOne(ticker);
   renderList();
   renderMarketBar();
-  document.getElementById('ts').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  if (sb) {
+    sb.disabled = false;
+    const t = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    sb.innerHTML = `&#x21BB; Updated ${t}`;
+    setTimeout(() => { sb.innerHTML = '&#x21BB; Refresh'; }, 8000);
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
