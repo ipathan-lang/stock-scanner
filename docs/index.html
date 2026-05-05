@@ -3,28 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <title>IntelliMarket Analyst - Personal AI Trading Assistant</title>
-  <!-- Version: 2.1.0 - Cross-device consistency -->
-  <!-- data files: docs/data/portfolio.json, docs/data/watchlist.json, docs/data/trackedStocks.json -->
+  <title>IntelliMarket — Stock Scanner</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap');
 
     :root {
-      --bg: #f3f7fb; --surface: rgba(255,255,255,.88); --surface2: #eef4f8;
-      --surface3: #e3ecf3; --border: rgba(19, 43, 67, .12); --text: #122235; --muted: #5f7488;
-      --green: #157f63; --red: #c4514b; --yellow: #b8841a;
-      --blue: #1e63d9; --teal: #0f766e; --ink: #0f2740; --shadow: 0 20px 55px rgba(15, 39, 64, .10);
+      --bg: #f3f7fb;
+      --surface: rgba(255,255,255,.94);
+      --border: rgba(19,43,67,.11);
+      --text: #122235;
+      --muted: #5f7488;
+      --ink: #0f2740;
+      --green: #157f63;
+      --red: #c4514b;
+      --yellow: #b8841a;
+      --blue: #1e63d9;
+      --shadow: 0 4px 18px rgba(15,39,64,.07);
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      background:
-        radial-gradient(900px 420px at 100% -10%, rgba(30,99,217,.16), transparent 58%),
-        radial-gradient(680px 320px at -10% 0%, rgba(15,118,110,.14), transparent 55%),
-        linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%),
-        var(--bg);
+      background: var(--bg);
       color: var(--text);
       font-family: 'Manrope', 'Segoe UI', sans-serif;
       min-height: 100vh;
@@ -32,10 +32,9 @@
 
     /* ── HEADER ── */
     header {
-      backdrop-filter: blur(18px);
-      background: rgba(248, 251, 253, .76);
+      background: rgba(255,255,255,.96);
       border-bottom: 1px solid var(--border);
-      padding: 14px 18px;
+      padding: 12px 18px;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -43,1413 +42,348 @@
       position: sticky;
       top: 0;
       z-index: 100;
-    }
-    header h1 {
-      font-size: 1.02rem;
-      font-weight: 800;
-      flex: 1;
-      min-width: 220px;
-      color: var(--ink);
-      letter-spacing: -.02em;
-      white-space: nowrap;
-    }
-    .hctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    
-    /* ── TAB NAVIGATION ── */
-    .tab-nav {
-      background: rgba(255, 255, 255, .88);
-      border-bottom: 1px solid var(--border);
-      padding: 0 18px;
-      display: flex;
-      gap: 4px;
-      overflow-x: auto;
-      position: sticky;
-      top: 58px;
-      z-index: 99;
       backdrop-filter: blur(18px);
     }
-    .tab-btn {
-      padding: 12px 20px;
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      font-size: 0.88rem;
-      font-weight: 700;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-    }
-    .tab-btn:hover {
+    header h1 {
+      font-size: 1rem;
+      font-weight: 800;
       color: var(--ink);
-      border-bottom-color: rgba(30, 99, 217, .25);
+      white-space: nowrap;
+      letter-spacing: -.02em;
     }
-    .tab-btn.active {
-      color: var(--blue);
-      border-bottom-color: var(--blue);
-      background: rgba(30, 99, 217, .04);
-    }
-    
-    /* ── TAB PANELS ── */
-    .tab-panel {
-      display: none;
-    }
-    .tab-panel.active {
-      display: block;
-    }
-    #add-input {
-      background: rgba(255,255,255,.92);
+    .search-wrap { display: flex; gap: 8px; flex: 1; min-width: 220px; }
+    #q {
+      flex: 1;
+      max-width: 180px;
+      padding: 8px 12px;
       border: 1px solid var(--border);
-      color: var(--text);
-      padding: 9px 12px;
-      border-radius: 12px;
+      border-radius: 10px;
       font-size: 0.875rem;
-      outline: none;
-      width: 150px;
+      background: rgba(255,255,255,.9);
+      color: var(--text);
       text-transform: uppercase;
+      outline: none;
+      font-family: inherit;
     }
-    #add-input:focus { border-color: rgba(30,99,217,.55); box-shadow: 0 0 0 4px rgba(30,99,217,.10); }
-    #add-input::placeholder { text-transform: none; }
+    #q::placeholder { text-transform: none; }
+    #q:focus { border-color: rgba(30,99,217,.5); box-shadow: 0 0 0 3px rgba(30,99,217,.1); }
     button {
-      padding: 9px 15px;
-      border-radius: 12px;
+      padding: 8px 14px;
+      border-radius: 10px;
       border: 1px solid var(--border);
-      cursor: pointer;
+      background: rgba(255,255,255,.9);
+      color: var(--text);
       font-size: 0.84rem;
       font-weight: 700;
-      transition: all 0.18s ease;
-      background: rgba(255,255,255,.92);
-      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
     }
-    button:hover { border-color: rgba(30,99,217,.35); color: var(--blue); transform: translateY(-1px); }
+    button:hover { border-color: rgba(30,99,217,.35); color: var(--blue); }
     .btn-p {
       background: linear-gradient(135deg, #1d6ce0, #0f766e) !important;
       color: #fff !important;
       border-color: transparent !important;
-      box-shadow: 0 12px 26px rgba(15, 118, 110, .16);
     }
-    .btn-p:hover { opacity: 0.92; }
-    .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
-    .btn-del { background: transparent !important; color: var(--red) !important; border-color: transparent !important; padding: 3px 8px; font-size: 0.8rem; }
-    .btn-del:hover { background: rgba(248,81,73,.1) !important; }
-    #ts { font-size: 0.75rem; color: var(--muted); margin-left: 4px; }
+    .btn-p:hover { opacity: .9; }
+    #ts { font-size: 0.73rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+    /* ── MARKET BAR ── */
+    #market-bar {
+      display: flex;
+      gap: 8px;
+      padding: 9px 18px;
+      background: rgba(255,255,255,.84);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      align-items: center;
+      scrollbar-width: none;
+    }
+    #market-bar::-webkit-scrollbar { display: none; }
+    #mbar-label {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .mkt-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .mkt-t { font-weight: 800; color: var(--ink); }
+    .mkt-p { color: var(--muted); font-size: 0.77rem; }
 
     /* ── MAIN ── */
-    main { padding: 18px 16px 32px; max-width: 1240px; margin: 0 auto; }
-    section { margin-bottom: 20px; }
-    section > h2 {
-      font-size: 0.98rem;
-      font-weight: 800;
-      margin-bottom: 12px;
+    main {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 16px 14px 48px;
+    }
+    .list-header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      color: var(--ink);
-      letter-spacing: -.02em;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
     }
+    .list-header h2 { font-size: 0.88rem; font-weight: 800; color: var(--ink); }
+    .list-header span { font-size: 0.75rem; color: var(--muted); }
+    #stock-list { display: grid; gap: 10px; }
 
-    .hero-grid, .overview-grid, .rank-list { display: grid; gap: 12px; }
-    .hero-grid { grid-template-columns: repeat(12, 1fr); margin-top: 16px; }
-    .hero-card, .overview-card, .strategy-card, .rank-card, .coach-card, .icard, .sim-wrap {
-      background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.95));
+    /* ── STOCK CARD ── */
+    .stock-card {
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: 16px;
+      padding: 15px 16px;
       box-shadow: var(--shadow);
     }
-    .hero-card {
-      grid-column: span 12;
-      padding: 18px;
-      overflow: hidden;
-      position: relative;
+    .stock-card.pinned {
+      border-color: rgba(30,99,217,.45);
+      background: linear-gradient(135deg, rgba(30,99,217,.05), rgba(255,255,255,.97));
     }
-    .hero-card.primary {
-      background:
-        radial-gradient(300px 160px at 100% 0%, rgba(255,255,255,.20), transparent 65%),
-        linear-gradient(135deg, #133c66 0%, #145b79 48%, #0f766e 100%);
-      color: #f5fbff;
-    }
-    .hero-card.primary .hero-kicker,
-    .hero-card.primary .hero-meta,
-    .hero-card.primary .hero-subcopy,
-    .hero-card.primary .hero-stat span:first-child { color: rgba(245, 251, 255, .72); }
-    .hero-card.primary .hero-stat span:last-child { color: #fff; }
-    .hero-kicker { font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-    .hero-title { font-size: clamp(1.45rem, 5vw, 2.4rem); line-height: 1.05; font-weight: 800; margin-top: 8px; max-width: 12ch; }
-    .hero-subcopy { font-size: 0.92rem; line-height: 1.55; margin-top: 10px; max-width: 52ch; color: var(--muted); }
-    .hero-meta { font-size: 0.8rem; font-weight: 700; margin-top: 12px; color: var(--muted); }
-    .hero-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
-    .hero-stat { padding: 12px; border-radius: 16px; background: rgba(255,255,255,.10); backdrop-filter: blur(8px); }
-    .hero-stat span { display: block; }
-    .hero-stat span:first-child { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
-    .hero-stat span:last-child { margin-top: 5px; font-size: 1.05rem; font-weight: 800; }
-    .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .overview-card { padding: 14px; cursor: pointer; transition: all 0.2s ease; }
-    .overview-card:hover { background: var(--card-hover, rgba(30,99,217,0.08)); transform: translateY(-2px); }
-    .overview-card:active { transform: translateY(0); }
-    .overview-card small { display: block; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; }
-    .overview-card strong { display: block; margin-top: 6px; font-size: 1.18rem; color: var(--ink); }
-    .overview-card-expanded { margin-top: 12px; padding: 14px; background: white; border: 1px solid var(--border); border-radius: 10px; font-size: 0.85rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .overview-card-expanded > strong { display: block; font-size: 0.9rem; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); color: var(--ink); }
-    .overview-card-expanded .stock-item { padding: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--bg); margin-bottom: 6px; border-radius: 6px; }
-    .overview-card-expanded .stock-item:last-child { margin-bottom: 0; }
-    .overview-card-expanded .stock-ticker { font-weight: 700; color: var(--ink); font-size: 0.9rem; }
-    .overview-card-expanded .stock-price { color: var(--muted); font-size: 0.75rem; }
-    .portfolio-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-    .portfolio-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .portfolio-card-ticker { font-size: 1.3rem; font-weight: 700; color: var(--ink); }
-    .portfolio-card-price { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
-    .portfolio-card-signal { font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 600; }
-    .portfolio-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; }
-    .portfolio-card-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-    .portfolio-card-value { font-size: 1.05rem; font-weight: 600; color: var(--ink); }
-    .portfolio-card-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; padding: 12px; background: var(--bg); border-radius: 8px; }
-    .portfolio-card-metric { text-align: center; }
-    .portfolio-card-metric-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    .portfolio-card-metric-value { font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-top: 4px; }
-    .portfolio-card-drivers { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-    .portfolio-card-news { margin-top: 12px; padding: 10px; background: var(--bg); border-radius: 8px; font-size: 0.75rem; }
-    .portfolio-card-news-title { font-weight: 700; margin-bottom: 6px; color: var(--ink); }
-    .portfolio-card-news-item { padding: 6px 0; border-bottom: 1px dashed var(--border); }
-    .portfolio-card-news-item:last-child { border-bottom: none; }
-    .portfolio-card-details { margin-top: 12px; font-size: 0.8rem; }
-    .portfolio-card-details-btn { font-size: 0.75rem; padding: 6px 12px; }
-    .market-pulse { display: grid; gap: 10px; margin-top: 14px; }
-    .market-pulse-card {
+
+    .card-head {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 11px 12px;
-      border-radius: 14px;
-      background: rgba(243, 247, 251, .88);
-      border: 1px solid rgba(19, 43, 67, .08);
-    }
-    .market-pulse-id { display: flex; flex-direction: column; gap: 3px; }
-    .market-pulse-id strong { font-size: 0.84rem; color: var(--ink); }
-    .market-pulse-id span { font-size: 0.74rem; color: var(--muted); }
-    .market-pulse-move { text-align: right; }
-    .market-pulse-move strong { display: block; font-size: 0.88rem; }
-    .market-pulse-move span { display: block; margin-top: 3px; font-size: 0.72rem; color: var(--muted); }
-    .strategy-card { padding: 16px; }
-    .strategy-card details summary {
-      list-style: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
-      font-size: 0.92rem;
-      font-weight: 800;
-      color: var(--ink);
     }
-    .strategy-card details summary::-webkit-details-marker { display: none; }
-    .strategy-grid { display: grid; gap: 12px; margin-top: 14px; }
-    .strategy-block {
-      padding: 14px;
-      border-radius: 16px;
-      border: 1px solid var(--border);
-      background: rgba(243, 247, 251, .88);
-    }
-    .strategy-block h3 { font-size: 0.85rem; margin-bottom: 8px; color: var(--ink); }
-    .strategy-block p { font-size: 0.82rem; line-height: 1.55; color: var(--muted); }
-    .strategy-list { display: grid; gap: 8px; margin-top: 10px; }
-    .strategy-item {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 0.8rem;
-      padding: 8px 10px;
-      border-radius: 12px;
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(19, 43, 67, .08);
-    }
-    .strategy-item strong { color: var(--ink); }
-    .rank-list { grid-template-columns: 1fr; }
-    .rank-card { padding: 16px; }
-    .rank-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    .rank-id { display: flex; align-items: center; gap: 12px; }
+    .card-id { display: flex; align-items: center; gap: 10px; }
     .rank-no {
-      width: 34px; height: 34px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
-      background: var(--surface3); color: var(--ink); font-size: 0.82rem; font-weight: 800;
+      width: 30px; height: 30px;
+      border-radius: 9px;
+      background: rgba(19,43,67,.07);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.77rem; font-weight: 800; color: var(--ink);
+      flex-shrink: 0;
     }
-    .rank-symbol { font-size: 1.02rem; font-weight: 800; color: var(--ink); }
-    .rank-price { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
-    .rank-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
-    .rank-metric { padding: 10px 12px; border-radius: 14px; background: rgba(243, 247, 251, .88); border: 1px solid rgba(19, 43, 67, .08); }
-    .rank-metric span { display: block; }
-    .rank-metric span:first-child { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-    .rank-metric span:last-child { margin-top: 4px; font-size: 0.95rem; font-weight: 800; }
-    .rank-reasons { display: grid; gap: 8px; margin-top: 14px; }
-    .reason-pill {
-      padding: 9px 11px;
-      border-radius: 12px;
-      font-size: 0.8rem;
-      line-height: 1.45;
-      background: rgba(243, 247, 251, .88);
-      border: 1px solid rgba(19, 43, 67, .08);
-      color: var(--muted);
+    .ticker-name {
+      font-size: 1.03rem; font-weight: 800; color: var(--ink);
+      display: flex; align-items: center; gap: 6px;
     }
-    .reason-pill strong { color: var(--ink); }
-    .desktop-metrics { display: none; }
+    .price-row { font-size: 0.79rem; color: var(--muted); margin-top: 2px; }
 
-    /* ── TABLES ── */
-    .tw { overflow-x: auto; border-radius: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); background: rgba(255,255,255,.92); }
-    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    thead th {
-      background: rgba(243, 247, 251, .92); padding: 11px 13px; text-align: left;
-      color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase;
-      letter-spacing: .05em; white-space: nowrap; border-bottom: 1px solid var(--border);
-    }
-    tbody td { padding: 9px 13px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: middle; white-space: nowrap; }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: rgba(30,99,217,.04); }
-
-    /* ── BADGES ── */
-    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
-    .bg { background: rgba(63,185,80,.13); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
-    .br { background: rgba(248,81,73,.13); color: var(--red);   border: 1px solid rgba(248,81,73,.3); }
-    .by { background: rgba(210,153,34,.13); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
-
-    /* ── SCORE BAR ── */
-    .sbar { display: flex; align-items: center; gap: 7px; }
-    .sval { font-weight: 700; min-width: 18px; text-align: right; font-size: 0.85rem; }
-    .strk { height: 6px; background: rgba(19, 43, 67, .08); border-radius: 999px; flex: 1; min-width: 50px; }
-    .sfil { height: 100%; border-radius: 3px; transition: width .3s; }
-
-    /* ── COLORS ── */
-    .pos { color: var(--green); } .neg { color: var(--red); }
-
-    /* ── SKELETON ── */
-    .sk { background: linear-gradient(90deg, var(--surface) 25%, rgba(56,68,77,.3) 50%, var(--surface) 75%); background-size: 200px 100%; animation: shim 1.5s infinite; border-radius: 4px; height: 14px; width: 60px; display: inline-block; }
-    @keyframes shim { 0%{background-position:-200px 0} 100%{background-position:calc(200px + 100%) 0} }
-
-    /* ── EMPTY STATE ── */
-    .empty { padding: 36px; text-align: center; color: var(--muted); font-size: 0.875rem; }
-
-    /* ── MODAL ── */
-    .ov { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 200; align-items: center; justify-content: center; }
-    .ov.on { display: flex; }
-    .modal { background: rgba(255,255,255,.98); border: 1px solid var(--border); border-radius: 20px; padding: 24px; width: 340px; max-width: 92vw; box-shadow: var(--shadow); }
-    .modal h3 { font-size: 1rem; margin-bottom: 4px; }
-    .modal p  { font-size: 0.78rem; color: var(--muted); margin-bottom: 16px; }
-    .modal label { display: block; font-size: 0.78rem; color: var(--muted); margin: 10px 0 3px; }
-    .modal input { width: 100%; background: rgba(243, 247, 251, .88); border: 1px solid var(--border); color: var(--text); padding: 10px 11px; border-radius: 12px; font-size: 0.875rem; outline: none; }
-    .modal input:focus { border-color: rgba(30,99,217,.55); box-shadow: 0 0 0 4px rgba(30,99,217,.10); }
-    .ma { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
-
-    /* ── SPIN ── */
-    .spin { display: inline-block; animation: sp 1s linear infinite; }
-    @keyframes sp { 100% { transform: rotate(360deg); } }
-
-    /* ── TICKER CELL ── */
-    .tcell { font-weight: 700; font-size: 0.9rem; letter-spacing: .02em; }
-
-    /* ── PREDICTION ── */
-    .pred-up   { color: var(--green); font-weight: 600; }
-    .pred-side { color: var(--yellow); font-weight: 600; }
-    .pred-down { color: var(--red); font-weight: 600; }
-
-    /* ── INSIGHTS ── */
-    .insights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-    .icard {
-      border-radius: 18px;
-      padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;
-    }
-    .icard-head { display: flex; align-items: center; gap: 10px; }
-    .icard-tick { font-size: 1.1rem; font-weight: 800; }
-    .icard-title { font-size: 0.78rem; color: var(--muted); flex: 1; }
-    .icard-action {
-      font-size: 0.82rem; font-weight: 700; padding: 5px 12px; border-radius: 20px;
+    /* Signal badge */
+    .badge {
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.71rem;
+      font-weight: 700;
       white-space: nowrap;
+      flex-shrink: 0;
     }
-    .act-hold  { background: rgba(63,185,80,.12);  color: var(--green);  border: 1px solid rgba(63,185,80,.3); }
-    .act-sell  { background: rgba(248,81,73,.12);  color: var(--red);    border: 1px solid rgba(248,81,73,.3); }
-    .act-buy   { background: rgba(88,166,255,.12); color: var(--blue);   border: 1px solid rgba(88,166,255,.3); }
-    .act-watch { background: rgba(210,153,34,.12); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
-    .icard-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; font-size: 0.77rem; }
-    .istat { display: flex; flex-direction: column; }
-    .istat span:first-child { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: .04em; }
-    .istat span:last-child  { font-weight: 600; margin-top: 1px; }
-    .icard-reason { font-size: 0.78rem; color: var(--muted); line-height: 1.5; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
-    .icard-reason b { color: var(--text); }
+    .bg { background: rgba(21,127,99,.11); color: var(--green); border: 1px solid rgba(21,127,99,.18); }
+    .by { background: rgba(184,132,26,.10); color: var(--yellow); border: 1px solid rgba(184,132,26,.18); }
+    .br { background: rgba(196,81,75,.10); color: var(--red); border: 1px solid rgba(196,81,75,.18); }
 
-    /* ── SUMMARY BAR ── */
-    .sumbar {
-      display: flex; gap: 20px; flex-wrap: wrap; padding: 14px 20px;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-      margin-bottom: 18px; font-size: 0.82rem;
-    }
-    .sumitem { display: flex; flex-direction: column; gap: 2px; }
-    .sumitem span:first-child { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; }
-    .sumitem span:last-child  { font-weight: 700; font-size: 1rem; }
-
-    /* ── SIMPLE ACTION BOARD ── */
-    .coach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
-    .coach-card {
-      border-radius: 18px;
-      padding: 14px 15px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .coach-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px; }
-    .coach-head strong { font-size: 1.15rem; }
-    .coach-price { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .coach-price span { font-size: 0.85rem; font-weight: 600; }
-    .coach-metrics {
+    /* Indicators grid */
+    .indicators {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      padding: 10px 12px;
-      background: rgba(255,255,255,0.04);
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      margin: 4px 0;
+      grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+      gap: 7px;
+      margin-top: 12px;
     }
-    .coach-metrics > div { display: flex; flex-direction: column; gap: 4px; }
-    .coach-metrics small { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; }
-    .coach-metrics strong { font-size: 1.05rem; font-weight: 700; display: block; }
-    .coach-msg {
-      font-size: 0.78rem;
+    .ind-item {
+      padding: 9px 11px;
+      border-radius: 11px;
+      background: rgba(19,43,67,.03);
+      border: 1px solid rgba(19,43,67,.07);
+    }
+    .ind-label {
+      font-size: 0.63rem;
       color: var(--muted);
-      padding: 6px 10px;
-      background: rgba(30,99,217,0.06);
-      border-radius: 8px;
-      border-left: 3px solid var(--blue);
-      line-height: 1.5;
-    }
-    .coach-top { display: flex; align-items: center; gap: 8px; }
-    .coach-top h3 { font-size: 0.92rem; }
-    .coach-pill { font-size: 0.72rem; padding: 4px 9px; border-radius: 100px; font-weight: 700; }
-    .coach-buy  { background: rgba(63,185,80,.13); color: var(--green); }
-    .coach-sell { background: rgba(248,81,73,.13); color: var(--red); }
-    .coach-hold { background: rgba(210,153,34,.13); color: var(--yellow); }
-    .coach-note { font-size: 0.8rem; color: var(--text); line-height: 1.5; }
-    .coach-time { font-size: 0.74rem; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 7px; }
-
-    /* ── PAPER TRADING ── */
-    .sim-wrap {
-      border-radius: 18px;
-      padding: 14px;
-      display: grid;
-      gap: 12px;
-    }
-    .sim-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .sim-kpi { display: flex; gap: 14px; flex-wrap: wrap; }
-    .sim-k {
-      min-width: 160px;
-      border-radius: 14px;
-      padding: 10px 12px;
-      background: rgba(243,247,251,.92);
-    }
-    .sim-k small { display: block; color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: .04em; }
-    .sim-k b { font-size: 0.98rem; }
-    .sim-log { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
-    .sim-log table { font-size: 0.76rem; }
-    .sim-log td, .sim-log th { padding: 7px 9px; }
-
-    @media (min-width: 860px) {
-      .hero-card.primary { grid-column: span 7; }
-      .hero-card.secondary { grid-column: span 5; }
-      .overview-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      .strategy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .rank-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-
-    @media (min-width: 1080px) {
-      .desktop-metrics { display: block; }
-      .rank-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-
-    @media (max-width: 780px) {
-      header { padding: 12px 14px; }
-      header h1 { white-space: normal; }
-      .hctl { width: 100%; }
-      .hctl > * { flex: 1 1 calc(50% - 6px); }
-      #add-input, button { width: 100%; }
-      .hero-stats, .overview-grid, .rank-grid, .coach-grid, .insights-grid { grid-template-columns: 1fr; }
-      .rank-head { flex-direction: column; }
-      .icard-stats { grid-template-columns: 1fr; }
-      .sim-k { min-width: calc(50% - 8px); }
-      .tw { border-radius: 16px; }
-    }
-
-    /* ════════ NEW AI FEATURES ════════ */
-    .sentiment-bar {
-      padding: 12px 20px;
-      border-radius: 12px;
-      font-weight: 600;
-      text-align: center;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-    }
-    .sentiment-bullish { background: linear-gradient(135deg, rgba(21, 127, 99, 0.15), rgba(21, 127, 99, 0.05)); border-color: var(--green); color: var(--green); }
-    .sentiment-bearish { background: linear-gradient(135deg, rgba(197, 81, 75, 0.15), rgba(197, 81, 75, 0.05)); border-color: var(--red); color: var(--red); }
-    .sentiment-neutral { background: var(--surface2); border-color: var(--border); color: var(--text); }
-
-    .news-impact-grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: 1fr;
-    }
-    @media (min-width: 860px) {
-      .news-impact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-
-    .news-impact-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      transition: all 0.2s;
-    }
-    .news-impact-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(15, 39, 64, .08);
-    }
-    .news-impact-title {
-      font-weight: 700;
-      font-size: 0.85rem;
-      margin-bottom: 8px;
-      color: var(--ink);
-    }
-    .news-impact-meta {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-    .news-impact-sentiment {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 6px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      margin-top: 8px;
-    }
-    .impact-positive { background: rgba(21, 127, 99, 0.1); color: var(--green); }
-    .impact-negative { background: rgba(197, 81, 75, 0.1); color: var(--red); }
-    .impact-neutral { background: var(--surface3); color: var(--muted); }
-
-    .asset-type-badge {
-      display: inline-block;
-      font-size: 0.65rem;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-weight: 600;
-      margin-left: 6px;
-      background: var(--surface3);
-      color: var(--muted);
-      vertical-align: middle;
-    }
-    .asset-etf { background: rgba(30, 99, 217, 0.1); color: var(--blue); }
-    .asset-metal { background: rgba(184, 132, 26, 0.1); color: var(--yellow); }
-    .asset-crypto { background: rgba(15, 118, 110, 0.1); color: var(--teal); }
-
-    /* Congressional Trades */
-    .congress-trades-grid {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: 1fr;
-    }
-    @media (min-width: 640px) {
-      .congress-trades-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (min-width: 1024px) {
-      .congress-trades-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-
-    .congress-trade-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
-      transition: all 0.2s;
-      position: relative;
-    }
-    .congress-trade-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(15, 39, 64, .08);
-      border-color: var(--blue);
-    }
-    .congress-trade-card.in-watchlist {
-      background: linear-gradient(135deg, rgba(30, 99, 217, 0.08), transparent);
-      border-color: var(--blue);
-    }
-    .congress-trade-card.in-watchlist::before {
-      content: "★";
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      font-size: 1.2rem;
-      color: var(--blue);
-    }
-
-    .congress-ticker {
-      font-size: 1.1rem;
-      font-weight: 800;
-      color: var(--ink);
-      margin-bottom: 6px;
-    }
-    .congress-action {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      margin-left: 8px;
-    }
-    .congress-action.buy { background: rgba(21, 127, 99, 0.15); color: var(--green); }
-    .congress-action.sell { background: rgba(197, 81, 75, 0.15); color: var(--red); }
-
-    .congress-politician {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-    .congress-party {
-      font-size: 0.7rem;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    .congress-amount {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--blue);
-      margin-bottom: 4px;
-    }
-    .congress-timing {
-      font-size: 0.7rem;
-      color: var(--muted);
-    }
-
-    .congress-overlap-alert {
-      background: linear-gradient(135deg, rgba(30, 99, 217, 0.12), rgba(30, 99, 217, 0.04));
-      border: 1px solid var(--blue);
-      border-radius: 12px;
-      padding: 16px;
-      color: var(--ink);
-    }
-    .congress-overlap-title {
-      font-weight: 700;
-      font-size: 0.9rem;
-      margin-bottom: 8px;
-      color: var(--blue);
-    }
-    .congress-overlap-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .congress-overlap-ticker {
-      background: var(--blue);
-      color: white;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 0.8rem;
-    }
-
-    /* Golden Hour Trading / ORB */
-    .golden-hour-grid {
-      display: grid;
-      gap: 14px;
-      grid-template-columns: 1fr;
-    }
-    @media (min-width: 768px) {
-      .golden-hour-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-
-    .orb-alerts-grid {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: 1fr;
-    }
-    @media (min-width: 640px) {
-      .orb-alerts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (min-width: 1024px) {
-      .orb-alerts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-
-    .premarket-card {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
-      transition: all 0.2s;
-    }
-    .premarket-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(15, 39, 64, .1);
-    }
-    .premarket-card.hot-setup {
-      background: linear-gradient(135deg, rgba(21, 127, 99, 0.08), transparent);
-      border-color: var(--green);
-    }
-
-    .premarket-ticker {
-      font-size: 1.3rem;
-      font-weight: 800;
-      color: var(--ink);
-      margin-bottom: 8px;
-    }
-    .premarket-change {
-      display: inline-block;
-      font-size: 0.9rem;
-      font-weight: 700;
-      margin-left: 10px;
-    }
-    .premarket-catalyst {
-      font-size: 0.8rem;
-      background: rgba(30, 99, 217, 0.1);
-      color: var(--blue);
-      padding: 4px 10px;
-      border-radius: 6px;
-      display: inline-block;
-      margin-bottom: 10px;
-      font-weight: 600;
-    }
-    .premarket-volume {
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    .premarket-levels {
-      font-size: 0.8rem;
-      color: var(--text);
-      margin-bottom: 10px;
-      line-height: 1.6;
-    }
-    .premarket-setup {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--green);
-      background: rgba(21, 127, 99, 0.1);
-      padding: 8px 12px;
-      border-radius: 8px;
-      margin-top: 8px;
-    }
-
-    .orb-alert-card {
-      background: var(--surface2);
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
-      transition: all 0.2s;
-      position: relative;
-    }
-    .orb-alert-card.breakout {
-      border-color: var(--green);
-      background: linear-gradient(135deg, rgba(21, 127, 99, 0.12), transparent);
-    }
-    .orb-alert-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(15, 39, 64, .1);
-    }
-
-    .orb-ticker {
-      font-size: 1.2rem;
-      font-weight: 800;
-      color: var(--ink);
-      margin-bottom: 6px;
-    }
-    .orb-status {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      margin-left: 8px;
-    }
-    .orb-status.watching { background: rgba(30, 99, 217, 0.15); color: var(--blue); }
-    .orb-status.breakout { background: rgba(21, 127, 99, 0.15); color: var(--green); }
-    .orb-status.rejected { background: rgba(197, 81, 75, 0.15); color: var(--red); }
-
-    .orb-conditions {
-      font-size: 0.8rem;
-      margin-top: 10px;
-      line-height: 1.7;
-    }
-    .orb-condition {
-      display: flex;
-      align-items: center;
-      margin-bottom: 4px;
-    }
-    .orb-condition.met {
-      color: var(--green);
-    }
-    .orb-condition.not-met {
-      color: var(--muted);
-    }
-    .orb-condition-icon {
-      margin-right: 6px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
       font-weight: 700;
     }
+    .ind-val { font-size: 0.97rem; font-weight: 800; margin-top: 3px; }
 
-    .orb-range-box {
-      background: var(--surface3);
-      border-radius: 8px;
-      padding: 10px;
+    /* Prediction */
+    .pred-row {
       margin-top: 10px;
       font-size: 0.8rem;
-    }
-    .orb-range-label {
-      color: var(--muted);
+      padding-top: 9px;
+      border-top: 1px solid rgba(19,43,67,.06);
       font-weight: 600;
-      margin-bottom: 4px;
     }
-    .orb-range-value {
-      font-weight: 700;
-      color: var(--ink);
-      font-size: 0.95rem;
+
+    /* Detail toggle */
+    .detail-btn {
+      font-size: 0.72rem;
+      padding: 3px 9px;
+      border-radius: 7px;
+      margin-top: 9px;
+      background: rgba(19,43,67,.05);
+      border: 1px solid rgba(19,43,67,.08);
+      color: var(--muted);
+    }
+    .detail-btn:hover { color: var(--blue); }
+    .detail-body { display: none; margin-top: 10px; }
+    .detail-body.open { display: block; }
+
+    .drivers { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
+    .dpill { font-size: 0.7rem; padding: 3px 9px; border-radius: 20px; font-weight: 600; }
+    .bull { background: rgba(21,127,99,.1); color: var(--green); }
+    .bear { background: rgba(196,81,75,.1); color: var(--red); }
+
+    .news-wrap { margin-top: 6px; }
+    .news-item {
+      font-size: 0.73rem;
+      padding: 5px 0;
+      border-bottom: 1px dashed rgba(19,43,67,.1);
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .news-item:last-child { border-bottom: none; }
+    .news-item b { color: var(--ink); }
+    .news-item a { color: var(--blue); text-decoration: none; }
+    .news-item a:hover { text-decoration: underline; }
+
+    /* Asset badge */
+    .abadge { font-size: 0.63rem; padding: 2px 7px; border-radius: 6px; font-weight: 700; }
+    .a-etf    { background: rgba(30,99,217,.1); color: var(--blue); }
+    .a-metal  { background: rgba(184,132,26,.1); color: var(--yellow); }
+    .a-crypto { background: rgba(121,80,200,.1); color: #7950c8; }
+
+    /* Skeleton */
+    .sk {
+      display: inline-block; width: 55px; height: 13px;
+      background: linear-gradient(90deg, #e0e8f0 25%, #ccd8e4 50%, #e0e8f0 75%);
+      background-size: 200%;
+      animation: sk 1.4s ease infinite;
+      border-radius: 5px;
+    }
+    @keyframes sk { 0%{background-position:200%} 100%{background-position:-200%} }
+
+    .empty {
+      text-align: center; padding: 48px 20px;
+      color: var(--muted); font-size: 0.88rem; line-height: 1.7;
+    }
+    .pos { color: var(--green); font-weight: 700; }
+    .neg { color: var(--red); font-weight: 700; }
+
+    @media (max-width: 600px) {
+      .indicators { grid-template-columns: repeat(3, 1fr); }
+      main { padding: 12px 10px 32px; }
     }
   </style>
 </head>
 <body>
 
-<!-- ════════════════════════════════════ HEADER ════════════════════════════════════ -->
 <header>
-  <h1>🤖 IntelliMarket Analyst</h1>
-  <div class="hctl">
-    <input id="add-input" type="text" placeholder="Add ticker e.g. NVDA" maxlength="10" onkeypress="if(event.key==='Enter') searchStock()" />
-    <button class="btn-p" onclick="searchStock()" id="rbtn">🔍 Search Stock</button>
-    <button onclick="openSettings()">⚙️ Settings</button>
-    <span id="ts"></span>
+  <h1>📊 IntelliMarket</h1>
+  <div class="search-wrap">
+    <input id="q" type="text" placeholder="Search ticker e.g. NVDA" maxlength="12"
+           onkeypress="if(event.key==='Enter') searchStock()" />
+    <button class="btn-p" onclick="searchStock()">Search</button>
+    <button onclick="manualRefresh()" id="refresh-btn">&#x21BB; Refresh</button>
   </div>
+  <span id="ts">Loading…</span>
 </header>
 
-<!-- ════════════════════════════════════ TAB NAVIGATION ════════════════════════════════════ -->
-<nav class="tab-nav" style="display:none;">
-  <button class="tab-btn active" onclick="switchTab('overview')">📊 Overview</button>
-  <button class="tab-btn" onclick="switchTab('portfolio')">💼 Portfolio</button>
-  <button class="tab-btn" onclick="switchTab('testlab')">🧪 Test Lab</button>
-  <button class="tab-btn" onclick="switchTab('analysis')">🎯 Analysis</button>
-  <button class="tab-btn" onclick="switchTab('intelligence')">🏛️ Intelligence</button>
-  <button class="tab-btn" onclick="switchTab('watchlist')">📈 Watchlist</button>
-</nav>
+<div id="market-bar">
+  <span id="mbar-label">Market</span>
+  <div class="mkt-pill" id="mkt-SPY"><span class="mkt-t">SPY</span>&nbsp;<span class="sk"></span></div>
+  <div class="mkt-pill" id="mkt-QQQ"><span class="mkt-t">QQQ</span>&nbsp;<span class="sk"></span></div>
+  <div class="mkt-pill" id="mkt-IWM"><span class="mkt-t">IWM</span>&nbsp;<span class="sk"></span></div>
+  <div class="mkt-pill" id="mkt-XLK"><span class="mkt-t">XLK</span>&nbsp;<span class="sk"></span></div>
+  <div class="mkt-pill" id="mkt-XLF"><span class="mkt-t">XLF</span>&nbsp;<span class="sk"></span></div>
+</div>
 
-<!-- ════════════════════════════════════ MAIN CONTENT ════════════════════════════════════ -->
 <main>
-
-  <!-- ═══════════════════ OVERVIEW TAB ═══════════════════ -->
-  <div id="tab-overview" class="tab-panel active">
-    <!-- API ERROR BANNER -->
-    <div id="api-error-banner" style="display:none;padding:16px;margin-bottom:16px;background:rgba(239,83,80,0.1);border:1px solid var(--red);border-radius:12px;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <span style="font-size:1.5rem;">⚠️</span>
-        <div style="flex:1;">
-          <strong style="color:var(--red);font-size:0.95rem;">API Rate Limited</strong>
-          <p style="font-size:0.85rem;color:var(--muted);margin-top:4px;">
-            Yahoo Finance APIs are temporarily rate-limited. Data loading may be slow. 
-            <button class="btn-sm" onclick="location.reload()" style="margin-left:8px;">🔄 Retry</button>
-          </p>
-        </div>
-      </div>
-    </div>
-    
-    <!-- MY PORTFOLIO & ACTIONS -->
-    <section>
-      <h2>
-        💼 My Portfolio
-        <button class="btn-sm" onclick="openModal()" style="float:right;">+ Add Position</button>
-      </h2>
-      <div id="portfolio-cards-view"></div>
-      <div class="empty" id="portfolio-empty" style="display:none;padding:16px">
-        No portfolio positions. <a href="#" onclick="openModal();return false;" style="color:var(--blue)">Add your first position →</a>
-      </div>
-    </section>
-
-    <!-- SMART SUGGESTIONS -->
-    <section>
-      <h2>💡 Smart Investment Suggestions</h2>
-      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
-        AI-recommended stocks based on bullish signals, upcoming earnings, and technical setups
-      </p>
-      <div class="coach-grid" id="suggestions-grid">
-        <div class="empty" style="padding:24px">Loading smart suggestions...</div>
-      </div>
-    </section>
-
-    <!-- MARKET PULSE (compact) -->
-    <section>
-      <h2>📊 Market Pulse</h2>
-      <div id="market-sentiment-bar" class="sentiment-bar" style="display:none;margin-bottom:12px;"></div>
-      <div id="overview-grid" class="overview-grid">
-        <div class="overview-card" onclick="toggleMarketPulseDetail('watchlist')"><small>Watchlist</small><strong>--</strong></div>
-        <div class="overview-card" onclick="toggleMarketPulseDetail('bullish')"><small>Bullish Setups</small><strong>--</strong></div>
-        <div class="overview-card" onclick="toggleMarketPulseDetail('bearish')"><small>Bearish Risk</small><strong>--</strong></div>
-        <div class="overview-card" onclick="toggleMarketPulseDetail('portfolio')"><small>Portfolio</small><strong>--</strong></div>
-        <div class="overview-card" onclick="toggleMarketPulseDetail('most-bullish')"><small>💹 Most Bullish</small><strong>--</strong></div>
-        <div class="overview-card" onclick="toggleMarketPulseDetail('most-bearish')"><small>📉 Most Bearish</small><strong>--</strong></div>
-        <div class="overview-card" onclick="toggleMarketPulseDetail('weeklow')"><small>💎 Near Week Low</small><strong>--</strong></div>
-        <div class="overview-card" onclick="toggleMarketPulseDetail('earnings')"><small>📅 Earnings Soon</small><strong>--</strong></div>
-      </div>
-      <div id="market-pulse-detail" style="display:none;"></div>
-      <div id="market-pulse" class="market-pulse" style="display:none;">
-        <div class="empty" style="padding:18px">Loading current market trends...</div>
-      </div>
-    </section>
+  <div class="list-header">
+    <h2>Ranked: Most Bullish → Most Bearish</h2>
+    <span id="count-label"></span>
   </div>
-
-  <!-- ═══════════════════ PORTFOLIO TAB ═══════════════════ -->
-  <div id="tab-portfolio" class="tab-panel">
-    <section>
-      <h2>
-        💼 My Portfolio
-        <button class="btn-sm" onclick="openModal()">+ Add Position</button>
-        <button class="btn-sm" onclick="toggleTestMode()" id="test-mode-btn">Test Mode: OFF</button>
-        <button class="btn-sm" onclick="toggleAutoRefresh()" id="auto-refresh-btn" style="display:none;">🔄 Auto-Refresh: OFF</button>
-        <button class="btn-sm" onclick="exportTradeHistory()" id="export-trades-btn" style="display:none;">📊 Export Trades</button>
-      </h2>
-      <div class="tw">
-        <table>
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Shares</th>
-              <th>Bought @</th>
-              <th>Current</th>
-              <th>P&amp;L $</th>
-              <th>P&amp;L %</th>
-              <th>Signal</th>
-              <th>Action</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="pb"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="portfolio-insights">
-      <h2>📊 Portfolio Insights</h2>
-      <div class="insights-grid" id="portfolio-insights-grid">
-        <div class="empty" style="padding:24px">Add positions to see AI insights</div>
-      </div>
-    </section>
+  <div id="stock-list">
+    <div class="empty">Fetching stock data… usually takes 30–60 s on first load.</div>
   </div>
-
-  <!-- ═══════════════════ TEST LAB TAB ═══════════════════ -->
-  <div id="tab-testlab" class="tab-panel">
-    <section>
-      <h2>🧪 Weekly Test Trading Lab</h2>
-      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
-        Simulate AI-driven trading strategies without risking real money. The system learns from performance and adjusts buy/sell thresholds automatically.
-      </p>
-      <div class="sim-wrap">
-        <div class="sim-controls">
-          <label style="font-size:.8rem;color:var(--muted)">Start Amount ($)</label>
-          <input id="sim-start" type="number" min="100" step="100" value="50000" style="width:130px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px" />
-          <button class="btn-p" onclick="simStart()">Start Simulation</button>
-          <button onclick="simToggle()" id="sim-toggle">Pause</button>
-          <button onclick="simRunNow()">Run Today</button>
-          <button onclick="simReset()">Reset</button>
-          <button onclick="exportSimLog()">📥 Export JSON</button>
-          <span id="sim-status" style="font-size:.77rem;color:var(--muted)"></span>
-        </div>
-        <div class="sim-kpi" id="sim-kpi"></div>
-        <div class="sim-log">
-          <table>
-            <thead>
-              <tr><th>Date</th><th>Stock</th><th>Action</th><th>Price</th><th>Reason</th><th>P/L</th></tr>
-            </thead>
-            <tbody id="sim-log-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <!-- ═══════════════════ ANALYSIS TAB ═══════════════════ -->
-  <div id="tab-analysis" class="tab-panel">
-    <section>
-      <h2>🧭 Clear Buy/Sell Guidance</h2>
-      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:18px;">
-        Plain-language AI recommendations with timing guidance for your watchlist stocks.
-      </p>
-      <div class="coach-grid" id="coach-grid">
-        <div class="empty" style="padding:24px">Loading guidance...</div>
-      </div>
-    </section>
-
-    <!-- SEARCH RESULTS SECTION -->
-    <section id="search-results-sec" style="display:none;">
-      <h2>🔍 Search Results</h2>
-      <div id="search-body" style="display:grid;gap:16px;"></div>
-    </section>
-
-    <section class="desktop-metrics">
-      <h2>🧮 Deep Technical Metrics</h2>
-      <div class="tw">
-        <table>
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Price</th>
-              <th>Change</th>
-              <th>Signal</th>
-              <th>Net</th>
-              <th>Bull</th>
-              <th>Bear</th>
-              <th>Conviction</th>
-              <th>RSI</th>
-              <th>MACD Diff</th>
-              <th>Wk Position</th>
-              <th>EMA20</th>
-              <th>Next Earnings</th>
-              <th>Last EPS vs Est</th>
-              <th>Prediction</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="wb"></tbody>
-        </table>
-      </div>
-    </section>
-  </div>
-
-  <!-- ═══════════════════ INTELLIGENCE TAB ═══════════════════ -->
-  <div id="tab-intelligence" class="tab-panel">
-    <!-- CONGRESSIONAL TRADING -->
-    <section id="congress-trades-sec">
-      <h2>🏛️ Congressional Trading Intelligence</h2>
-      <p style="font-size:0.88rem;color:var(--muted);margin:0 0 12px 0;">
-        Track what Congress is trading. Studies show congressional stock picks can outperform the market.
-        <a href="https://www.capitoltrades.com/" target="_blank" rel="noopener" style="color:var(--blue)">View all on CapitolTrades →</a>
-      </p>
-      <div id="congress-trades-grid" class="congress-trades-grid"></div>
-      <div id="congress-watchlist-overlap" style="margin-top:16px;"></div>
-    </section>
-
-    <!-- GOLDEN HOUR TRADING -->
-    <section id="golden-hour-sec">
-      <h2>⏰ Golden Hour Trading</h2>
-      <p style="font-size:0.88rem;color:var(--muted);margin:0 0 16px 0;">
-        Opening Range Breakout (ORB) scanner for the first 2 hours of trading (9:30-11:30 AM EST). 
-        Tracks 30-minute opening range, volume spikes, and VWAP position.
-        <button class="btn-sm" onclick="refreshGoldenHour()" style="margin-left:12px;">🔄 Refresh ORB Data</button>
-      </p>
-      
-      <!-- Pre-Market Analysis -->
-      <div id="premarket-analysis" style="margin-bottom:24px;">
-        <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">📋 Pre-Market Watchlist Analysis</h3>
-        <div id="premarket-grid" class="golden-hour-grid"></div>
-      </div>
-
-      <!-- Live ORB Signals -->
-      <div id="orb-signals">
-        <h3 style="font-size:1rem;margin-bottom:12px;color:var(--ink);">🚀 Opening Range Breakout Signals</h3>
-        <div id="orb-alerts-grid" class="orb-alerts-grid"></div>
-      </div>
-
-      <!-- Data Requirements Notice -->
-      <div style="margin-top:16px;padding:14px;background:rgba(184,132,26,0.1);border:1px solid var(--yellow);border-radius:10px;font-size:0.85rem;">
-        <strong>⚠️ Intraday Data Required:</strong> Full ORB tracking requires 5-minute bar data, real-time volume, and VWAP calculations. 
-        Currently showing daily analysis with ORB potential scoring. For live alerts, integrate with 
-        <a href="https://polygon.io/" target="_blank" style="color:var(--blue)">Polygon.io</a> or 
-        <a href="https://alpaca.markets/" target="_blank" style="color:var(--blue)">Alpaca Markets</a> APIs.
-      </div>
-    </section>
-
-    <!-- NEWS IMPACT ANALYSIS -->
-    <section id="news-impact-sec">
-      <h2>📰 Market News Impact Analysis</h2>
-      <div id="news-impact-grid" class="news-impact-grid"></div>
-    </section>
-  </div>
-
-  <!-- ═══════════════════ WATCHLIST TAB ═══════════════════ -->
-  <div id="tab-watchlist" class="tab-panel">
-    <section>
-      <h2>📊 Ranked Market Board</h2>
-      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:12px;">
-        Your watchlist ranked by AI scoring system. Stocks with higher net scores show stronger bullish setups.
-      </p>
-      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
-        <button class="btn-sm" onclick="setWatchlistFilter('all')" id="filter-all" style="background:var(--blue);color:white;">🔍 All Stocks</button>
-        <button class="btn-sm" onclick="setWatchlistFilter('bullish')" id="filter-bullish">📈 Most Bullish</button>
-        <button class="btn-sm" onclick="setWatchlistFilter('bearish')" id="filter-bearish">📉 Most Bearish</button>
-        <button class="btn-sm" onclick="setWatchlistFilter('weeklow')" id="filter-weeklow">💎 Near Week Low</button>
-        <button class="btn-sm" onclick="setWatchlistFilter('earnings')" id="filter-earnings">📅 Earnings Soon</button>
-      </div>
-      <div id="rank-list" class="rank-list">
-        <div class="empty">Loading ranked setups...</div>
-      </div>
-    </section>
-  </div>
-
-
 </main>
-
-<!-- ════════════════════════════════════ MODALS ════════════════════════════════════ -->
-<div class="ov" id="modal" onclick="modalBg(event)">
-  <div class="modal">
-    <h3>Add Portfolio Position</h3>
-    <p>Track a stock you own and monitor P&amp;L in real time.</p>
-    <label>Ticker Symbol</label>
-    <input id="m-ticker" type="text" placeholder="e.g. AAPL" maxlength="10" oninput="this.value=this.value.toUpperCase()" />
-    <label>Shares</label>
-    <input id="m-shares" type="number" placeholder="e.g. 10" min="0.001" step="any" />
-    <label>Buy Price per Share ($)</label>
-    <input id="m-price" type="number" placeholder="e.g. 250.00" min="0.01" step="any" />
-    <div class="ma">
-      <button onclick="closeModal()">Cancel</button>
-      <button class="btn-p" onclick="addPosition()">Add Position</button>
-    </div>
-  </div>
-</div>
-
-<div class="ov" id="settings-modal" onclick="settingsModalBg(event)">
-  <div class="modal" style="width:500px;max-width:94vw">
-    <h3>⚙️ Configuration</h3>
-    <p>Customize your default watchlist and market trend proxies.</p>
-    <label>Default Watchlist (comma-separated tickers)</label>
-    <textarea id="s-watchlist" rows="3"></textarea>
-    <label>Market Trend Proxies (ticker:label format, comma-separated)</label>
-    <textarea id="s-proxies" rows="4"></textarea>
-    <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1)">
-      <label style="display:block;margin-bottom:8px">💾 Export / Import Data</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="exportWatchlist()" style="font-size:12px">📥 Export Watchlist</button>
-        <button onclick="exportPortfolio()" style="font-size:12px">📥 Export Portfolio</button>
-        <button onclick="importData()" style="font-size:12px">📤 Import JSON</button>
-      </div>
-      <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
-    </div>
-    <div class="ma">
-      <button onclick="closeSettings()">Cancel</button>
-      <button class="btn-p" onclick="saveSettings()">Save</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // ══════════════════════════════════════════════════════════════
-//  URL CLEANUP - Remove version parameters for clean URLs
+//  DEFAULT WATCHLIST  (edit to customise)
 // ══════════════════════════════════════════════════════════════
-(function() {
-  if (window.location.search) {
-    // Clean URL by removing all query parameters
-    const cleanUrl = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, cleanUrl);
-  }
-})();
+const DEFAULT_WATCHLIST = [
+  // Mega-cap Tech
+  'AAPL','MSFT','GOOGL','AMZN','NVDA','META','TSLA','ORCL','AVGO','ADBE','CRM','AMD','NFLX',
+  // Finance
+  'JPM','V','MA','BAC','WFC','GS',
+  // Healthcare
+  'LLY','UNH','JNJ','ABBV','MRK',
+  // Consumer
+  'WMT','COST','HD','PG','NKE','MCD',
+  // Energy
+  'XOM','CVX',
+  // ETFs / Macro
+  'SPY','QQQ','IWM','XLK','XLF','XLE','XLV','GLD','TLT'
+];
 
-// ══════════════════════════════════════════════════════════════
-//  CONFIGURATION
-// ══════════════════════════════════════════════════════════════
-let CONFIG = {
-  defaultWatchlist: [
-    // Tech (200B+)
-    'AAPL','MSFT','GOOGL','AMZN','NVDA','META','TSLA','ORCL','AVGO','ADBE','CRM','NFLX','AMD','INTC',
-    // Finance (200B+)
-    'BRK.B','JPM','V','MA','BAC','WFC','MS','GS',
-    // Healthcare (200B+)
-    'LLY','UNH','JNJ','ABBV','MRK','TMO','PFE','NVO',
-    // Consumer (200B+)
-    'WMT','COST','HD','PG','NKE','MCD','LOW','TM','BABA',
-    // Energy & Industrial (200B+)
-    'XOM','CVX','SHEL',
-    // ETFs (Major market/sector)
-    'SPY','QQQ','IWM','VTI','VOO','IVV','XLK','XLF','XLE','XLV','XLY','XLP','VXUS','GLD','SLV','TLT'
-  ],
-  marketTrends: [
-    { ticker: 'SPY', label: 'S&P 500' },
-    { ticker: 'QQQ', label: 'Nasdaq 100' },
-    { ticker: 'IWM', label: 'Russell 2000' },
-    { ticker: 'XLK', label: 'Technology' },
-    { ticker: 'XLF', label: 'Financials' }
-  ],
-  // Manual earnings calendar (fallback when API fails) - Update weekly
-  earningsCalendar: {
-    // Week of Apr 29 (Mega-cap Tech Day)
-    'MSFT': '2026-04-29',   // Wed Apr 29 AMC
-    'GOOGL': '2026-04-29',  // Wed Apr 29 AMC
-    'AMZN': '2026-04-29',   // Wed Apr 29 AMC
-    'META': '2026-04-29',   // Wed Apr 29 AMC
-    // Week of May 5 (Consumer & Finance)
-    'AAPL': '2026-05-01',   // Thu May 1 AMC
-    'JPM': '2026-05-05',    // Mon May 5 BMO
-    'V': '2026-05-06',      // Tue May 6 AMC
-    'MA': '2026-05-06',     // Tue May 6 AMC
-    'WMT': '2026-05-07',    // Wed May 7 BMO
-    'PG': '2026-05-08',     // Thu May 8 BMO
-    'BAC': '2026-05-08',    // Thu May 8 BMO
-    'JNJ': '2026-05-08',    // Thu May 8 BMO
-    // Week of May 12 (Tech & Retail)
-    'NVDA': '2026-05-13',   // Tue May 13 AMC
-    'NFLX': '2026-05-14',   // Wed May 14 AMC
-    'HD': '2026-05-14',     // Wed May 14 BMO
-    'COST': '2026-05-15',   // Thu May 15 AMC
-    'TSLA': '2026-04-23'    // Past date (already reported)
-  }
-};
-
-function loadConfig() {
-  try {
-    const saved = localStorage.getItem('ss_config');
-    if (saved) CONFIG = { ...CONFIG, ...JSON.parse(saved) };
-  } catch(e) {}
-}
-
-function saveConfig() {
-  localStorage.setItem('ss_config', JSON.stringify(CONFIG));
-}
-
-// ══════════════════════════════════════════════════════════════
-//  MODEL SPECIFICATION
-// ══════════════════════════════════════════════════════════════
-const MODEL_SPEC = {
-  bullish: [
-    ['Near weekly support', '+2 when weekly position < 50%'],
-    ['RSI recovery zone', '+2 when RSI is between 30 and 65'],
-    ['MACD confirmation', '+2 when MACD diff is positive'],
-    ['EMA20 support', '+2 when price is at least 97% of EMA20'],
-    ['Deep dip bonus', '+1 when weekly position < 35%'],
-    ['Healthy momentum bonus', '+1 when RSI is between 35 and 55']
-  ],
-  bearish: [
-    ['Extended weekly position', '+2 when weekly position > 75%'],
-    ['Overheated RSI', '+2 when RSI is at least 68'],
-    ['Negative MACD', '+2 when MACD diff is below 0'],
-    ['Below EMA20 trend', '+2 when price is below 98.5% of EMA20'],
-    ['Sharp daily drop', '+1 when day change is -2% or worse'],
-    ['EPS miss risk', '+1 when last earnings surprise was negative']
-  ],
-  catalysts: [
-    ['Recent EPS beat', '+1 when last EPS beat estimates'],
-    ['Near-term earnings catalyst', '+1 when earnings are within 5 days'],
-    ['Fresh strength', '+1 when day change is +1.5% or better']
-  ]
-};
+const MARKET_TICKERS = ['SPY','QQQ','IWM','XLK','XLF'];
 
 // ══════════════════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════════════════
-let S = {
-  watchlist : [],
-  portfolio : [],   // [{ticker, shares, buyPrice, note?}]
-  trackedStocks: [], // Stocks searched by any user - persisted for all
-  data      : {},   // {ticker: stockObj | {err:true}}
-  busy      : false,
-  seeded    : false,
-  marketBull: null,
-  marketTrends: [],
-  testMode  : false,
-  autoRefresh: false,
-  autoRefreshInterval: null,
-  newsImpact: [],
-  marketSentiment: null,
-  watchlistFilter: 'all',  // 'all', 'bullish', 'bearish'
-  lastDataRefresh: null,
-  sim: {
-    started      : false,
-    enabled      : true,
-    startCash    : 50000,
-    cash         : 50000,
-    positions    : [],  // [{ticker, shares, buyPrice, openedAt, daysHeld}]
-    log          : [],  // [{ts,ticker,side,price,reason,pnl}]
-    closed       : [],
-    lastRunDate  : null,
-    weekStart    : null,
-    weeklyHistory: [],
-    learn: {
-      buyMinScore : 4,
-      sellMaxScore: -2,
-      holdDays    : 3,
-      stopPct     : -2,
-      targetPct   : 3.5
-    }
-  }
+const S = {
+  watchlist    : [],
+  data         : {},
+  pinnedTicker : null,
+  busy         : false
 };
 
-const SHARED_DATA_SYNC_MS = 90000;
-
-async function fetchSharedJson(path) {
-  const url = `${path}${path.includes('?') ? '&' : '?'}_=${Date.now()}`;
-  const res = await fetch(url, {
-    cache: 'no-store',
-    headers: {
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
-    }
-  });
-  if (!res.ok) return null;
-  return res.json();
-}
-
-function arraysEqualShallow(a, b) {
-  if (!Array.isArray(a) || !Array.isArray(b)) return false;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
-async function syncSharedDataFromServer() {
-  if (S.busy) return;
-
-  try {
-    const [wjRaw, pjRaw, tjRaw] = await Promise.all([
-      fetchSharedJson('./data/watchlist.json'),
-      fetchSharedJson('./data/portfolio.json'),
-      fetchSharedJson('./data/trackedStocks.json')
-    ]);
-
-    const wj = Array.isArray(wjRaw) ? wjRaw : [];
-    const pj = Array.isArray(pjRaw) ? pjRaw : [];
-    const tj = Array.isArray(tjRaw) ? tjRaw : [];
-
-    const mergedWatch = [...wj];
-    pj.forEach(p => {
-      if (p && p.ticker && !mergedWatch.includes(p.ticker)) mergedWatch.push(p.ticker);
-    });
-    tj.forEach(t => {
-      if (t && !mergedWatch.includes(t)) mergedWatch.push(t);
-    });
-
-    const portfolioChanged = JSON.stringify(S.portfolio) !== JSON.stringify(pj);
-    const trackedChanged = !arraysEqualShallow(S.trackedStocks, tj);
-    const watchChanged = !arraysEqualShallow(S.watchlist, mergedWatch);
-
-    if (!portfolioChanged && !trackedChanged && !watchChanged) return;
-
-    S.portfolio = pj;
-    S.trackedStocks = tj;
-    S.watchlist = mergedWatch;
-    save();
-    renderAll(false);
-
-    const tsEl = document.getElementById('ts');
-    if (tsEl) {
-      tsEl.textContent = 'Synced: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
-      tsEl.title = 'Latest shared data loaded from server';
-      tsEl.style.color = 'var(--green)';
-    }
-  } catch(e) {
-    // Keep silent - periodic sync should not disrupt normal app usage.
-  }
-}
-
-// ── Load: JSON files ONLY (source of truth for all users) ──
-async function load() {
-  try {
-    // Load user preferences from localStorage
-    const filter = localStorage.getItem('ss_filter');
-    if (filter) S.watchlistFilter = filter;
-  } catch(e) {}
-
-  // ALWAYS load from JSON files (source of truth - same data on all devices)
-  try {
-    const [wj, pj, tj] = await Promise.all([
-      fetchSharedJson('./data/watchlist.json'),
-      fetchSharedJson('./data/portfolio.json'),
-      fetchSharedJson('./data/trackedStocks.json')
-    ]);
-    
-    // Load watchlist from JSON (no localStorage fallback)
-    if (Array.isArray(wj) && wj.length) {
-      S.watchlist = wj;
-      S.seeded = true;
-    } else {
-      // Use CONFIG default if JSON is empty
-      S.watchlist = [...CONFIG.defaultWatchlist];
-    }
-    
-    // Load portfolio from JSON (no localStorage fallback)
-    if (Array.isArray(pj) && pj.length) {
-      S.portfolio = pj;
-      // Make sure portfolio tickers are in watchlist
-      pj.forEach(p => { if (!S.watchlist.includes(p.ticker)) S.watchlist.push(p.ticker); });
-      S.seeded = true;
-    }
-    
-    // Load tracked stocks (searched by any user)
-    if (Array.isArray(tj)) {
-      S.trackedStocks = tj;
-      // Merge tracked stocks into watchlist
-      tj.forEach(t => { if (!S.watchlist.includes(t)) S.watchlist.push(t); });
-    }
-  } catch(e) {
-    console.warn('Failed to load JSON data:', e);
-    // Use CONFIG default
-    S.watchlist = [...CONFIG.defaultWatchlist];
-  }
-  
-  save();
-}
-
-function save() {
-  localStorage.setItem('ss_watch', JSON.stringify(S.watchlist));
-  localStorage.setItem('ss_port',  JSON.stringify(S.portfolio));
-  localStorage.setItem('ss_sim',   JSON.stringify(S.sim));
-  localStorage.setItem('ss_filter', S.watchlistFilter);
-  // No caching - always fetch fresh data
-}
-
-function fmtMoney(v) {
-  return '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtClock(dt) {
-  return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
+// ══════════════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════════════
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
 function esc(str) {
   if (!str) return '';
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
 function sortStocks(list) {
   return [...list].sort((a, b) =>
-    (b.sortScore ?? -9999) - (a.sortScore ?? -9999) ||
-    (b.netScore ?? -999) - (a.netScore ?? -999) ||
-    (b.bullishScore ?? 0) - (a.bullishScore ?? 0) ||
-    (a.bearishScore ?? 0) - (b.bearishScore ?? 0) ||
-    (b.changePct ?? 0) - (a.changePct ?? 0)
+    (b.sortScore  ?? -9999) - (a.sortScore  ?? -9999) ||
+    (b.netScore   ??  -999) - (a.netScore   ??  -999) ||
+    (b.bullishScore ?? 0)   - (a.bullishScore ?? 0)   ||
+    (a.bearishScore ?? 0)   - (b.bearishScore ?? 0)
   );
 }
 
-function tradeWindowLabel(signalLabel) {
-  // Keep action windows simple for general users.
-  if (signalLabel.includes('Strong Buy') || signalLabel.includes('Bullish')) return 'Best buy window: tomorrow 10:30 AM - 11:30 AM';
-  if (signalLabel.includes('Bearish')) return 'Best sell window: tomorrow 9:45 AM - 10:30 AM';
-  return 'Watch window: tomorrow 10:30 AM - 12:00 PM';
-}
-
-function marketMode(d) {
-  if (!d) return 'Loading';
-  if (d.netScore >= 4 && d.macdDiff > 0) return 'Bullish';
-  if (d.netScore >= 1) return 'Balanced';
-  return 'Defensive';
+function saveWatchlist() {
+  try { localStorage.setItem('sm_watch', JSON.stringify(S.watchlist)); } catch(e) {}
 }
 
 // ══════════════════════════════════════════════════════════════
-//  TECHNICAL INDICATORS (mirrors Python algorithm)
+//  TECHNICAL CALCULATIONS
 // ══════════════════════════════════════════════════════════════
 function rsi(closes, period = 14) {
   if (closes.length < period + 1) return 50;
   let g = 0, l = 0;
   for (let i = 1; i <= period; i++) {
-    const d = closes[i] - closes[i-1];
+    const d = closes[i] - closes[i - 1];
     if (d > 0) g += d; else l -= d;
   }
   let ag = g / period, al = l / period;
   for (let i = period + 1; i < closes.length; i++) {
-    const d = closes[i] - closes[i-1];
-    ag = (ag * (period-1) + Math.max(d, 0)) / period;
-    al = (al * (period-1) + Math.max(-d, 0)) / period;
+    const d = closes[i] - closes[i - 1];
+    ag = (ag * (period - 1) + Math.max(d, 0)) / period;
+    al = (al * (period - 1) + Math.max(-d, 0)) / period;
   }
   return al === 0 ? 100 : 100 - 100 / (1 + ag / al);
 }
@@ -1458,153 +392,122 @@ function emaArr(data, period) {
   if (data.length < period) return new Array(data.length).fill(null);
   const k = 2 / (period + 1);
   const out = new Array(period - 1).fill(null);
-  out.push(data.slice(0, period).reduce((a,b)=>a+b) / period);
+  out.push(data.slice(0, period).reduce((a, b) => a + b) / period);
   for (let i = period; i < data.length; i++)
-    out.push(data[i] * k + out[out.length-1] * (1-k));
+    out.push(data[i] * k + out[out.length - 1] * (1 - k));
   return out;
 }
 
 function lastEma(data, period) {
   const a = emaArr(data, period);
-  return a[a.length-1];
+  return a[a.length - 1];
 }
 
-function macd(closes) {
-  const e12 = emaArr(closes, 12);
-  const e26 = emaArr(closes, 26);
-  const line = closes.map((_,i) => e12[i]!==null && e26[i]!==null ? e12[i]-e26[i] : null);
-  const valid = line.filter(v=>v!==null);
+function calcMacd(closes) {
+  const e12   = emaArr(closes, 12);
+  const e26   = emaArr(closes, 26);
+  const line  = closes.map((_, i) => e12[i] != null && e26[i] != null ? e12[i] - e26[i] : null);
+  const valid = line.filter(v => v != null);
   const sig   = emaArr(valid, 9);
-  const m = valid[valid.length-1] ?? 0;
-  const s = sig[sig.length-1]     ?? 0;
-  return { macd: m, signal: s, diff: m - s };
+  const m = valid[valid.length - 1] ?? 0;
+  const s = sig[sig.length - 1]     ?? 0;
+  return { diff: m - s };
 }
 
-function score(closes, highs, lows) {
+function calcIndicators(closes, highs, lows) {
   if (!closes || closes.length < 26) return null;
-  const price = closes[closes.length-1];
+  const price = closes[closes.length - 1];
   const r     = rsi(closes);
-  const mc    = macd(closes);
+  const mc    = calcMacd(closes);
   const ema20 = lastEma(closes, 20);
   const wLow  = Math.min(...lows.slice(-5));
   const wHigh = Math.max(...highs.slice(-5));
-  const pos   = wHigh===wLow ? 0.5 : (price-wLow)/(wHigh-wLow);
+  const pos   = wHigh === wLow ? 0.5 : (price - wLow) / (wHigh - wLow);
+
   let bullishScore = 0;
   const bullishDrivers = [];
-  // Strict criteria - require genuine bullish setup
-  if (pos < 0.4) {
-    bullishScore += 2;
-    bullishDrivers.push('Trading in the lower half of the weekly range');
-  }
-  if (r > 35 && r < 60) {
-    bullishScore += 2;
-    bullishDrivers.push('RSI is in a healthy recovery zone');
-  }
-  if (mc.diff > 0 && mc.diff > 0.5) {
-    bullishScore += 2;
-    bullishDrivers.push('MACD is above its signal line with momentum');
-  }
-  if (price >= ema20 * 0.99) {
-    bullishScore += 2;
-    bullishDrivers.push('Price is holding close to EMA20 support');
-  }
-  if (pos < 0.30) {
-    bullishScore += 1;
-    bullishDrivers.push('Price is near the recent support pocket');
-  }
-  if (r > 40 && r < 55) {
-    bullishScore += 1;
-    bullishDrivers.push('Momentum is balanced, not overheated');
-  }
+
+  if (pos < 0.4)                     { bullishScore += 2; bullishDrivers.push('Lower half of weekly range'); }
+  if (r > 35 && r < 60)              { bullishScore += 2; bullishDrivers.push('RSI in healthy recovery zone'); }
+  if (mc.diff > 0 && mc.diff > 0.5)  { bullishScore += 2; bullishDrivers.push('MACD above signal with momentum'); }
+  if (price >= ema20 * 0.99)         { bullishScore += 2; bullishDrivers.push('Holding EMA20 support'); }
+  if (pos < 0.30)                    { bullishScore += 1; bullishDrivers.push('Near recent support pocket'); }
+  if (r > 40 && r < 55)             { bullishScore += 1; bullishDrivers.push('Momentum balanced, not overheated'); }
+
   return { bullishScore, bullishDrivers, rsi: r, macdDiff: mc.diff, ema20, position: pos, price };
 }
 
 // ══════════════════════════════════════════════════════════════
-//  API / FETCHING
+//  SIGNAL & PREDICTION
 // ══════════════════════════════════════════════════════════════
-async function fetchJ(url) {
-  // Add cache-busting timestamp to ensure fresh data
-  const cacheBuster = `&_t=${Date.now()}`;
-  const urlWithCache = url + cacheBuster;
-  
-  // Try direct API call first (sometimes works from GitHub Pages)
-  try {
-    const directResponse = await fetch(urlWithCache, {
-      signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined,
-      cache: 'no-store',
-      mode: 'cors'
-    });
-    if (directResponse.ok) {
-      const data = await directResponse.json();
-      console.log('✓ Direct API success for:', url.substring(0, 60));
-      return data;
-    }
-  } catch(e) {
-    // Direct call failed due to CORS - fallback to proxies
-    console.log('Direct API blocked, trying proxies...');
-  }
-  
-  // Fallback to CORS proxies
-  const proxies = [
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u => `https://proxy.cors.sh/${u}`,
-    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
-  ];
-  
-  for (let i = 0; i < proxies.length; i++) {
-    const p = proxies[i];
-    try {
-      // Add delay between retries to avoid rate limiting
-      if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const r = await fetch(p(urlWithCache), {
-        signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined,
-        cache: 'no-store'
-      });
-      
-      if (!r.ok) {
-        console.warn(`Proxy ${i+1} returned ${r.status}`);
-        continue;
-      }
-      
-      const text = await r.text();
-      // Check if response is HTML error page
-      if (text.trim().startsWith('<') || text.includes('<!DOCTYPE')) {
-        console.warn(`Proxy ${i+1} returned HTML error page`);
-        continue;
-      }
-      
-      const data = JSON.parse(text);
-      console.log(`✓ Proxy ${i+1} success`);
-      return data;
-    } catch(e) { 
-      console.warn(`Proxy ${i+1} failed:`, e.message);
-      continue; 
-    }
-  }
-  console.error('All proxies failed for:', url);
-  throw new Error('All proxies failed');
+function signal(d) {
+  if (!d || d.err) return { label: '—', cls: 'by' };
+  const s = d.netScore;
+  if (s >= 7 && d.macdDiff > 0) return { label: 'Strong Bullish', cls: 'bg' };
+  if (s >= 5)                    return { label: 'Bullish',         cls: 'bg' };
+  if (s >= 2)                    return { label: 'Balanced',        cls: 'by' };
+  if (s >= 0)                    return { label: 'Cautious',        cls: 'by' };
+  if (s >= -3)                   return { label: 'Weak',            cls: 'br' };
+  return                                { label: 'Bearish',         cls: 'br' };
 }
+
+function prediction(d) {
+  if (!d || d.err) return { text: '—', color: 'var(--muted)' };
+  const s = d.netScore;
+  if (s >= 7)  return { text: 'Upside setup is dominant',      color: 'var(--green)' };
+  if (s >= 5)  return { text: 'Bias remains positive',          color: 'var(--green)' };
+  if (s >= 2)  return { text: 'Balanced — wait for a trigger',  color: 'var(--muted)' };
+  if (s >= 0)  return { text: 'Downside risk is building',      color: 'var(--red)'   };
+  if (s >= -3) return { text: 'Weak setup — avoid entry',       color: 'var(--red)'   };
+  return              { text: 'Bearish pressure is dominant',   color: 'var(--red)'   };
+}
+
 function detectAssetType(ticker) {
-  const etfs = ['SPY','QQQ','IWM','XLK','XLF','XLE','XLV','XLY','XLP','VTI','VOO','IVV','AGG','BND','VXUS','TLT'];
-  const metals = ['GLD','SLV','GDX','GDXJ','COPX','USO','UNG'];
-  const crypto = ['BTC-USD','ETH-USD','DOGE-USD'];
-  if (etfs.includes(ticker)) return 'ETF';
-  if (metals.includes(ticker)) return 'Metal';
-  if (crypto.includes(ticker) || ticker.includes('-USD')) return 'Crypto';
+  const etfs   = ['SPY','QQQ','IWM','XLK','XLF','XLE','XLV','XLY','XLP','VTI','VOO','IVV',
+                  'AGG','BND','VXUS','TLT','GLD','SLV','IAU'];
+  const metals = ['GDX','GDXJ','COPX','USO','UNG'];
+  if (etfs.includes(ticker))    return 'ETF';
+  if (metals.includes(ticker))  return 'Metal';
+  if (ticker.includes('-USD'))  return 'Crypto';
   return 'Stock';
 }
 
-// Always fetch fresh data - no caching
-async function fetchStock(ticker) {
-  const chartUrl   = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
-  const summaryUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2CearningsHistory`;
-  const newsUrl    = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
+// ══════════════════════════════════════════════════════════════
+//  FETCH  (direct + CORS proxy fallback)
+// ══════════════════════════════════════════════════════════════
+async function fetchJ(url) {
+  const u  = url + `&_t=${Date.now()}`;
+  const TO = AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined;
 
-  const [chart, summary, news] = await Promise.all([
+  try {
+    const r = await fetch(u, { cache: 'no-store', mode: 'cors', signal: TO });
+    if (r.ok) return await r.json();
+  } catch(e) {}
+
+  const proxies = [
+    v => `https://api.allorigins.win/raw?url=${encodeURIComponent(v)}`,
+    v => `https://corsproxy.io/?${encodeURIComponent(v)}`,
+    v => `https://proxy.cors.sh/${v}`
+  ];
+  for (const p of proxies) {
+    try {
+      const sig = AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined;
+      const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
+      if (!r.ok) continue;
+      const text = await r.text();
+      if (text.trim().startsWith('<')) continue;
+      return JSON.parse(text);
+    } catch(e) { continue; }
+  }
+  throw new Error('All fetch attempts failed for ' + url);
+}
+
+async function fetchStock(ticker) {
+  const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
+  const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
+
+  const [chart, news] = await Promise.all([
     fetchJ(chartUrl),
-    fetchJ(summaryUrl).catch(() => null),
     fetchJ(newsUrl).catch(() => null)
   ]);
 
@@ -1614,2483 +517,339 @@ async function fetchStock(ticker) {
   const meta = res.meta;
   const q    = res.indicators.quote[0];
 
-  // Filter nulls (keep arrays aligned)
   const valid = [];
   for (let i = 0; i < q.close.length; i++)
-    if (q.close[i] !== null && q.high[i] !== null && q.low[i] !== null)
+    if (q.close[i] != null && q.high[i] != null && q.low[i] != null)
       valid.push({ c: q.close[i], h: q.high[i], l: q.low[i] });
 
-  const closes = valid.map(v=>v.c);
-  const highs  = valid.map(v=>v.h);
-  const lows   = valid.map(v=>v.l);
-
-  const price     = meta.regularMarketPrice ?? closes[closes.length-1];
-  const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length-2] ?? price;
+  const closes    = valid.map(v => v.c);
+  const highs     = valid.map(v => v.h);
+  const lows      = valid.map(v => v.l);
+  const price     = meta.regularMarketPrice ?? closes[closes.length - 1];
+  const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length - 2] ?? price;
   const change    = price - prevClose;
   const changePct = (change / prevClose) * 100;
 
-  const ind = score(closes, highs, lows) || { score:0, rsi:50, macdDiff:0, ema20:price, position:0.5, price };
+  const ind = calcIndicators(closes, highs, lows) || {
+    bullishScore: 0, bullishDrivers: [], rsi: 50, macdDiff: 0, ema20: price, position: 0.5, price
+  };
 
-  // ── Earnings ──
-  let nextEarnings = null, daysToEarnings = null;
-  let lastEPSSurprise = null, lastEPSBeat = false, lastEarningsDate = null;
-
-  if (summary?.quoteSummary?.result?.[0]) {
-    const sr = summary.quoteSummary.result[0];
-
-    const eDates = sr.calendarEvents?.earnings?.earningsDate;
-    if (eDates?.length) {
-      const ts = eDates[0]?.raw;
-      if (ts) { nextEarnings = new Date(ts*1000); daysToEarnings = Math.round((nextEarnings - Date.now()) / 86400000); }
-    }
-
-    const hist = sr.earningsHistory?.history;
-    if (hist?.length) {
-      const last = hist[0];
-      const act  = last.epsActual?.raw;
-      const est  = last.epsEstimate?.raw;
-      const qts  = last.quarter?.raw;
-      if (act != null && est != null) {
-        lastEPSSurprise = +(act - est).toFixed(4);
-        lastEPSBeat     = act > est;
-        if (qts) lastEarningsDate = new Date(qts * 1000);
-      }
-    }
-  }
-  
-  // Fallback to manual calendar if API failed
-  if (daysToEarnings === null && CONFIG.earningsCalendar && CONFIG.earningsCalendar[ticker]) {
-    try {
-      const earningsDateStr = CONFIG.earningsCalendar[ticker];
-      nextEarnings = new Date(earningsDateStr + 'T16:00:00-04:00'); // 4PM ET (after market)
-      daysToEarnings = Math.round((nextEarnings - Date.now()) / 86400000);
-    } catch(e) { /* ignore parse errors */ }
-  }
-
+  // ── Bearish scoring ──
   let bearishScore = 0;
   const bearishDrivers = [];
-  // Harsh criteria - catch bearish setups early
-  if (ind.position > 0.70) {
-    bearishScore += 2;
-    bearishDrivers.push('Price is already near the top of the weekly range');
-  }
-  if (ind.rsi >= 65) {
-    bearishScore += 2;
-    bearishDrivers.push('RSI is overheated and pullback risk is higher');
-  }
-  if (ind.macdDiff < 0) {
-    bearishScore += 2;
-    bearishDrivers.push('MACD is below the signal line');
-  }
-  if (price < ind.ema20 * 0.99) {
-    bearishScore += 2;
-    bearishDrivers.push('Price is losing EMA20 trend support');
-  }
-  if (changePct <= -1) {
-    bearishScore += 1;
-    bearishDrivers.push('Daily move is showing downside pressure');
-  }
-  if (changePct <= -3) {
-    bearishScore += 2;
-    bearishDrivers.push('Strong daily decline signals weakness');
-  }
-  if (changePct <= -5) {
-    bearishScore += 2;
-    bearishDrivers.push('Major daily selloff is a red flag');
-  }
-  if (lastEPSSurprise !== null && lastEPSSurprise < 0) {
-    bearishScore += 1;
-    bearishDrivers.push('Last EPS report missed expectations');
-  }
+  if (ind.position > 0.70)       { bearishScore += 2; bearishDrivers.push('Near top of weekly range'); }
+  if (ind.rsi >= 65)             { bearishScore += 2; bearishDrivers.push('RSI overheated — pullback risk'); }
+  if (ind.macdDiff < 0)          { bearishScore += 2; bearishDrivers.push('MACD below signal line'); }
+  if (price < ind.ema20 * 0.99)  { bearishScore += 2; bearishDrivers.push('Below EMA20 trend support'); }
+  if (changePct <= -1)           { bearishScore += 1; bearishDrivers.push('Daily downside pressure'); }
+  if (changePct <= -3)           { bearishScore += 2; bearishDrivers.push('Strong daily decline'); }
+  if (changePct <= -5)           { bearishScore += 2; bearishDrivers.push('Major selloff warning'); }
 
+  // ── Catalyst scoring ──
   let catalystScore = 0;
   const catalystDrivers = [];
-  if (lastEPSBeat) {
-    catalystScore += 1;
-    catalystDrivers.push('Recent EPS beat supports momentum follow-through');
-  }
-  if (daysToEarnings !== null && daysToEarnings >= 0 && daysToEarnings <= 5) {
-    catalystScore += 1;
-    catalystDrivers.push('Upcoming earnings can act as a catalyst');
-  }
-  if (changePct >= 2) {
-    catalystScore += 1;
-    catalystDrivers.push('Price is already attracting fresh buyers');
-  }
-  if (changePct >= 4) {
-    catalystScore += 1;
-    catalystDrivers.push('Strong daily rally shows momentum');
-  }
+  if (changePct >= 2) { catalystScore += 1; catalystDrivers.push('Fresh buyers entering today'); }
+  if (changePct >= 4) { catalystScore += 1; catalystDrivers.push('Strong daily rally momentum'); }
 
-  const netScore = ind.bullishScore + catalystScore - bearishScore;
+  const netScore   = ind.bullishScore + catalystScore - bearishScore;
   const conviction = clamp(Math.round(((netScore + 9) / 22) * 100), 0, 100);
-  const sortScore = netScore * 100 + ind.bullishScore * 10 - bearishScore;
+  const sortScore  = netScore * 100 + ind.bullishScore * 10 - bearishScore;
 
-  // ── News ──
   const headlines = [];
   if (news?.news) {
     news.news.slice(0, 3).forEach(n => {
-      if (n.title) headlines.push({ title: n.title, link: n.link, publisher: n.publisher, time: n.providerPublishTime });
+      if (n.title) headlines.push({ title: n.title, link: n.link, publisher: n.publisher });
     });
   }
 
-  const assetType = detectAssetType(ticker);
-
-  const result = { ticker, price, change, changePct, ...ind, bearishScore, catalystScore, netScore, conviction, sortScore, bearishDrivers, catalystDrivers,
-           nextEarnings, daysToEarnings, lastEPSSurprise, lastEPSBeat, lastEarningsDate, headlines, assetType };
-  
-  // No caching - always return fresh data
-  return result;
-}
-
-// ══════════════════════════════════════════════════════════════
-//  AI NEWS IMPACT & MARKET SENTIMENT
-// ══════════════════════════════════════════════════════════════
-function analyzeNewsImpact(ticker, headlines) {
-  if (!headlines || !headlines.length) return [];
-  
-  const positiveKeywords = ['surge', 'beat', 'growth', 'bullish', 'gain', 'rally', 'strong', 'positive', 'upgrade', 'breakout', 'profit', 'record', 'success'];
-  const negativeKeywords = ['fall', 'drop', 'miss', 'bearish', 'loss', 'decline', 'weak', 'negative', 'downgrade', 'concern', 'warning', 'crisis', 'plunge'];
-  
-  return headlines.map(h => {
-    const title = (h.title || '').toLowerCase();
-    const posCount = positiveKeywords.filter(kw => title.includes(kw)).length;
-    const negCount = negativeKeywords.filter(kw => title.includes(kw)).length;
-    
-    let sentiment = 'neutral';
-    let score = 0;
-    if (posCount > negCount) { sentiment = 'positive'; score = posCount - negCount; }
-    else if (negCount > posCount) { sentiment = 'negative'; score = negCount - posCount; }
-    
-    return { ticker, title: h.title, url: h.link, sentiment, score, source: h.publisher };
-  });
-}
-
-function calculateMarketSentiment() {
-  // Aggregate all news impact from watchlist
-  S.newsImpact = [];
-  S.watchlist.forEach(ticker => {
-    const d = S.data[ticker];
-    if (d && !d.err && d.headlines) {
-      const impact = analyzeNewsImpact(ticker, d.headlines);
-      S.newsImpact.push(...impact);
-    }
-  });
-  
-  // Calculate overall market sentiment
-  const totalScore = S.newsImpact.reduce((sum, item) => {
-    return sum + (item.sentiment === 'positive' ? item.score : item.sentiment === 'negative' ? -item.score : 0);
-  }, 0);
-  
-  if (S.newsImpact.length === 0) {
-    S.marketSentiment = null;
-  } else {
-    const avgScore = totalScore / S.newsImpact.length;
-    if (avgScore > 0.5) S.marketSentiment = 'bullish';
-    else if (avgScore < -0.5) S.marketSentiment = 'bearish';
-    else S.marketSentiment = 'neutral';
-  }
-}
-
-function renderNewsImpact() {
-  const section = document.getElementById('news-impact-sec');
-  const grid = document.getElementById('news-impact-grid');
-  if (!section || !grid) return;
-  
-  if (!S.newsImpact || S.newsImpact.length === 0) {
-    section.style.display = 'none';
-    return;
-  }
-  
-  section.style.display = 'block';
-  
-  // Show top 6 most impactful news items
-  const topNews = [...S.newsImpact]
-    .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
-    .slice(0, 6);
-  
-  grid.innerHTML = topNews.map(item => `
-    <div class="news-impact-card">
-      <div class="news-impact-title">${esc(item.title)}</div>
-      <div class="news-impact-meta">
-        <strong>${esc(item.ticker)}</strong> • ${esc(item.source || 'News Source')}
-      </div>
-      <span class="news-impact-sentiment impact-${item.sentiment}">
-        ${item.sentiment === 'positive' ? '📈' : item.sentiment === 'negative' ? '📉' : '➡️'} 
-        ${item.sentiment.toUpperCase()} (Score: ${Math.abs(item.score)})
-      </span>
-      ${item.url ? `<div style="margin-top:8px"><a href="${esc(item.url)}" target="_blank" style="font-size:0.7rem;color:var(--blue);">Read more →</a></div>` : ''}
-    </div>
-  `).join('');
-}
-
-function renderMarketSentimentBar() {
-  const bar = document.getElementById('market-sentiment-bar');
-  if (!bar) return;
-  
-  if (!S.marketSentiment) {
-    bar.style.display = 'none';
-    return;
-  }
-  
-  bar.style.display = 'block';
-  bar.className = 'sentiment-bar';
-  
-  if (S.marketSentiment === 'bullish') {
-    bar.classList.add('sentiment-bullish');
-    bar.textContent = '📈 Market Sentiment: BULLISH - News flow is positive across watchlist';
-  } else if (S.marketSentiment === 'bearish') {
-    bar.classList.add('sentiment-bearish');
-    bar.textContent = '📉 Market Sentiment: BEARISH - News flow shows concern across watchlist';
-  } else {
-    bar.classList.add('sentiment-neutral');
-    bar.textContent = '➡️ Market Sentiment: NEUTRAL - Mixed signals across watchlist';
-  }
-}
-
-// ══════════════════════════════════════════════════════════════
-//  CONGRESSIONAL TRADING INTELLIGENCE
-// ══════════════════════════════════════════════════════════════
-// This data would ideally come from a backend service that scrapes CapitolTrades.com
-// For now, it's a demonstration structure that can be populated via API
-const CONGRESSIONAL_TRADES = [
-  { ticker: 'NVDA', action: 'BUY', politician: 'Maria Elvira Salazar', party: 'Republican|House|FL', amount: '15K-50K', daysAgo: 6 },
-  { ticker: 'BA', action: 'BUY', politician: 'Maria Elvira Salazar', party: 'Republican|House|FL', amount: '15K-50K', daysAgo: 6 },
-  { ticker: 'AMGN', action: 'BUY', politician: 'Maria Elvira Salazar', party: 'Republican|House|FL', amount: '15K-50K', daysAgo: 6 },
-  { ticker: 'TSLA', action: 'BUY', politician: 'Nancy Pelosi', party: 'Democrat|House|CA', amount: '100K-250K', daysAgo: 2 },
-  { ticker: 'META', action: 'SELL', politician: 'Josh Gottheimer', party: 'Democrat|House|NJ', amount: '50K-100K', daysAgo: 3 },
-  { ticker: 'MSFT', action: 'BUY', politician: 'Brian Higgins', party: 'Democrat|House|NY', amount: '15K-50K', daysAgo: 4 },
-  { ticker: 'GOOGL', action: 'BUY', politician: 'John Boozman', party: 'Republican|Senate|AR', amount: '15K-50K', daysAgo: 7 },
-  { ticker: 'JPM', action: 'BUY', politician: 'Tommy Tuberville', party: 'Republican|Senate|AL', amount: '50K-100K', daysAgo: 5 },
-];
-
-function renderCongressionalTrades() {
-  const section = document.getElementById('congress-trades-sec');
-  const grid = document.getElementById('congress-trades-grid');
-  const overlapDiv = document.getElementById('congress-watchlist-overlap');
-  
-  if (!section || !grid || !overlapDiv) return;
-  
-  // Show section
-  section.style.display = 'block';
-  
-  // Find overlapping tickers between congressional trades and watchlist
-  const congressTickers = [...new Set(CONGRESSIONAL_TRADES.map(t => t.ticker))];
-  const watchlistSet = new Set(S.watchlist);
-  const overlap = congressTickers.filter(t => watchlistSet.has(t));
-  
-  // Render overlap alert
-  if (overlap.length > 0) {
-    overlapDiv.innerHTML = `
-      <div class="congress-overlap-alert">
-        <div class="congress-overlap-title">⚡ ${overlap.length} Stock${overlap.length > 1 ? 's' : ''} in Your Watchlist Being Traded by Congress</div>
-        <div class="congress-overlap-list">
-          ${overlap.map(t => `<span class="congress-overlap-ticker">${t}</span>`).join('')}
-        </div>
-        <div style="margin-top:10px;font-size:0.8rem;color:var(--muted);">
-          Congressional trades can signal insider knowledge and future market moves. Monitor these closely!
-        </div>
-      </div>
-    `;
-  } else {
-    overlapDiv.innerHTML = '';
-  }
-  
-  // Render trade cards (show recent 6-9 trades)
-  const recentTrades = CONGRESSIONAL_TRADES.slice(0, 9);
-  grid.innerHTML = recentTrades.map(trade => {
-    const inWatchlist = watchlistSet.has(trade.ticker);
-    const actionClass = trade.action.toLowerCase();
-    const cardClass = inWatchlist ? 'congress-trade-card in-watchlist' : 'congress-trade-card';
-    
-    return `
-      <div class="${cardClass}">
-        <div class="congress-ticker">
-          ${trade.ticker}
-          <span class="congress-action ${actionClass}">${trade.action}</span>
-        </div>
-        <div class="congress-politician">${trade.politician}</div>
-        <div class="congress-party">${trade.party}</div>
-        <div class="congress-amount">💰 ${trade.amount}</div>
-        <div class="congress-timing">🕐 ${trade.daysAgo} day${trade.daysAgo > 1 ? 's' : ''} ago</div>
-      </div>
-    `;
-  }).join('');
-}
-
-// ══════════════════════════════════════════════════════════════
-//  GOLDEN HOUR TRADING (Opening Range Breakout)
-// ══════════════════════════════════════════════════════════════
-// Pre-market catalyst data (would come from news API in production)
-const PREMARKET_CATALYSTS = {
-  'TSLA': { catalyst: '🎯 Earnings Beat', change: 2.1, volume: 'High', resistance: 248, support: 242 },
-  'NVDA': { catalyst: '📈 Analyst Upgrade (JPM)', change: 3.8, volume: 'Very High', resistance: 900, support: 885 },
-  'AMD': { catalyst: '📰 CEO Production Target', change: 1.2, volume: 'Average', resistance: 180, support: 175 },
-  'META': { catalyst: null, change: -0.3, volume: 'Low', resistance: 490, support: 482 },
-};
-
-// Calculate ORB potential score (0-10) based on daily metrics
-function calculateORBPotential(ticker, d) {
-  if (!d || d.err) return 0;
-  
-  let score = 0;
-  
-  // Volume factor (higher volume = higher breakout potential)
-  if (d.volume && d.avgVolume && d.volume > d.avgVolume * 1.2) score += 2;
-  if (d.volume && d.avgVolume && d.volume > d.avgVolume * 1.5) score += 1;
-  
-  // Price above EMA20 (trend alignment)
-  if (d.price > d.ema20) score += 2;
-  
-  // RSI in launch zone (30-65 is ideal for breakouts)
-  if (d.rsi >= 30 && d.rsi <= 65) score += 2;
-  else if (d.rsi > 65 && d.rsi < 70) score += 1;
-  
-  // MACD bullish
-  if (d.macdDiff > 0) score += 1;
-  
-  // Positive momentum
-  if (d.change > 0) score += 1;
-  
-  // Catalyst boost
-  const catalyst = PREMARKET_CATALYSTS[ticker];
-  if (catalyst && catalyst.change > 1) score += 1;
-  
-  return Math.min(score, 10);
-}
-
-function renderPreMarketAnalysis() {
-  const grid = document.getElementById('premarket-grid');
-  if (!grid) return;
-  
-  // Analyze watchlist for ORB potential
-  const analyses = S.watchlist
-    .map(ticker => {
-      const d = S.data[ticker];
-      const catalyst = PREMARKET_CATALYSTS[ticker];
-      const orbScore = calculateORBPotential(ticker, d);
-      return { ticker, d, catalyst, orbScore };
-    })
-    .filter(a => a.d && !a.d.err)
-    .sort((a, b) => b.orbScore - a.orbScore)
-    .slice(0, 6); // Top 6 setups
-  
-  if (analyses.length === 0) {
-    grid.innerHTML = '<div class="empty">Add stocks to watchlist to see pre-market analysis</div>';
-    return;
-  }
-  
-  grid.innerHTML = analyses.map(a => {
-    const { ticker, d, catalyst, orbScore } = a;
-    const changeClass = catalyst && catalyst.change >= 0 ? 'pos' : 'neg';
-    const changeSign = catalyst && catalyst.change >= 0 ? '+' : '';
-    const isHotSetup = orbScore >= 7;
-    const cardClass = isHotSetup ? 'premarket-card hot-setup' : 'premarket-card';
-    
-    // Determine setup type
-    let setupType = 'ORB Watch';
-    if (orbScore >= 8) setupType = '🔥 Prime ORB Setup';
-    else if (orbScore >= 6) setupType = '📊 Strong ORB Potential';
-    else if (d.position < 0.3 && d.netScore > 0) setupType = '🎯 VWAP Bounce Setup';
-    else if (d.netScore >= 6) setupType = '🚀 Momentum Continuation';
-    
-    const catalystHtml = catalyst && catalyst.catalyst
-      ? `<div class="premarket-catalyst">${catalyst.catalyst}</div>`
-      : '';
-    
-    const changeHtml = catalyst
-      ? `<span class="premarket-change ${changeClass}">${changeSign}${catalyst.change.toFixed(1)}%</span>`
-      : '';
-    
-    const volumeText = catalyst ? catalyst.volume : 'Check pre-market';
-    const volumeColor = volumeText === 'Very High' ? 'var(--green)' : volumeText === 'High' ? 'var(--blue)' : 'var(--muted)';
-    
-    return `
-      <div class="${cardClass}">
-        <div class="premarket-ticker">
-          ${ticker}
-          ${changeHtml}
-        </div>
-        ${catalystHtml}
-        <div class="premarket-volume">
-          📊 Pre-market Volume: <span style="color:${volumeColor};font-weight:700;">${volumeText}</span>
-        </div>
-        <div class="premarket-levels">
-          <strong>Key Levels:</strong><br>
-          Resistance: <span class="num">$${catalyst ? catalyst.resistance : d.ema20.toFixed(2)}</span> | 
-          Support: <span class="num">$${catalyst ? catalyst.support : (d.price * 0.98).toFixed(2)}</span>
-        </div>
-        <div class="premarket-setup">
-          ${setupType} (Score: ${orbScore}/10)
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function renderORBAlerts() {
-  const grid = document.getElementById('orb-alerts-grid');
-  if (!grid) return;
-  
-  // Simulate ORB conditions check (in production, this uses 5-minute bars)
-  const orbSetups = S.watchlist
-    .map(ticker => {
-      const d = S.data[ticker];
-      if (!d || d.err) return null;
-      
-      // Simulate opening range (would be actual 9:30-10:00 AM data)
-      const orHigh = d.price * 1.005; // Simulate OR high
-      const orLow = d.price * 0.995;  // Simulate OR low
-      const orAvgVol = d.volume / 10; // Simulate 30-min avg volume
-      
-      // Check conditions
-      const aboveORHigh = d.price > orHigh;
-      const volumeCheck = d.volume > orAvgVol * 1.5;
-      const aboveVWAP = d.position > 0.5; // Using weekly position as proxy for VWAP
-      const inGoldenHour = true; // Would check actual time in production
-      const strongClose = d.change > 0; // Proxy for top 50% of bar range
-      
-      const conditionsMet = aboveORHigh && volumeCheck && aboveVWAP && inGoldenHour;
-      const allConditionsMet = conditionsMet && strongClose;
-      
-      return {
-        ticker,
-        d,
-        orHigh,
-        orLow,
-        aboveORHigh,
-        volumeCheck,
-        aboveVWAP,
-        strongClose,
-        conditionsMet,
-        allConditionsMet
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => {
-      if (a.allConditionsMet && !b.allConditionsMet) return -1;
-      if (!a.allConditionsMet && b.allConditionsMet) return 1;
-      if (a.conditionsMet && !b.conditionsMet) return -1;
-      if (!a.conditionsMet && b.conditionsMet) return 1;
-      return b.d.netScore - a.d.netScore;
-    })
-    .slice(0, 9); // Top 9 alerts
-  
-  if (orbSetups.length === 0) {
-    grid.innerHTML = '<div class="empty">Add stocks to watchlist to track ORB setups</div>';
-    return;
-  }
-  
-  grid.innerHTML = orbSetups.map(setup => {
-    const { ticker, d, orHigh, orLow, aboveORHigh, volumeCheck, aboveVWAP, strongClose, allConditionsMet } = setup;
-    
-    let status = 'watching';
-    let statusText = 'WATCHING';
-    if (allConditionsMet) {
-      status = 'breakout';
-      statusText = '🚨 BREAKOUT';
-    } else if (aboveORHigh && !volumeCheck) {
-      status = 'rejected';
-      statusText = 'LOW VOLUME';
-    }
-    
-    const cardClass = status === 'breakout' ? 'orb-alert-card breakout' : 'orb-alert-card';
-    
-    return `
-      <div class="${cardClass}">
-        <div class="orb-ticker">
-          ${ticker}
-          <span class="orb-status ${status}">${statusText}</span>
-        </div>
-        
-        <div class="orb-range-box">
-          <div class="orb-range-label">30-Min Opening Range (Demo)</div>
-          <div class="orb-range-value">$${orLow.toFixed(2)} - $${orHigh.toFixed(2)}</div>
-          <div style="margin-top:6px;font-size:0.75rem;color:var(--muted);">
-            Current: <span style="color:var(--ink);font-weight:700;">$${d.price.toFixed(2)}</span>
-          </div>
-        </div>
-        
-        <div class="orb-conditions">
-          <div class="orb-condition ${aboveORHigh ? 'met' : 'not-met'}">
-            <span class="orb-condition-icon">${aboveORHigh ? '✅' : '⏳'}</span>
-            Break above OR high
-          </div>
-          <div class="orb-condition ${volumeCheck ? 'met' : 'not-met'}">
-            <span class="orb-condition-icon">${volumeCheck ? '✅' : '⏳'}</span>
-            Volume 1.5x+ average
-          </div>
-          <div class="orb-condition ${aboveVWAP ? 'met' : 'not-met'}">
-            <span class="orb-condition-icon">${aboveVWAP ? '✅' : '⏳'}</span>
-            Price above VWAP
-          </div>
-          <div class="orb-condition ${strongClose ? 'met' : 'not-met'}">
-            <span class="orb-condition-icon">${strongClose ? '✅' : '⏳'}</span>
-            Strong close (top 50%)
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function refreshGoldenHour() {
-  renderPreMarketAnalysis();
-  renderORBAlerts();
-}
-
-function renderGoldenHour() {
-  const section = document.getElementById('golden-hour-sec');
-  if (!section) return;
-  
-  // Show section
-  section.style.display = 'block';
-  
-  renderPreMarketAnalysis();
-  renderORBAlerts();
-}
-
-// ══════════════════════════════════════════════════════════════
-//  SIGNAL / PREDICTION HELPERS
-// ══════════════════════════════════════════════════════════════
-function signal(d) {
-  if (!d || d.err) return { label:'—', cls:'by' };
-  const s = d.netScore;
-  // Stricter thresholds for more accurate signals
-  if (s >= 7 && d.macdDiff > 0) return { label:'Strong Bullish', cls:'bg' };
-  if (s >= 5)                   return { label:'Bullish',        cls:'bg' };
-  if (s >= 2)                   return { label:'Balanced Watch', cls:'by' };
-  if (s >= 0)                   return { label:'Cautious',       cls:'by' };
-  if (s >= -3)                  return { label:'Weak',           cls:'br' };
-  return                               { label:'Bearish',        cls:'br' };
-}
-
-function prediction(d) {
-  if (!d || d.err) return { text:'—', cls:'' };
-  const s = d.netScore;
-  if (s >= 7) return { text:'Upside setup is dominant',     cls:'pred-up' };
-  if (s >= 5) return { text:'Bias remains positive',        cls:'pred-up' };
-  if (s >= 2) return { text:'Balanced, wait for trigger',   cls:'pred-side' };
-  if (s >= 0) return { text:'Downside risk is building',    cls:'pred-down' };
-  if (s >= -3) return { text:'Weak setup, avoid entry',     cls:'pred-down' };
-  return              { text:'Bearish pressure is dominant', cls:'pred-down' };
-}
-
-function action(d, buyPrice) {
-  if (!d || d.err || !d.price) return { text:'Loading…', cls:'' };
-  const pct = (d.price - buyPrice) / buyPrice * 100;
-  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  if (pct >= 3.5)              return { text:`✅ Sell ${tomorrow} 9:45-10:30 AM`, cls:'pos' };
-  if (pct <= -2 && d.netScore < 8) return { text:`🛑 Sell ${tomorrow} 9:45-10:30 AM`, cls:'neg' };
-  if (d.netScore >= 7)         return { text:`🟢 Buy add-on ${tomorrow} 10:30-11:30 AM`, cls:'pos' };
-  if (d.netScore >= 4)         return { text:`✋ Hold, review ${tomorrow} 11:00 AM`, cls:'' };
-  return                    { text:`📉 Exit ${tomorrow} if no recovery by 10:30 AM`, cls:'neg' };
-}
-
-function fmtDate(dt) {
-  if (!dt) return 'N/A';
-  return new Date(dt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-}
-
-function scoreBar(sc, max=100) {
-  const pct = Math.min(100, Math.max(0, (sc/max)*100));
-  const col = pct>=57 ? 'var(--green)' : pct>=29 ? 'var(--yellow)' : 'var(--red)';
-  return `<div class="sbar"><span class="sval">${sc}</span><div class="strk"><div class="sfil" style="width:${pct}%;background:${col}"></div></div></div>`;
-}
-
-// ══════════════════════════════════════════════════════════════
-//  OVERVIEW TAB RENDERERS (Portfolio-first approach)
-// ══════════════════════════════════════════════════════════════
-function renderOverviewPortfolio(loading) {
-  const cardsView = document.getElementById('portfolio-cards-view');
-  const emptyDiv = document.getElementById('portfolio-empty');
-  if (!cardsView) return;
-  
-  const displayPortfolio = S.testMode 
-    ? S.sim.positions.map(p => ({ ticker: p.ticker, shares: p.shares, buyPrice: p.buyPrice }))
-    : S.portfolio;
-  
-  if (loading) {
-    cardsView.innerHTML = `<div class="empty" style="padding:18px;">Loading portfolio positions...</div>`;
-    if (emptyDiv) emptyDiv.style.display = 'none';
-    return;
-  }
-  
-  if (!displayPortfolio.length) {
-    cardsView.innerHTML = '';
-    if (emptyDiv) emptyDiv.style.display = 'block';
-    return;
-  }
-  
-  if (emptyDiv) emptyDiv.style.display = 'none';
-  
-  const cards = displayPortfolio.map(pos => {
-    const { ticker, shares, buyPrice } = pos;
-    const d = S.data[ticker];
-    
-    if (!d || d.err) {
-      return `<div class="coach-card">
-        <strong>${ticker}</strong>
-        <p style="color:var(--muted);font-size:0.85rem;margin-top:8px;">
-          ${d?.err ? '⚠️ Failed to load data - API rate limited. Refresh in 1 minute.' : '⏳ Loading data...'}
-        </p>
-        <p style="color:var(--muted);font-size:0.75rem;margin-top:4px;">
-          Shares: ${shares} · Bought @ $${(+buyPrice).toFixed(2)}
-        </p>
-      </div>`;
-    }
-    
-    const sig = signal(d);
-    const cur = d.price;
-    const pnlDollar = (cur - buyPrice) * shares;
-    const pnlPercent = ((cur / buyPrice - 1) * 100);
-    const plColor = pnlDollar >= 0 ? 'var(--pos)' : 'var(--neg)';
-    const plSign = pnlDollar >= 0 ? '+' : '';
-    const cc = d.change >= 0 ? 'pos' : 'neg';
-    const cs = d.change >= 0 ? '+' : '';
-    
-    // Asset type badge
-    let assetBadge = '';
-    if (d.assetType && d.assetType !== 'Stock') {
-      const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
-      assetBadge = `<span class="asset-type-badge ${badgeClass}" style="margin-left:6px;font-size:0.7rem;padding:2px 6px;border-radius:4px;font-weight:600;">${d.assetType}</span>`;
-    }
-    
-    // Earnings badge
-    let earnBadge = '';
-    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
-      earnBadge = `<span class="badge" style="background:var(--blue);color:#fff;font-size:0.7rem;padding:2px 6px;margin-left:6px;">📅 ${d.daysToEarnings === 0 ? 'Today' : d.daysToEarnings + 'd'}</span>`;
-    }
-    
-    // Build intelligent explanation
-    let reasons = [];
-    
-    // P&L performance
-    if (pnlPercent >= 20) reasons.push(`Strong gain ${plSign}${pnlPercent.toFixed(1)}%`);
-    else if (pnlPercent >= 10) reasons.push(`Profitable ${plSign}${pnlPercent.toFixed(1)}%`);
-    else if (pnlPercent >= 0) reasons.push(`Up ${plSign}${pnlPercent.toFixed(1)}%`);
-    else if (pnlPercent >= -10) reasons.push(`Down ${pnlPercent.toFixed(1)}%`);
-    else reasons.push(`Loss ${pnlPercent.toFixed(1)}%`);
-    
-    // Score strength
-    if (d.netScore >= 7) reasons.push('Strong bullish signal');
-    else if (d.netScore >= 4) reasons.push('Bullish setup');
-    else if (d.netScore <= -4) reasons.push('Strong bearish');
-    else if (d.netScore <= -2) reasons.push('Bearish risk');
-    
-    // Conviction
-    if (d.conviction >= 70) reasons.push(`High conviction (${d.conviction}%)`);
-    else if (d.conviction >= 50) reasons.push(`Medium conviction (${d.conviction}%)`);
-    
-    // RSI
-    if (d.rsi < 30) reasons.push('Oversold');
-    else if (d.rsi > 70) reasons.push('Overbought');
-    
-    // Earnings
-    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
-      if (d.lastEPSBeat) reasons.push('Beat last earnings');
-      else reasons.push('Earnings soon');
-    }
-    
-    const explanation = reasons.slice(0, 3).join(' · ');
-    
-    // Bullish drivers (top 2)
-    const bullishPills = (d.bullishDrivers || []).slice(0, 2)
-      .map(x => `<div style="font-size:0.75rem;padding:6px 10px;background:rgba(76,175,80,0.1);border-radius:6px;border-left:3px solid var(--pos);margin-bottom:6px;"><strong style="color:var(--pos);">Bullish:</strong> ${x}</div>`)
-      .join('');
-    
-    // Bearish drivers (top 2)
-    const bearishPills = (d.bearishDrivers || []).slice(0, 2)
-      .map(x => `<div style="font-size:0.75rem;padding:6px 10px;background:rgba(239,83,80,0.1);border-radius:6px;border-left:3px solid var(--neg);margin-bottom:6px;"><strong style="color:var(--neg);">Bearish:</strong> ${x}</div>`)
-      .join('');
-    
-    // Catalyst drivers (top 1)
-    const catalystPills = (d.catalystDrivers || []).slice(0, 1)
-      .map(x => `<div style="font-size:0.75rem;padding:6px 10px;background:rgba(30,99,217,0.1);border-radius:6px;border-left:3px solid var(--blue);margin-bottom:6px;"><strong style="color:var(--blue);">Catalyst:</strong> ${x}</div>`)
-      .join('');
-    
-    // News headlines (top 3)
-    const newsHtml = (d.headlines?.length)
-      ? d.headlines.slice(0, 3).map(h => `<div style="font-size:0.75rem;padding:6px 0;border-bottom:1px dashed var(--border);"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
-      : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
-    
-    const detailId = `port-detail-${ticker}`;
-    
-    return `<div class="coach-card">
-      <div class="coach-head">
-        <strong>${ticker}${assetBadge}${earnBadge}</strong>
-        <span class="badge ${sig.cls}">${sig.label}</span>
-      </div>
-      <div class="coach-price">
-        $${cur.toFixed(2)}
-        <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
-      </div>
-      
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;margin:12px 0;font-size:0.85rem;">
-        <div>
-          <div style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;">Shares</div>
-          <div style="font-weight:700;margin-top:2px;">${shares}</div>
-        </div>
-        <div>
-          <div style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;">Bought @</div>
-          <div style="font-weight:700;margin-top:2px;">$${(+buyPrice).toFixed(2)}</div>
-        </div>
-        <div>
-          <div style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;">Value</div>
-          <div style="font-weight:700;margin-top:2px;">$${(cur * shares).toFixed(2)}</div>
-        </div>
-        <div>
-          <div style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;">P&L</div>
-          <div style="font-weight:700;margin-top:2px;color:${plColor};">${plSign}$${Math.abs(pnlDollar).toFixed(2)}</div>
-        </div>
-      </div>
-      
-      <div class="coach-metrics">
-        <div><small>Net Score</small><strong style="color:${d.netScore > 0 ? 'var(--pos)' : d.netScore < 0 ? 'var(--neg)' : 'var(--muted)'}">${d.netScore}</strong></div>
-        <div><small>RSI</small><strong style="color:${d.rsi < 30 ? 'var(--pos)' : d.rsi > 70 ? 'var(--neg)' : 'var(--text)'}">${d.rsi.toFixed(1)}</strong></div>
-        <div><small>Conviction</small><strong style="color:${d.conviction >= 65 ? 'var(--pos)' : d.conviction < 40 ? 'var(--neg)' : 'var(--text)'}">${d.conviction}%</strong></div>
-      </div>
-      <div class="coach-msg">
-        ${explanation}
-      </div>
-      
-      <details style="margin-top:12px;">
-        <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;padding:8px 0;color:var(--blue);">📊 Technical Details</summary>
-        <div style="padding-top:12px;">
-          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;font-size:0.85rem;margin-bottom:12px;">
-            <div>
-              <div style="color:var(--muted);font-size:0.7rem;">MACD Diff</div>
-              <div style="font-weight:700;margin-top:2px;color:${d.macdDiff > 0 ? 'var(--pos)' : 'var(--neg)'}">${d.macdDiff.toFixed(4)}</div>
-            </div>
-            <div>
-              <div style="color:var(--muted);font-size:0.7rem;">Week Position</div>
-              <div style="font-weight:700;margin-top:2px;color:${d.position < 0.35 ? 'var(--pos)' : d.position > 0.75 ? 'var(--neg)' : 'var(--text)'}">${(d.position * 100).toFixed(0)}%</div>
-            </div>
-            <div>
-              <div style="color:var(--muted);font-size:0.7rem;">Bull / Bear</div>
-              <div style="font-weight:700;margin-top:2px;"><span style="color:var(--pos)">${d.bullishScore}</span> / <span style="color:var(--neg)">${d.bearishScore}</span></div>
-            </div>
-            <div>
-              <div style="color:var(--muted);font-size:0.7rem;">P&L %</div>
-              <div style="font-weight:700;margin-top:2px;color:${plColor};">${plSign}${pnlPercent.toFixed(2)}%</div>
-            </div>
-          </div>
-          
-          ${bullishPills || bearishPills || catalystPills ? `
-          <div style="margin-bottom:12px;">
-            <div style="font-size:0.8rem;font-weight:700;margin-bottom:8px;color:var(--ink);">🎯 Score Drivers</div>
-            ${bullishPills}
-            ${bearishPills}
-            ${catalystPills}
-          </div>` : ''}
-          
-          <div>
-            <div style="font-size:0.8rem;font-weight:700;margin-bottom:8px;color:var(--ink);">📰 Recent News</div>
-            ${newsHtml}
-          </div>
-        </div>
-      </details>
-    </div>`;
-  });
-  cardsView.innerHTML = '<div class="coach-grid">' + cards.join('') + '</div>';
-}
-
-function renderSmartSuggestions(loading) {
-  const grid = document.getElementById('suggestions-grid');
-  
-  if (loading) {
-    grid.innerHTML = '<div class="empty" style="padding:24px">Analyzing stocks...</div>';
-    return;
-  }
-  
-  // Get all stocks with complete data
-  const allStocks = Object.values(S.data).filter(d => d && !d.err && d.ticker);
-  
-  if (!allStocks.length) {
-    grid.innerHTML = '<div class="empty" style="padding:24px">No stock data available</div>';
-    return;
-  }
-  
-  // Score and filter suggestions based on multiple criteria
-  const suggestions = allStocks
-    .map(d => {
-      let score = d.netScore || 0;
-      let reasons = [];
-      
-      // Strong bullish signal
-      if (d.netScore >= 5) {
-        score += 2;
-        reasons.push('Strong bullish setup');
-      }
-      
-      // Earnings catalyst
-      if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 5 && d.lastEPSBeat) {
-        score += 3;
-        reasons.push(`Earnings in ${d.daysToEarnings}d (beat last time)`);
-      }
-      
-      // Near week low (reversal opportunity)
-      if (d.position <= 0.15 && d.rsi < 40 && d.macdDiff > 0) {
-        score += 2;
-        reasons.push('Near week low with momentum shift');
-      }
-      
-      // Strong conviction
-      if (d.conviction >= 65) {
-        score += 1;
-        reasons.push(`High conviction (${d.conviction}%)`);
-      }
-      
-      return {
-        ...d,
-        suggestionScore: score,
-        suggestionReasons: reasons
-      };
-    })
-    .filter(d => d.suggestionScore >= 5)  // Only show high-quality suggestions
-    .sort((a, b) => b.suggestionScore - a.suggestionScore)
-    .slice(0, 6);  // Top 6 suggestions
-  
-  if (!suggestions.length) {
-    grid.innerHTML = '<div class="empty" style="padding:24px">No strong opportunities right now. Check back after market moves.</div>';
-    return;
-  }
-  
-  grid.innerHTML = suggestions.map(d => {
-    const sig = signal(d);
-    const pred = prediction(d);
-    const cc = d.change >= 0 ? 'pos' : 'neg';
-    const cs = d.change >= 0 ? '+' : '';
-    
-    let earnBadge = '';
-    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 5) {
-      earnBadge = `<span class="badge" style="background:var(--yellow);color:#fff;font-size:0.7rem;padding:2px 6px;margin-left:6px;">Earnings ${d.daysToEarnings}d</span>`;
-    }
-    
-    return `<div class="coach-card">
-      <div class="coach-head">
-        <strong>${d.ticker}${earnBadge}</strong>
-        <span class="badge ${sig.cls}">${sig.label}</span>
-      </div>
-      <div class="coach-price">
-        $${d.price.toFixed(2)}
-        <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
-      </div>
-      <div class="coach-metrics">
-        <div><small>Net Score</small><strong style="color:${d.netScore > 0 ? 'var(--pos)' : d.netScore < 0 ? 'var(--neg)' : 'var(--muted)'}">${d.netScore}</strong></div>
-        <div><small>RSI</small><strong style="color:${d.rsi < 30 ? 'var(--pos)' : d.rsi > 70 ? 'var(--neg)' : 'var(--text)'}">${d.rsi.toFixed(1)}</strong></div>
-        <div><small>Conviction</small><strong style="color:${d.conviction >= 65 ? 'var(--pos)' : d.conviction < 40 ? 'var(--neg)' : 'var(--text)'}">${d.conviction}%</strong></div>
-      </div>
-      <div class="coach-msg">
-        ${d.suggestionReasons.join(' · ')}
-      </div>
-      <button class="btn-p btn-sm" onclick="addWatch()" style="width:100%;margin-top:8px;" 
-              onmouseenter="document.getElementById('add-input').value='${d.ticker}'"
-              onclick="document.getElementById('add-input').value='${d.ticker}';addWatch();">
-        + Add to Watchlist
-      </button>
-    </div>`;
-  }).join('');
-}
-
-// ══════════════════════════════════════════════════════════════
-//  ROW RENDERERS
-// ══════════════════════════════════════════════════════════════
-function toggleMarketPulseDetail(category) {
-  const detailDiv = document.getElementById('market-pulse-detail');
-  if (!detailDiv) return;
-  
-  const ranked = sortStocks(Object.values(S.data).filter(d => d && !d.err));
-  let filtered = [];
-  let title = '';
-  
-  if (category === 'watchlist') {
-    filtered = ranked;
-    title = '📈 All Watchlist Stocks';
-  } else if (category === 'bullish') {
-    filtered = ranked.filter(d => d.netScore >= 4);
-    title = '📈 Bullish Setups (Score ≥ 4)';
-  } else if (category === 'bearish') {
-    filtered = ranked.filter(d => d.netScore <= -2);
-    title = '📉 Bearish Risk (Score ≤ -2)';
-  } else if (category === 'portfolio') {
-    filtered = S.portfolio.map(p => S.data[p.ticker]).filter(d => d && !d.err);
-    title = '💼 Portfolio Stocks';
-  } else if (category === 'most-bullish') {
-    filtered = ranked.filter(d => d.netScore >= 7).slice(0, 10);
-    title = '💹 Most Bullish Stocks (Score ≥ 7)';
-  } else if (category === 'most-bearish') {
-    filtered = ranked.filter(d => d.netScore <= -4).slice(0, 10);
-    title = '📉 Most Bearish Stocks (Score ≤ -4)';
-  } else if (category === 'weeklow') {
-    filtered = ranked.filter(d => d.position < 0.35);
-    title = '💎 Near Week Low (Position < 35%)';
-  } else if (category === 'earnings') {
-    filtered = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14);
-    title = '📅 Earnings Soon (Next 14 Days)';
-  }
-  
-  if (detailDiv.style.display === 'block' && detailDiv.dataset.category === category) {
-    detailDiv.style.display = 'none';
-    detailDiv.dataset.category = '';
-    return;
-  }
-  
-  if (!filtered.length) {
-    detailDiv.innerHTML = `<div class="overview-card-expanded"><strong>${title}</strong><p style="margin-top:8px;color:var(--muted);">No stocks found in this category</p></div>`;
-  } else {
-    const stocksHtml = filtered.slice(0, 20).map(d => {
-      const sig = signal(d);
-      const cc = d.change >= 0 ? 'pos' : 'neg';
-      const cs = d.change >= 0 ? '+' : '';
-      
-      // Earnings badge
-      let earnBadge = '';
-      if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
-        earnBadge = `<span class="badge" style="background:var(--blue);color:#fff;font-size:0.7rem;padding:2px 6px;margin-left:6px;">📅 ${d.daysToEarnings === 0 ? 'Today' : d.daysToEarnings + 'd'}</span>`;
-      }
-      
-      // Build explanation based on category and metrics
-      let reasons = [];
-      if (d.netScore >= 7) reasons.push(`Strong bullish (score ${d.netScore})`);
-      else if (d.netScore >= 4) reasons.push(`Bullish setup (score ${d.netScore})`);
-      else if (d.netScore <= -4) reasons.push(`Strong bearish (score ${d.netScore})`);
-      else if (d.netScore <= -2) reasons.push(`Bearish risk (score ${d.netScore})`);
-      else reasons.push(`Net score ${d.netScore}`);
-      
-      if (d.conviction >= 70) reasons.push(`High conviction (${d.conviction}%)`);
-      else if (d.conviction >= 50) reasons.push(`Medium conviction (${d.conviction}%)`);
-      
-      if (d.rsi < 30) reasons.push('Oversold (RSI ' + d.rsi.toFixed(1) + ')');
-      else if (d.rsi > 70) reasons.push('Overbought (RSI ' + d.rsi.toFixed(1) + ')');
-      
-      if (d.position < 0.20) reasons.push('Near week low');
-      else if (d.position > 0.80) reasons.push('Near week high');
-      
-      if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
-        if (d.lastEPSBeat) reasons.push('Beat last earnings');
-        else reasons.push('Upcoming earnings');
-      }
-      
-      const explanation = reasons.slice(0, 3).join(' · ');
-      
-      // Check if in portfolio
-      const isInPortfolio = S.portfolio.some(p => p.ticker === d.ticker);
-      
-      return `<div class="coach-card">
-      <div class="coach-head">
-        <strong>${d.ticker}${earnBadge}</strong>
-        <span class="badge ${sig.cls}">${sig.label}</span>
-      </div>
-      <div class="coach-price">
-        $${d.price.toFixed(2)}
-        <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
-      </div>
-      <div class="coach-metrics">
-        <div><small>Net Score</small><strong style="color:${d.netScore > 0 ? 'var(--pos)' : d.netScore < 0 ? 'var(--neg)' : 'var(--muted)'}">${d.netScore}</strong></div>
-        <div><small>RSI</small><strong style="color:${d.rsi < 30 ? 'var(--pos)' : d.rsi > 70 ? 'var(--neg)' : 'var(--text)'}">${d.rsi.toFixed(1)}</strong></div>
-        <div><small>Conviction</small><strong style="color:${d.conviction >= 65 ? 'var(--pos)' : d.conviction < 40 ? 'var(--neg)' : 'var(--text)'}">${d.conviction}%</strong></div>
-      </div>
-      <div class="coach-msg">
-        ${explanation}
-      </div>
-      ${isInPortfolio 
-        ? '<div style="text-align:center;padding:8px;color:var(--muted);font-size:0.85rem;">✓ In Portfolio</div>'
-        : `<button class="btn-p btn-sm" onclick="openModalWithTicker('${d.ticker}')" style="width:100%;margin-top:8px;">💼 Add to Portfolio</button>`}
-    </div>`;
-    }).join('');
-    detailDiv.innerHTML = `<div class="overview-card-expanded"><strong style="font-size:1.2rem;margin-bottom:16px;display:block;">${title}</strong><div class="coach-grid">${stocksHtml}</div></div>`;
-  }
-  
-  detailDiv.style.display = 'block';
-  detailDiv.dataset.category = category;
-}
-
-function renderOverview() {
-  const overview = document.getElementById('overview-grid');
-  const pulse = document.getElementById('market-pulse');
-  const ranked = sortStocks(Object.values(S.data).filter(d => d && !d.err));
-  const bullish = ranked.filter(d => d.netScore >= 4).length;
-  const bearish = ranked.filter(d => d.netScore <= -2).length;
-  const mostBullish = ranked.filter(d => d.netScore >= 7).length;
-  const mostBearish = ranked.filter(d => d.netScore <= -4).length;
-  const weekLow = ranked.filter(d => d.position < 0.35).length;
-  const earningsSoon = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14).length;
-
-  if (overview) {
-    overview.innerHTML = `
-      <div class="overview-card" onclick="toggleMarketPulseDetail('watchlist')"><small>Watchlist</small><strong>${S.watchlist.length}</strong></div>
-      <div class="overview-card" onclick="toggleMarketPulseDetail('bullish')"><small>Bullish Setups</small><strong>${bullish}</strong></div>
-      <div class="overview-card" onclick="toggleMarketPulseDetail('bearish')"><small>Bearish Risk</small><strong>${bearish}</strong></div>
-      <div class="overview-card" onclick="toggleMarketPulseDetail('portfolio')"><small>Portfolio</small><strong>${S.portfolio.length}</strong></div>
-      <div class="overview-card" onclick="toggleMarketPulseDetail('most-bullish')"><small>💹 Most Bullish</small><strong>${mostBullish}</strong></div>
-      <div class="overview-card" onclick="toggleMarketPulseDetail('most-bearish')"><small>📉 Most Bearish</small><strong>${mostBearish}</strong></div>
-      <div class="overview-card" onclick="toggleMarketPulseDetail('weeklow')"><small>💎 Near Week Low</small><strong>${weekLow}</strong></div>
-      <div class="overview-card" onclick="toggleMarketPulseDetail('earnings')"><small>📅 Earnings Soon</small><strong>${earningsSoon}</strong></div>`;
-  }
-
-  if (pulse) {
-    pulse.innerHTML = S.marketTrends.length
-      ? S.marketTrends.map(item => `
-        <div class="market-pulse-card">
-          <div class="market-pulse-id">
-            <strong>${item.label}</strong>
-            <span>${item.ticker} · ${item.mode}</span>
-          </div>
-          <div class="market-pulse-move">
-            <strong class="${item.changePct >= 0 ? 'pos' : 'neg'}">${item.changePct >= 0 ? '+' : ''}${item.changePct.toFixed(2)}%</strong>
-            <span>net ${item.netScore} · ${item.conviction}% conviction</span>
-          </div>
-        </div>`).join('')
-      : `<div class="empty" style="padding:18px">Loading current market trends...</div>`;
-  }
-}
-
-function renderStrategyPanel() {
-  const panel = document.getElementById('strategy-panel');
-  if (!panel) return; // Element doesn't exist in current tab
-  
-  const marketLine = S.marketBull === null
-    ? 'Market pulse is waiting for index and sector trend data.'
-    : S.marketBull
-      ? 'Market pulse is supportive: most tracked market proxies are above support with positive momentum.'
-      : 'Market pulse is defensive: most tracked market proxies are losing support or momentum.';
-
-  const renderSpec = (items) => items.map(([label, value]) => `
-    <div class="strategy-item"><strong>${label}</strong><span>${value}</span></div>`).join('');
-
-  panel.innerHTML = `
-    <details open>
-      <summary>
-        <span>How bullish and bearish scores are calculated</span>
-        <span>${S.marketBull === null ? 'Pending' : S.marketBull ? 'Pulse supportive' : 'Pulse defensive'}</span>
-      </summary>
-      <div class="strategy-grid">
-        <div class="strategy-block">
-          <h3>Bullish setup score</h3>
-          <p>This is the entry-quality score. It rewards support-zone pricing, RSI recovery, positive MACD, and price staying close to EMA20.</p>
-          <div class="strategy-list">${renderSpec(MODEL_SPEC.bullish)}</div>
-        </div>
-        <div class="strategy-block">
-          <h3>Bearish pressure score</h3>
-          <p>This is the risk score. It increases when price is extended, momentum weakens, trend support breaks, or earnings quality is poor.</p>
-          <div class="strategy-list">${renderSpec(MODEL_SPEC.bearish)}</div>
-        </div>
-        <div class="strategy-block">
-          <h3>Ranking formula</h3>
-          <p>Every stock is ordered by <strong>net score = bullish score + catalyst score - bearish pressure</strong>. Higher net score means stronger upside bias. Lower net score means rising downside risk.</p>
-          <div class="strategy-list">
-            ${renderSpec(MODEL_SPEC.catalysts)}
-            <div class="strategy-item"><strong>Market pulse</strong><span>${marketLine}</span></div>
-            <div class="strategy-item"><strong>Sort order</strong><span>Most bullish to most bearish using net score, then conviction.</span></div>
-          </div>
-        </div>
-      </div>
-    </details>`;
-}
-
-function rankReasons(d) {
-  const bullish = (d.bullishDrivers || []).slice(0, 2).map(x => `<div class="reason-pill"><strong>Bullish:</strong> ${x}</div>`);
-  const bearish = (d.bearishDrivers || []).slice(0, 2).map(x => `<div class="reason-pill"><strong>Bearish:</strong> ${x}</div>`);
-  const catalysts = (d.catalystDrivers || []).slice(0, 1).map(x => `<div class="reason-pill"><strong>Catalyst:</strong> ${x}</div>`);
-  return [...bullish, ...bearish, ...catalysts].join('');
-}
-
-function renderRankings(loading) {
-  const el = document.getElementById('rank-list');
-  if (!el) return;
-  if (loading) {
-    el.innerHTML = `<div class="empty">Ranking watchlist by bullish and bearish pressure...</div>`;
-    return;
-  }
-
-  let ranked = sortStocks(S.watchlist.map(t => S.data[t]).filter(d => d && !d.err));
-  
-  // Apply filter
-  if (S.watchlistFilter === 'bullish') {
-    ranked = ranked.filter(d => d.netScore >= 5); // Strong bullish bias (stricter)
-  } else if (S.watchlistFilter === 'bearish') {
-    ranked = ranked.filter(d => d.netScore <= 1); // Bearish, weak, or cautious (more inclusive)
-  } else if (S.watchlistFilter === 'weeklow') {
-    ranked = ranked.filter(d => d.position < 0.35); // Near weekly low
-  } else if (S.watchlistFilter === 'earnings') {
-    ranked = ranked.filter(d => d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14);
-  }
-  
-  if (!ranked.length) {
-    const filterLabels = {
-      all: 'Add a ticker to build the ranked board.',
-      bullish: 'No strongly bullish stocks found (net score >= 5).',
-      bearish: 'No bearish or weak stocks found (net score <= 1).',
-      weeklow: 'No stocks near weekly lows (position < 35%).',
-      earnings: 'No stocks with earnings in the next 14 days. Note: Earnings data may be unavailable for ETFs and some securities.'
-    };
-    el.innerHTML = `<div class="empty">${filterLabels[S.watchlistFilter] || filterLabels.all}</div>`;
-    return;
-  }
-
-  el.innerHTML = ranked.map((d, index) => {
-    const sig = signal(d);
-    const pred = prediction(d);
-    const detailId = `detail-${d.ticker}`;
-    
-    // Asset type badge
-    let assetBadge = '';
-    if (d.assetType && d.assetType !== 'Stock') {
-      const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
-      assetBadge = `<span class="asset-type-badge ${badgeClass}">${d.assetType}</span>`;
-    }
-    
-    // Earnings date badge
-    let earningsBadge = '';
-    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 14) {
-      const earningsDate = new Date(d.nextEarnings).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const daysText = d.daysToEarnings === 0 ? 'TODAY' : d.daysToEarnings === 1 ? 'Tomorrow' : `${d.daysToEarnings}d`;
-      earningsBadge = `<span style="display:inline-block;margin-left:8px;font-size:0.7rem;padding:4px 8px;border-radius:6px;background:rgba(30,99,217,0.12);color:var(--blue);font-weight:700;">📅 ${earningsDate} (${daysText})</span>`;
-    }
-    
-    const newsHtml = (d.headlines?.length)
-      ? d.headlines.map(h => `<div style="font-size:0.75rem;padding:6px 0;border-bottom:1px dashed var(--border)"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
-      : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
-    return `
-      <article class="rank-card">
-        <div class="rank-head">
-          <div class="rank-id">
-            <span class="rank-no">#${index + 1}</span>
-            <div>
-              <div class="rank-symbol">${d.ticker} ${assetBadge}${earningsBadge}</div>
-              <div class="rank-price">$${d.price.toFixed(2)} · ${d.change >= 0 ? '+' : ''}${d.changePct.toFixed(2)}%</div>
-            </div>
-          </div>
-          <span class="badge ${sig.cls}">${sig.label}</span>
-        </div>
-        <div class="rank-grid">
-          <div class="rank-metric"><span>Net Score</span><span>${d.netScore}</span></div>
-          <div class="rank-metric"><span>Bull / Bear</span><span>${d.bullishScore} / ${d.bearishScore}</span></div>
-          <div class="rank-metric"><span>Conviction</span><span>${d.conviction}%</span></div>
-        </div>
-        <div style="margin-top:12px">
-          <button class="btn-sm" onclick="toggleDetails('${detailId}')" style="font-size:0.75rem">🔍 Show details</button>
-        </div>
-        <div id="${detailId}" style="display:none;margin-top:10px">
-          <div class="rank-grid">
-            <div class="rank-metric"><span>RSI</span><span>${d.rsi.toFixed(1)}</span></div>
-            <div class="rank-metric"><span>MACD Diff</span><span>${d.macdDiff.toFixed(4)}</span></div>
-            <div class="rank-metric"><span>Weekly Position</span><span>${(d.position * 100).toFixed(0)}%</span></div>
-          </div>
-          <div class="rank-reasons">
-            <div class="reason-pill"><strong>Outlook:</strong> ${pred.text}</div>
-            ${rankReasons(d)}
-          </div>
-          <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:10px">
-            <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px;color:var(--ink)">📰 Recent News</div>
-            ${newsHtml}
-          </div>
-        </div>
-      </article>`;
-  }).join('');
-}
-
-function wRow(ticker, d, loading) {
-  if (loading)
-    return `<tr id="wr-${ticker}"><td class="tcell">${ticker}</td>${'<td><span class="sk"></span></td>'.repeat(14)}<td></td></tr>`;
-
-  if (!d || d.err)
-    return `<tr id="wr-${ticker}">
-      <td class="tcell">${ticker}</td>
-      <td colspan="14" style="color:var(--muted);font-style:italic">⚠ Failed to load — check ticker</td>
-      <td><button class="btn-del btn-sm" onclick="rmWatch('${ticker}')">✕</button></td>
-    </tr>`;
-
-  const sig  = signal(d);
-  const pred = prediction(d);
-  const cc   = d.change >= 0 ? 'pos' : 'neg';
-  const cs   = d.change >= 0 ? '+' : '';
-  const mc   = d.macdDiff > 0 ? 'pos' : 'neg';
-  const rc   = d.rsi > 70 ? 'neg' : d.rsi < 30 ? 'pos' : '';
-
-  // Asset type badge
-  let assetBadge = '';
-  if (d.assetType && d.assetType !== 'Stock') {
-    const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
-    assetBadge = `<span class="asset-type-badge ${badgeClass}">${d.assetType}</span>`;
-  }
-
-  let earnCell = 'N/A';
-  if (d.daysToEarnings !== null) {
-    if (d.daysToEarnings < 0)      earnCell = `${fmtDate(d.nextEarnings)} (passed)`;
-    else if (d.daysToEarnings === 0) earnCell = `🔔 <b>Today!</b>`;
-    else if (d.daysToEarnings <= 5)  earnCell = `🔔 <b>${d.daysToEarnings}d</b> (${fmtDate(d.nextEarnings)})`;
-    else                             earnCell = `${fmtDate(d.nextEarnings)} (${d.daysToEarnings}d)`;
-  }
-
-  let epsCell = '<span style="color:var(--muted)">N/A</span>';
-  if (d.lastEPSSurprise !== null) {
-    const ep  = d.lastEPSSurprise >= 0 ? '+' : '';
-    const ec  = d.lastEPSBeat ? 'pos' : 'neg';
-    const ico = d.lastEPSBeat ? '✅' : '❌';
-    epsCell = `<span class="${ec}">${ico} ${ep}$${d.lastEPSSurprise.toFixed(4)}</span>`;
-  }
-
-  return `<tr id="wr-${ticker}">
-    <td class="tcell">${ticker}${assetBadge}</td>
-    <td><b>$${d.price.toFixed(2)}</b></td>
-    <td><span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span></td>
-    <td><span class="badge ${sig.cls}">${sig.label}</span></td>
-    <td>${d.netScore}</td>
-    <td>${d.bullishScore}</td>
-    <td>${d.bearishScore}</td>
-    <td>${scoreBar(d.conviction)}</td>
-    <td><span class="${rc}">${d.rsi.toFixed(1)}</span></td>
-    <td><span class="${mc}">${d.macdDiff.toFixed(4)}</span></td>
-    <td>${(d.position*100).toFixed(0)}%</td>
-    <td>$${d.ema20.toFixed(2)}</td>
-    <td>${earnCell}</td>
-    <td>${epsCell}</td>
-    <td><span class="${pred.cls}">${pred.text}</span></td>
-    <td><button class="btn-del btn-sm" onclick="rmWatch('${ticker}')">✕</button></td>
-  </tr>`;
-}
-
-function pRow(pos, d, loading) {
-  const { ticker, shares, buyPrice } = pos;
-  
-  // Asset type badge
-  let assetBadge = '';
-  if (d && !d.err && d.assetType && d.assetType !== 'Stock') {
-    const badgeClass = d.assetType === 'ETF' ? 'asset-etf' : d.assetType === 'Metal' ? 'asset-metal' : d.assetType === 'Crypto' ? 'asset-crypto' : '';
-    assetBadge = `<span class="asset-type-badge ${badgeClass}">${d.assetType}</span>`;
-  }
-  
-  if (loading || !d)
-    return `<tr id="pr-${ticker}">
-      <td class="tcell">${ticker}${assetBadge}</td><td>${shares}</td><td>$${(+buyPrice).toFixed(2)}</td>
-      ${'<td><span class="sk"></span></td>'.repeat(5)}
-      <td><button class="btn-del btn-sm" onclick="rmPos('${ticker}')">✕</button></td>
-    </tr>`;
-
-  const cur  = d.err ? null : d.price;
-  const pnlT = cur ? (cur - buyPrice) * shares : 0;
-  const pnlP = cur ? (cur - buyPrice) / buyPrice * 100 : 0;
-  const pc   = pnlT >= 0 ? 'pos' : 'neg';
-  const ps   = pnlT >= 0 ? '+' : '';
-  const sig  = signal(d);
-  const act  = action(d, buyPrice);
-
-  return `<tr id="pr-${ticker}">
-    <td class="tcell">${ticker}${assetBadge}</td>
-    <td contenteditable="true" onblur="updatePosShares('${ticker}', this)">${shares}</td>
-    <td contenteditable="true" onblur="updatePosBuyPrice('${ticker}', this)">$${(+buyPrice).toFixed(2)}</td>
-    <td><b>${cur ? '$'+cur.toFixed(2) : '—'}</b></td>
-    <td><span class="${pc}">${ps}$${pnlT.toFixed(2)}</span></td>
-    <td><span class="${pc}">${ps}${pnlP.toFixed(2)}%</span></td>
-    <td><span class="badge ${sig.cls}">${sig.label}</span></td>
-    <td><span class="${act.cls}">${act.text}</span></td>
-    <td><button class="btn-del btn-sm" onclick="rmPos('${ticker}')">✕</button></td>
-  </tr>`;
-}
-
-function renderAll(loading) {
-  // Watchlist
-  const wb = document.getElementById('wb');
-  const rankedTickers = sortStocks(S.watchlist.map(t => S.data[t]).filter(Boolean)).map(d => d.ticker);
-  wb.innerHTML = S.watchlist.length
-    ? (rankedTickers.length ? rankedTickers : S.watchlist).map(t => wRow(t, S.data[t], loading)).join('')
-    : `<tr><td colspan="16"><div class="empty">Add a ticker above to start tracking</div></td></tr>`;
-
-  // Portfolio (test mode vs real)
-  const pb = document.getElementById('pb');
-  const displayPortfolio = S.testMode 
-    ? S.sim.positions.map(p => ({ ticker: p.ticker, shares: p.shares, buyPrice: p.buyPrice }))
-    : S.portfolio;
-  pb.innerHTML = displayPortfolio.length
-    ? displayPortfolio.map(p => pRow(p, S.data[p.ticker], loading)).join('')
-    : `<tr><td colspan="9"><div class="empty">No positions yet — click "+ Add Position" to track a stock you own</div></td></tr>`;
-
-  // Update test mode button
-  const tmBtn = document.getElementById('test-mode-btn');
-  if (tmBtn) tmBtn.textContent = S.testMode ? '✅ Test Mode: ON' : 'Test Mode: OFF';
-
-  renderOverview();
-  renderOverviewPortfolio(loading);
-  renderSmartSuggestions(loading);
-  renderStrategyPanel();
-  renderRankings(loading);
-
-  // Insights
-  renderInsights(loading);
-
-  // Simple guidance + simulator
-  renderCoachBoard(loading);
-  renderSim();
-  
-  // AI Features: News Impact & Market Sentiment
-  calculateMarketSentiment();
-  renderMarketSentimentBar();
-  renderNewsImpact();
-  
-  // Congressional Trading Intelligence
-  renderCongressionalTrades();
-  
-  // Golden Hour Trading
-  renderGoldenHour();
-}
-
-// ══════════════════════════════════════════════════════════════
-//  PORTFOLIO INSIGHTS ENGINE
-// ══════════════════════════════════════════════════════════════
-function insightForPosition(pos, d) {
-  const { ticker, shares, buyPrice } = pos;
-  if (!d || d.err) return null;
-
-  const cur    = d.price;
-  const pnlPct = (cur - buyPrice) / buyPrice * 100;
-  const pnlAmt = (cur - buyPrice) * shares;
-  const stop   = buyPrice * 0.98;
-  const target = buyPrice * 1.035;
-  const sig    = signal(d);
-  const pred   = prediction(d);
-  const sc     = d.netScore;
-
-  let actionLabel = '', actionCls = '', reasons = [];
-
-  // ── Decision tree ──
-  const hitStop   = cur <= stop;
-  const hitTarget = cur >= target;
-  const isBull    = sc >= 4 && d.macdDiff > 0;
-  const isBear    = sc <= -2;
-
-  if (hitTarget) {
-    actionLabel = '✅ Take Profit';
-    actionCls   = 'act-sell';
-    reasons.push(`<b>Target reached:</b> Stock is up ${pnlPct.toFixed(2)}% from your entry — at or above the +3.5% target of $${target.toFixed(2)}.`);
-    reasons.push(`Consider taking full or partial profits. Lock in <b>$${pnlAmt.toFixed(0)}</b> gain.`);
-  } else if (hitStop && !isBull) {
-    actionLabel = '🛑 Stop Loss';
-    actionCls   = 'act-sell';
-    reasons.push(`<b>Stop loss triggered</b> (−2% from entry). Stock is at $${cur.toFixed(2)}, stop was $${stop.toFixed(2)}.`);
-    reasons.push(`Signal is ${sig.label} — the technicals don't support holding through this loss. Cutting the position preserves capital.`);
-  } else if (hitStop && isBull) {
-    actionLabel = '⚠️ Hold / Review';
-    actionCls   = 'act-watch';
-    reasons.push(`<b>Stop loss triggered</b> (down ${pnlPct.toFixed(2)}%), BUT the algorithm still shows a <b>strong bullish bias</b> (net score ${sc}).`);
-    reasons.push(`This is a conflict. Options: (1) Hold if you believe in the thesis — RSI is ${d.rsi.toFixed(0)} and MACD is ${d.macdDiff > 0 ? 'positive' : 'negative'}. (2) Exit half to reduce risk.`);
-    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 10)
-      reasons.push(`⚠️ Earnings in <b>${d.daysToEarnings} days</b> — volatility risk is elevated.`);
-  } else if (isBear) {
-    actionLabel = '📉 Consider Exit';
-    actionCls   = 'act-sell';
-    reasons.push(`Net score is <b>${sc}</b> — bearish pressure is overtaking the bullish setup. RSI: ${d.rsi.toFixed(0)}, MACD diff: ${d.macdDiff.toFixed(4)}.`);
-    reasons.push(`${pnlPct >= 0 ? 'You are currently profitable — consider locking in gains.' : 'Position is in loss and getting weaker technically.'}`);
-  } else if (sc >= 8 && pnlPct < 0) {
-    actionLabel = '📈 Avg Down';
-    actionCls   = 'act-buy';
-    const avgPrice = cur * 0.97;
-    reasons.push(`<b>High-score dip opportunity</b> (net score ${sc}). Price is ${Math.abs(pnlPct).toFixed(2)}% below your entry but technicals remain strong.`);
-    reasons.push(`The 40% reserve strategy suggests averaging down near <b>$${avgPrice.toFixed(2)}</b> (another 3% lower) to improve your average cost.`);
-  } else {
-    actionLabel = '✋ Hold';
-    actionCls   = 'act-hold';
-    reasons.push(`Position is healthy. Net score ${sc} with ${d.bullishScore} bullish points versus ${d.bearishScore} bearish points. P&amp;L: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%.`);
-    reasons.push(`Target: <b>$${target.toFixed(2)}</b> (+3.5%). Stop: <b>$${stop.toFixed(2)}</b> (−2%). Current: $${cur.toFixed(2)}.`);
-    if (d.daysToEarnings !== null && d.daysToEarnings >= 0 && d.daysToEarnings <= 5)
-      reasons.push(`🔔 Earnings in <b>${d.daysToEarnings} days</b> — could be a catalyst for a breakout.`);
-  }
-
-  return { ticker, cur, pnlPct, pnlAmt, actionLabel, actionCls, reasons, sig, sc, pred, shares, buyPrice };
-}
-
-function renderInsights(loading) {
-  const grid   = document.getElementById('portfolio-insights-grid');
-  const sumbar = document.getElementById('sumbar');
-
-  if (!S.portfolio.length) {
-    grid.innerHTML = `<div class="empty" style="padding:36px;color:var(--muted)">Add positions to see personalised suggestions</div>`;
-    if (sumbar) sumbar.style.display = 'none';
-    return;
-  }
-
-  if (loading) {
-    grid.innerHTML = S.portfolio.map(p => `
-      <div class="icard">
-        <div class="icard-head">
-          <span class="icard-tick">${p.ticker}</span>
-          <span class="icard-title">Analysing…</span>
-          <span class="badge by"><span class="sk" style="width:60px"></span></span>
-        </div>
-      </div>`).join('');
-    if (sumbar) sumbar.style.display = 'none';
-    return;
-  }
-
-  const insights = S.portfolio.map(p => insightForPosition(p, S.data[p.ticker])).filter(Boolean);
-
-  // ── Summary bar ──
-  if (insights.length) {
-    const totalValue  = insights.reduce((a,i) => a + i.cur * i.shares, 0);
-    const totalCost   = S.portfolio.reduce((a,p) => a + p.buyPrice * p.shares, 0);
-    const totalPnl    = totalValue - totalCost;
-    const totalPnlPct = totalCost ? (totalPnl / totalCost) * 100 : 0;
-    const pc = totalPnl >= 0 ? 'pos' : 'neg';
-    const ps = totalPnl >= 0 ? '+' : '';
-    if (sumbar) {
-      sumbar.style.display = 'flex';
-      sumbar.innerHTML = `
-        <div class="sumitem"><span>Total Value</span><span>$${totalValue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-        <div class="sumitem"><span>Total Cost</span><span>$${totalCost.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-        <div class="sumitem"><span>Total P&amp;L</span><span class="${pc}">${ps}$${Math.abs(totalPnl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-        <div class="sumitem"><span>Return</span><span class="${pc}">${ps}${totalPnlPct.toFixed(2)}%</span></div>
-        <div class="sumitem"><span>Positions</span><span>${insights.length}</span></div>`;
-    }
-  } else {
-    if (sumbar) sumbar.style.display = 'none';
-  }
-
-  // ── Cards ──
-  grid.innerHTML = insights.map(i => {
-    const pp = i.pnlPct >= 0 ? 'pos' : 'neg';
-    const ps = i.pnlPct >= 0 ? '+' : '';
-    const ap = i.pnlAmt >= 0 ? 'pos' : 'neg';
-    return `
-    <div class="icard">
-      <div class="icard-head">
-        <span class="icard-tick">${i.ticker}</span>
-        <span class="icard-title">${i.shares} shares @ $${(+i.buyPrice).toFixed(2)}</span>
-        <span class="icard-action ${i.actionCls}">${i.actionLabel}</span>
-      </div>
-      <div class="icard-stats">
-        <div class="istat"><span>Current Price</span><span>$${i.cur.toFixed(2)}</span></div>
-        <div class="istat"><span>P&amp;L %</span><span class="${pp}">${ps}${i.pnlPct.toFixed(2)}%</span></div>
-        <div class="istat"><span>P&amp;L $</span><span class="${ap}">${i.pnlAmt >= 0 ? '+' : ''}$${i.pnlAmt.toFixed(2)}</span></div>
-        <div class="istat"><span>Net Score</span><span>${i.sc}</span></div>
-        <div class="istat"><span>Signal</span><span><span class="badge ${i.sig.cls}">${i.sig.label}</span></span></div>
-        <div class="istat"><span>Outlook</span><span class="${i.pred.cls}">${i.pred.text}</span></div>
-      </div>
-      <div class="icard-reason">${i.reasons.map(r=>`<p style="margin:3px 0">${r}</p>`).join('')}</div>
-    </div>`;
-  }).join('') || `<div class="empty" style="padding:36px;color:var(--muted)">Waiting for data…</div>`;
-}
-
-function simpleAction(pos, d) {
-  const hasPos = !!pos;
-  const sig = signal(d);
-  const pred = prediction(d);
-  const score = d?.netScore ?? 0;
-  const price = d?.price ?? 0;
-  const now = new Date();
-  const tomorrow = new Date(now.getTime() + 86400000);
-  const day = tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-
-  if (!d || d.err) {
-    return {
-      ticker: pos?.ticker || 'Unknown',
-      pillCls: 'coach-hold',
-      pill: 'WAIT',
-      note: 'Data is unavailable right now. Do not trade this stock until data refresh succeeds.',
-      time: 'No action time available'
-    };
-  }
-
-  if (hasPos) {
-    const pnlPct = ((price - pos.buyPrice) / pos.buyPrice) * 100;
-    if (pnlPct >= S.sim.learn.targetPct || score <= S.sim.learn.sellMaxScore) {
-      return {
-        ticker: pos.ticker,
-        pillCls: 'coach-sell',
-        pill: 'SELL',
-        note: `${pos.ticker} has reached your exit conditions. You can sell to lock results and reduce risk.`,
-        time: `${day} - ${tradeWindowLabel('Bearish')} (market trend ${S.marketBull ? 'supports holding winners' : 'is weak'})`
-      };
-    }
-    if (pnlPct <= S.sim.learn.stopPct && score < 8) {
-      return {
-        ticker: pos.ticker,
-        pillCls: 'coach-sell',
-        pill: 'SELL',
-        note: `${pos.ticker} is below your safety limit and trend is not strong enough. Reduce loss now.`,
-        time: `${day} - Best sell window: tomorrow 9:45 AM - 10:30 AM`
-      };
-    }
-    return {
-      ticker: pos.ticker,
-      pillCls: 'coach-hold',
-      pill: 'HOLD',
-      note: `${pos.ticker} looks stable now. Keep holding and review again after next refresh.`,
-      time: `${day} - Re-check around 11:00 AM and 2:30 PM`
-    };
-  }
-
-  if (score >= S.sim.learn.buyMinScore && (S.marketBull !== false)) {
-    return {
-      ticker: d.ticker,
-      pillCls: 'coach-buy',
-      pill: 'BUY',
-      note: `${d.ticker} is showing stronger bullish score than bearish pressure and passes the market filter.`,
-      time: `${day} - ${tradeWindowLabel(sig.label)} | outlook: ${pred.text}`
-    };
-  }
   return {
-    ticker: d.ticker,
-    pillCls: 'coach-hold',
-    pill: 'WAIT',
-    note: `${d.ticker} is not a high-confidence setup yet. Keep it in monitor list.`,
-    time: `${day} - Watch for net score >= ${S.sim.learn.buyMinScore} and positive market trend`
+    ticker, price, change, changePct,
+    assetType: detectAssetType(ticker),
+    ...ind, bearishScore, bearishDrivers,
+    catalystScore, catalystDrivers,
+    netScore, conviction, sortScore, headlines
   };
 }
 
-function renderCoachBoard(loading) {
-  const el = document.getElementById('coach-grid');
+// ══════════════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════════════
+function renderMarketBar() {
+  MARKET_TICKERS.forEach(t => {
+    const el = document.getElementById('mkt-' + t);
+    if (!el) return;
+    const d = S.data[t];
+    if (!d || d.err) {
+      el.innerHTML = `<span class="mkt-t">${t}</span>&nbsp;<span class="sk"></span>`;
+      return;
+    }
+    const sig = signal(d);
+    const cs  = d.changePct >= 0 ? '+' : '';
+    const cls = d.changePct >= 0 ? 'pos' : 'neg';
+    el.innerHTML = `
+      <span class="mkt-t">${t}</span>
+      <span class="mkt-p">$${d.price.toFixed(2)}</span>
+      <span class="${cls}">${cs}${d.changePct.toFixed(2)}%</span>
+      <span class="badge ${sig.cls}">${sig.label}</span>
+    `;
+  });
+}
+
+function renderList() {
+  const el      = document.getElementById('stock-list');
+  const countEl = document.getElementById('count-label');
   if (!el) return;
-  if (loading) {
-    el.innerHTML = `<div class="empty" style="padding:24px">Analysing action timing from trend + historical setup...</div>`;
+
+  const all    = S.watchlist.map(t => S.data[t]).filter(d => d && !d.err);
+  const sorted = sortStocks(all);
+
+  if (countEl) {
+    const total   = S.watchlist.length;
+    const loaded  = all.length;
+    countEl.textContent = loaded < total ? `${loaded} / ${total} loaded…` : `${loaded} stocks`;
+  }
+
+  if (!sorted.length) {
+    const loading = S.watchlist.some(t => !S.data[t]);
+    el.innerHTML = loading
+      ? S.watchlist.slice(0, 12).map((t, i) => skeletonCard(t, i + 1)).join('')
+      : `<div class="empty">No stock data available.<br>Check your connection and try refreshing.</div>`;
     return;
   }
 
-  const cards = [];
-  for (const pos of S.portfolio) cards.push(simpleAction(pos, S.data[pos.ticker]));
+  let html = '';
 
-  const watchOnly = S.watchlist.filter(t => !S.portfolio.some(p => p.ticker === t)).slice(0, 4);
-  for (const t of watchOnly) if (S.data[t]) cards.push(simpleAction(null, S.data[t]));
-
-  if (!cards.length) {
-    el.innerHTML = `<div class="empty" style="padding:24px">Add stocks to watchlist to receive plain-language buy/sell guidance.</div>`;
-    return;
+  // Pinned (searched) stock at top
+  if (S.pinnedTicker && S.data[S.pinnedTicker] && !S.data[S.pinnedTicker].err) {
+    html += buildCard(S.data[S.pinnedTicker], 0, true);
   }
 
-  el.innerHTML = cards.map(c => `
-    <article class="coach-card">
-      <div class="coach-top">
-        <h3>${c.ticker}</h3>
-        <span class="coach-pill ${c.pillCls}">${c.pill}</span>
+  sorted
+    .filter(d => d.ticker !== S.pinnedTicker)
+    .forEach((d, i) => { html += buildCard(d, i + 1, false); });
+
+  el.innerHTML = html;
+}
+
+function skeletonCard(ticker, rank) {
+  return `
+    <div class="stock-card">
+      <div class="card-head">
+        <div class="card-id">
+          <div class="rank-no">#${rank}</div>
+          <div>
+            <div class="ticker-name">${ticker}</div>
+            <div class="price-row"><span class="sk"></span></div>
+          </div>
+        </div>
+        <span class="sk" style="width:80px;height:22px;border-radius:8px"></span>
       </div>
-      <p class="coach-note">${c.note}</p>
-      <div class="coach-time">${c.time}</div>
-    </article>
-  `).join('');
+      <div class="indicators" style="margin-top:12px">
+        ${[...Array(8)].map(() =>
+          `<div class="ind-item">
+            <div class="sk" style="width:42px;margin-bottom:5px"></div>
+            <div class="sk" style="width:52px;height:17px"></div>
+          </div>`).join('')}
+      </div>
+    </div>`;
 }
 
-function simPortfolioValue() {
-  const posVal = S.sim.positions.reduce((a, p) => a + (S.data[p.ticker]?.price || p.buyPrice) * p.shares, 0);
-  return S.sim.cash + posVal;
+function buildCard(d, rank, pinned) {
+  const sig  = signal(d);
+  const pred = prediction(d);
+  const cs   = d.changePct >= 0 ? '+' : '';
+  const cc   = d.changePct >= 0 ? 'pos' : 'neg';
+
+  const atBadge = d.assetType !== 'Stock'
+    ? `<span class="abadge a-${d.assetType.toLowerCase()}">${d.assetType}</span>`
+    : '';
+
+  // Colour-code each indicator value
+  const netColor  = d.netScore >= 5 ? 'var(--green)' : d.netScore < 0 ? 'var(--red)' : 'var(--ink)';
+  const rsiColor  = d.rsi > 70 ? 'var(--red)' : d.rsi < 30 ? 'var(--green)' : 'var(--ink)';
+  const macdColor = d.macdDiff >= 0 ? 'var(--green)' : 'var(--red)';
+  const convColor = d.conviction >= 65 ? 'var(--green)' : d.conviction < 40 ? 'var(--red)' : 'var(--ink)';
+  const wkColor   = d.position < 0.35 ? 'var(--green)' : d.position > 0.70 ? 'var(--red)' : 'var(--ink)';
+  const emaColor  = d.price >= d.ema20 ? 'var(--green)' : 'var(--red)';
+  const bbColor   = d.bullishScore > d.bearishScore ? 'var(--green)'
+                  : d.bearishScore > d.bullishScore  ? 'var(--red)' : 'var(--ink)';
+
+  const bullPills = (d.bullishDrivers || []).map(x =>
+    `<span class="dpill bull">${esc(x)}</span>`).join('');
+  const bearPills = (d.bearishDrivers || []).map(x =>
+    `<span class="dpill bear">${esc(x)}</span>`).join('');
+
+  const newsHtml = d.headlines?.length
+    ? d.headlines.map(h =>
+        `<div class="news-item"><b>${esc(h.publisher || 'News')}:</b> ` +
+        (h.link
+          ? `<a href="${esc(h.link)}" target="_blank" rel="noopener noreferrer">${esc(h.title)}</a>`
+          : esc(h.title)) +
+        `</div>`).join('')
+    : `<div class="news-item">No recent headlines</div>`;
+
+  const detailId = `d-${d.ticker}`;
+  const rankHtml = pinned
+    ? `<span style="font-size:1.1rem">&#128204;</span>`
+    : `<div class="rank-no">#${rank}</div>`;
+
+  return `
+    <div class="stock-card${pinned ? ' pinned' : ''}">
+      <div class="card-head">
+        <div class="card-id">
+          ${rankHtml}
+          <div>
+            <div class="ticker-name">${esc(d.ticker)}${atBadge}</div>
+            <div class="price-row">
+              $${d.price.toFixed(2)}&nbsp;&nbsp;
+              <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
+              &nbsp;<span style="color:var(--muted)">(${d.change >= 0 ? '+' : ''}$${d.change.toFixed(2)})</span>
+            </div>
+          </div>
+        </div>
+        <span class="badge ${sig.cls}">${sig.label}</span>
+      </div>
+
+      <div class="indicators">
+        <div class="ind-item">
+          <div class="ind-label">Net Score</div>
+          <div class="ind-val" style="color:${netColor}">${d.netScore}</div>
+        </div>
+        <div class="ind-item">
+          <div class="ind-label">RSI (14)</div>
+          <div class="ind-val" style="color:${rsiColor}">${d.rsi.toFixed(1)}</div>
+        </div>
+        <div class="ind-item">
+          <div class="ind-label">Conviction</div>
+          <div class="ind-val" style="color:${convColor}">${d.conviction}%</div>
+        </div>
+        <div class="ind-item">
+          <div class="ind-label">MACD Diff</div>
+          <div class="ind-val" style="color:${macdColor}">${d.macdDiff >= 0 ? '+' : ''}${d.macdDiff.toFixed(3)}</div>
+        </div>
+        <div class="ind-item">
+          <div class="ind-label">EMA 20</div>
+          <div class="ind-val" style="color:${emaColor}">$${d.ema20.toFixed(2)}</div>
+        </div>
+        <div class="ind-item">
+          <div class="ind-label">Wk Position</div>
+          <div class="ind-val" style="color:${wkColor}">${(d.position * 100).toFixed(0)}%</div>
+        </div>
+        <div class="ind-item">
+          <div class="ind-label">Bull / Bear</div>
+          <div class="ind-val" style="color:${bbColor}">${d.bullishScore} / ${d.bearishScore}</div>
+        </div>
+        <div class="ind-item">
+          <div class="ind-label">Day Change</div>
+          <div class="ind-val" style="color:${d.changePct >= 0 ? 'var(--green)' : 'var(--red)'}">${cs}${d.changePct.toFixed(2)}%</div>
+        </div>
+      </div>
+
+      <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
+
+      <div>
+        <button class="detail-btn" onclick="toggleDetail('${detailId}')">&#9660; Details &amp; News</button>
+        <div class="detail-body" id="${detailId}">
+          ${bullPills || bearPills ? `<div class="drivers">${bullPills}${bearPills}</div>` : ''}
+          <div class="news-wrap">${newsHtml}</div>
+        </div>
+      </div>
+    </div>`;
 }
 
-function simLog(side, ticker, price, reason, pnl = null) {
-  S.sim.log.unshift({ ts: Date.now(), side, ticker, price, reason, pnl });
-  if (S.sim.log.length > 250) S.sim.log.length = 250;
-}
-
-function simApplyLearning() {
-  if (!S.sim.closed.length) return;
-  const last10 = S.sim.closed.slice(-10);
-  const wins = last10.filter(t => t.pnl > 0).length;
-  const rate = wins / last10.length;
-
-  if (rate < 0.45) {
-    S.sim.learn.buyMinScore = Math.min(7, S.sim.learn.buyMinScore + 1);
-    S.sim.learn.sellMaxScore = Math.min(0, S.sim.learn.sellMaxScore + 1);
-    S.sim.learn.holdDays = Math.max(2, S.sim.learn.holdDays - 1);
-  } else if (rate > 0.65) {
-    S.sim.learn.buyMinScore = Math.max(3, S.sim.learn.buyMinScore - 1);
-    S.sim.learn.sellMaxScore = Math.max(-4, S.sim.learn.sellMaxScore - 1);
-    S.sim.learn.holdDays = Math.min(5, S.sim.learn.holdDays + 1);
-  }
-}
-
-function simRunCycle(force = false) {
-  if (!S.sim.started || !S.sim.enabled) return;
-  const today = new Date().toISOString().slice(0, 10);
-  if (!force && S.sim.lastRunDate === today) return;
-
-  const available = S.watchlist.map(t => S.data[t]).filter(d => d && !d.err);
-  const sortedBuy = [...available]
-    .filter(d => d.netScore >= S.sim.learn.buyMinScore && (S.marketBull !== false))
-    .sort((a, b) => b.netScore - a.netScore)
-    .slice(0, 3);
-
-  // Sell pass first
-  const remaining = [];
-  for (const p of S.sim.positions) {
-    const d = S.data[p.ticker];
-    if (!d || d.err) { remaining.push({ ...p, daysHeld: p.daysHeld + 1 }); continue; }
-    const pnlPct = ((d.price - p.buyPrice) / p.buyPrice) * 100;
-    const shouldSell =
-      pnlPct >= S.sim.learn.targetPct ||
-      pnlPct <= S.sim.learn.stopPct ||
-      d.netScore <= S.sim.learn.sellMaxScore ||
-      p.daysHeld >= S.sim.learn.holdDays;
-    if (shouldSell) {
-      const pnl = (d.price - p.buyPrice) * p.shares;
-      S.sim.cash += d.price * p.shares;
-      
-      // Enhanced trade tracking for performance analysis
-      const now = new Date();
-      const entryDate = new Date(p.openedAt);
-      S.sim.closed.push({ 
-        ticker: p.ticker, 
-        pnl, 
-        openedAt: p.openedAt, 
-        closedAt: Date.now(),
-        // Enhanced fields for analyzer
-        entryPrice: p.buyPrice,
-        exitPrice: d.price,
-        shares: p.shares,
-        entryDate: entryDate.toISOString().split('T')[0],
-        entryTime: entryDate.toTimeString().substring(0, 5),
-        exitDate: now.toISOString().split('T')[0],
-        exitTime: now.toTimeString().substring(0, 5),
-        setupType: p.setupType || 'Auto Trade',
-        daysHeld: p.daysHeld
-      });
-      
-      simLog('SELL', p.ticker, d.price, `Rule exit (net score ${d.netScore}, held ${p.daysHeld}d)`, pnl);
-    } else {
-      remaining.push({ ...p, daysHeld: p.daysHeld + 1 });
-    }
-  }
-  S.sim.positions = remaining;
-
-  // Buy pass
-  const budgetPerTrade = Math.max(0, S.sim.cash * 0.2);
-  for (const d of sortedBuy) {
-    if (S.sim.positions.some(p => p.ticker === d.ticker)) continue;
-    if (budgetPerTrade < d.price) continue;
-    const shares = Math.floor(budgetPerTrade / d.price);
-    if (shares <= 0) continue;
-    const cost = shares * d.price;
-    if (cost > S.sim.cash) continue;
-    
-    // Determine setup type based on stock data
-    let setupType = 'Auto Trade';
-    if (d.netScore >= 8) setupType = 'Momentum';
-    else if (d.rsi < 40 && d.change > 0) setupType = 'Range Break';
-    else if (d.position > 0.7 && d.macdDiff > 0) setupType = 'Trending';
-    else if (d.position < 0.3 && d.change > 0) setupType = 'VWAP Bounce';
-    else if (d.volume > d.avgVolume * 1.5) setupType = 'News';
-    
-    S.sim.cash -= cost;
-    S.sim.positions.push({ 
-      ticker: d.ticker, 
-      shares, 
-      buyPrice: d.price, 
-      openedAt: Date.now(), 
-      daysHeld: 0,
-      setupType: setupType 
-    });
-    simLog('BUY', d.ticker, d.price, `Top setup from monitor list (net score ${d.netScore})`);
-  }
-
-  S.sim.lastRunDate = today;
-  if (!S.sim.weekStart) S.sim.weekStart = today;
-
-  // Weekly snapshot each Sunday
-  const wd = new Date().getDay();
-  if (wd === 0) {
-    S.sim.weeklyHistory.push({
-      weekEnding: today,
-      equity: simPortfolioValue(),
-      trades: S.sim.log.filter(x => x.side === 'SELL').length
-    });
-    if (S.sim.weeklyHistory.length > 20) S.sim.weeklyHistory.shift();
-  }
-
-  simApplyLearning();
-  save();
-}
-
-function simStart() {
-  const v = parseFloat(document.getElementById('sim-start').value);
-  if (!v || v < 100) { alert('Enter a valid start amount above $100.'); return; }
-  S.sim.started = true;
-  S.sim.enabled = true;
-  S.sim.startCash = v;
-  S.sim.cash = v;
-  S.sim.positions = [];
-  S.sim.log = [];
-  S.sim.closed = [];
-  S.sim.lastRunDate = null;
-  S.sim.weekStart = new Date().toISOString().slice(0, 10);
-  save();
-  renderSim();
-}
-
-function simToggle() {
-  S.sim.enabled = !S.sim.enabled;
-  save();
-  renderSim();
-}
-
-function simRunNow() {
-  simRunCycle(true);
-  renderAll(false);
-}
-
-function simReset() {
-  S.sim.started = false;
-  S.sim.enabled = true;
-  S.sim.cash = S.sim.startCash;
-  S.sim.positions = [];
-  S.sim.log = [];
-  S.sim.closed = [];
-  S.sim.lastRunDate = null;
-  save();
-  renderSim();
-}
-
-function renderSim() {
-  const kpi = document.getElementById('sim-kpi');
-  const logBody = document.getElementById('sim-log-body');
-  const status = document.getElementById('sim-status');
-  const tgl = document.getElementById('sim-toggle');
-  const startInput = document.getElementById('sim-start');
-  if (!kpi || !logBody || !status || !tgl) return;
-  if (startInput) startInput.value = String(S.sim.startCash || 50000);
-
-  const equity = simPortfolioValue();
-  const pnl = equity - (S.sim.startCash || 0);
-  const pnlPct = S.sim.startCash ? (pnl / S.sim.startCash) * 100 : 0;
-
-  kpi.innerHTML = `
-    <div class="sim-k"><small>Simulator Equity</small><b>${fmtMoney(equity)}</b></div>
-    <div class="sim-k"><small>Cash</small><b>${fmtMoney(S.sim.cash)}</b></div>
-    <div class="sim-k"><small>Open Positions</small><b>${S.sim.positions.length}</b></div>
-    <div class="sim-k"><small>Weekly P/L</small><b class="${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}${fmtMoney(pnl)} (${pnlPct.toFixed(2)}%)</b></div>
-    <div class="sim-k"><small>Learning Mode</small><b>Buy net score >= ${S.sim.learn.buyMinScore}, hold ${S.sim.learn.holdDays}d</b></div>`;
-
-  status.textContent = !S.sim.started
-    ? 'Simulator not started yet.'
-    : (S.sim.enabled ? `Running daily. Last cycle: ${S.sim.lastRunDate || 'not run yet'}` : 'Paused. No automatic trades will run.');
-  tgl.textContent = S.sim.enabled ? 'Pause' : 'Resume';
-
-  logBody.innerHTML = S.sim.log.length
-    ? S.sim.log.slice(0, 80).map(x => `
-      <tr>
-        <td>${new Date(x.ts).toLocaleDateString('en-US')}</td>
-        <td>${x.ticker}</td>
-        <td class="${x.side==='BUY'?'pos':'neg'}">${x.side}</td>
-        <td>${fmtMoney(x.price)}</td>
-        <td>${x.reason}</td>
-        <td class="${(x.pnl||0)>=0?'pos':'neg'}">${x.pnl==null?'--':(x.pnl>=0?'+':'') + fmtMoney(Math.abs(x.pnl))}</td>
-      </tr>`).join('')
-    : `<tr><td colspan="6" style="color:var(--muted)">No simulated trades yet.</td></tr>`;
+function toggleDetail(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+  const btn = el.previousElementSibling;
+  if (btn) btn.innerHTML = el.classList.contains('open')
+    ? '&#9650; Details &amp; News'
+    : '&#9660; Details &amp; News';
 }
 
 // ══════════════════════════════════════════════════════════════
-//  REFRESH
+//  DATA LOADING
 // ══════════════════════════════════════════════════════════════
-async function loadOne(ticker, retries = 2) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try { 
-      S.data[ticker] = await fetchStock(ticker);
-      return;  // Success - exit retry loop
-    }
-    catch(e) { 
-      if (attempt === retries) {
-        // Final attempt failed - mark as error
-        S.data[ticker] = { err: true };
-        console.warn(`API failed for ${ticker} after ${retries + 1} attempts:`, e.message);
-        // Track API failures
-        if (!window.apiFailureCount) window.apiFailureCount = 0;
-        window.apiFailureCount++;
-        // Show error banner if multiple failures
-        if (window.apiFailureCount >= 3) {
-          const banner = document.getElementById('api-error-banner');
-          if (banner) banner.style.display = 'block';
-        }
-      } else {
-        // Retry after short delay
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-      }
-    }
+async function loadOne(ticker) {
+  try {
+    S.data[ticker] = await fetchStock(ticker);
+  } catch(e) {
+    S.data[ticker] = { err: true, ticker };
   }
 }
 
 async function refreshAll() {
   if (S.busy) return;
   S.busy = true;
-  
-  // Reset failure counter on new refresh
-  window.apiFailureCount = 0;
-  const banner = document.getElementById('api-error-banner');
-  if (banner) banner.style.display = 'none';
 
-  // Prioritize portfolio stocks and tracked stocks
-  const portfolioTickers = S.portfolio.map(p => p.ticker);
-  const otherTickers = [...new Set([...S.watchlist, ...S.trackedStocks])].filter(t => !portfolioTickers.includes(t));
-  const allTickers = [...portfolioTickers, ...otherTickers];
-  
-  renderAll(true);
+  const refreshBtn = document.getElementById('refresh-btn');
+  if (refreshBtn) refreshBtn.disabled = true;
+  document.getElementById('ts').textContent = 'Refreshing…';
 
-  // Load portfolio stocks FIRST (priority for user)
-  if (portfolioTickers.length) {
-    await Promise.all(portfolioTickers.slice(0, 5).map(ticker => loadOne(ticker)));
-    renderOverviewPortfolio(false);  // Show portfolio data immediately
+  // Market bar first (fast, parallel)
+  await Promise.all(MARKET_TICKERS.map(t => loadOne(t)));
+  renderMarketBar();
+
+  // Watchlist in batches of 6 to avoid API rate limits
+  const tickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
+  if (S.pinnedTicker && !tickers.includes(S.pinnedTicker)) tickers.unshift(S.pinnedTicker);
+
+  for (let i = 0; i < tickers.length; i += 6) {
+    await Promise.all(tickers.slice(i, i + 6).map(t => loadOne(t)));
+    renderList();
+    renderMarketBar();
   }
 
-  // Batch load remaining stocks
-  const BATCH_SIZE = 10;
-  const batches = [];
-  for (let i = 0; i < allTickers.length; i += BATCH_SIZE) {
-    batches.push(allTickers.slice(i, i + BATCH_SIZE));
-  }
-  
-  // Load market trends (parallel with first batch)
-  const marketTrendResults = await Promise.all(
-    CONFIG.marketTrends.map(async ({ ticker, label }) => {
-      try {
-        const trend = await fetchStock(ticker);
-        return { ...trend, ticker, label, mode: marketMode(trend) };
-      } catch (e) {
-        return null;
-      }
-    })
-  );
-
-  S.marketTrends = marketTrendResults.filter(Boolean).sort((a, b) =>
-    (b.netScore ?? -999) - (a.netScore ?? -999) ||
-    (b.changePct ?? 0) - (a.changePct ?? 0)
-  );
-
-  if (S.marketTrends.length) {
-    const supportiveCount = S.marketTrends.filter(item => item.netScore >= 1 && item.macdDiff > 0 && item.price >= item.ema20 * 0.97).length;
-    S.marketBull = supportiveCount >= 3;
-  } else {
-    S.marketBull = null;
-  }
-
-  // Load stocks in batches with progressive rendering
-  for (let i = 0; i < batches.length; i++) {
-    await Promise.allSettled(batches[i].map(t => loadOne(t)));
-    if (i === 0 || i === batches.length - 1) {
-      renderAll(false); // Render after first batch and final batch
-    }
-  }
-
-  S.lastDataRefresh = Date.now();
-  simRunCycle(false);
-  renderAll(false);
-  const tsEl = document.getElementById('ts');
-  tsEl.textContent = 'Updated: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
-  tsEl.title = 'Real-time data';
-  tsEl.style.color = '';
   S.busy = false;
-  save();
+  if (refreshBtn) refreshBtn.disabled = false;
+  document.getElementById('ts').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  renderList();
 }
 
-// ══════════════════════════════════════════════════════════════
-//  WATCHLIST ACTIONS
-// ══════════════════════════════════════════════════════════════
-function addWatch() {
-  const inp = document.getElementById('add-input');
-  const t   = inp.value.trim().toUpperCase();
-  if (!t) return;
-  if (!S.watchlist.includes(t)) {
-    S.watchlist.push(t); save();
-    renderAll(true);
-    loadOne(t).then(() => renderAll(false));
-  }
-  inp.value = '';
+async function manualRefresh() {
+  S.data = {};
+  await refreshAll();
 }
 
 async function searchStock() {
-  const inp = document.getElementById('add-input');
-  const ticker = inp.value.trim().toUpperCase();
+  const input  = document.getElementById('q');
+  const ticker = (input.value || '').trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, '');
   if (!ticker) return;
+  input.value = '';
 
-  const searchSec = document.getElementById('search-results-sec');
-  const searchBody = document.getElementById('search-body');
-  const btn = document.getElementById('rbtn');
-  
-  // Show loading state
-  searchSec.style.display = 'block';
-  btn.textContent = '🔍 Searching...';
-  btn.disabled = true;
-  searchBody.innerHTML = `<div class="empty">Searching for ${ticker}...</div>`;
-
-  try {
-    // Fetch stock data
-    const stockData = await fetchStock(ticker);
-    
-    // Store in data cache FIRST
-    S.data[ticker] = stockData;
-    
-    // Automatically add to watchlist if not already there
-    const isInWatchlist = S.watchlist.includes(ticker);
-    let addedNow = false;
-    if (!isInWatchlist) {
-      S.watchlist.push(ticker);
-      save();
-      addedNow = true;
-      console.log(`✓ ${ticker} automatically added to watchlist`);
-    }
-    
-    // Add to tracked stocks
-    if (!S.trackedStocks.includes(ticker)) {
-      S.trackedStocks.push(ticker);
-    }
-    
-    // Create search result row
-    const sig = signal(stockData);
-    const pred = prediction(stockData);
-    const cc = stockData.change >= 0 ? 'pos' : 'neg';
-    const cs = stockData.change >= 0 ? '+' : '';
-
-    // Asset type badge
-    let assetBadge = '';
-    if (stockData.assetType && stockData.assetType !== 'Stock') {
-      const badgeClass = stockData.assetType === 'ETF' ? 'asset-etf' : stockData.assetType === 'Metal' ? 'asset-metal' : stockData.assetType === 'Crypto' ? 'asset-crypto' : '';
-      assetBadge = `<span class="asset-type-badge ${badgeClass}">${stockData.assetType}</span>`;
-    }
-
-    const statusMsg = addedNow
-      ? '<span style="color:var(--green);font-size:0.9rem;font-weight:700;">✅ Successfully Added to Watchlist!</span>'
-      : '<span style="color:var(--blue);font-size:0.9rem;">✓ Already in Your Watchlist</span>';
-
-    // Check if already in portfolio
-    const isInPortfolio = S.portfolio.some(p => p.ticker === ticker);
-
-    // Create detailed card view
-    const bullishPills = stockData.bullishDrivers?.length
-      ? stockData.bullishDrivers.map(d => `<span class="driver-pill bullish-pill">${d}</span>`).join('')
-      : '<span style="color:var(--muted);font-size:0.75rem">No bullish drivers</span>';
-    
-    const bearishPills = stockData.bearishDrivers?.length
-      ? stockData.bearishDrivers.map(d => `<span class="driver-pill bearish-pill">${d}</span>`).join('')
-      : '<span style="color:var(--muted);font-size:0.75rem">No bearish concerns</span>';
-    
-    const catalystPills = stockData.catalystDrivers?.length
-      ? stockData.catalystDrivers.map(d => `<span class="driver-pill catalyst-pill">${d}</span>`).join('')
-      : '<span style="color:var(--muted);font-size:0.75rem">No upcoming catalysts</span>';
-
-    const newsHtml = stockData.headlines?.length
-      ? stockData.headlines.map(h => `<div style="font-size:0.75rem;padding:6px 0;border-bottom:1px dashed var(--border)"><b>${h.publisher||'News'}</b>: ${h.title}</div>`).join('')
-      : '<div style="font-size:0.75rem;color:var(--muted)">No recent headlines</div>';
-
-    searchBody.innerHTML = `
-      <div style="padding:16px;background:${addedNow ? 'rgba(76,175,80,0.15)' : 'rgba(30,99,217,0.08)'};border:2px solid ${addedNow ? 'var(--green)' : 'var(--blue)'};border-radius:12px;margin-bottom:24px;">
-        <div style="text-align:center;padding:12px 0;">
-          <div style="font-size:2.5rem;margin-bottom:8px;">${addedNow ? '✅' : '🔍'}</div>
-          ${statusMsg}
-          <div style="margin-top:8px;">
-            <button class="btn-sm" onclick="document.querySelector('#rank-list').scrollIntoView({behavior:'smooth'})" style="background:var(--blue);color:white;">
-              📊 View in Ranked Board
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="portfolio-card" style="background:linear-gradient(135deg, rgba(30,99,217,0.08) 0%, rgba(30,99,217,0.02) 100%);border:2px solid var(--blue);">
-        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;">
-          <div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-              <strong style="font-size:1.4rem;">${ticker}</strong>
-              ${assetBadge}
-              ${stockData.daysToEarnings !== null && stockData.daysToEarnings >= 0 && stockData.daysToEarnings <= 14
-                ? `<span style="font-size:0.7rem;padding:4px 8px;border-radius:6px;background:rgba(30,99,217,0.12);color:var(--blue);font-weight:700;">📅 Earnings in ${stockData.daysToEarnings === 0 ? 'TODAY' : stockData.daysToEarnings + 'd'}</span>`
-                : ''}
-            </div>
-          </div>
-          <span class="badge ${sig.cls}" style="font-size:0.9rem;padding:8px 16px;">${sig.label}</span>
-        </div>
-        
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <div>
-            <div style="font-size:2rem;font-weight:700;color:var(--text);">$${stockData.price.toFixed(2)}</div>
-            <div style="font-size:0.95rem;margin-top:4px;">
-              <span class="${cc}" style="font-weight:600;">${cs}${stockData.change.toFixed(2)} (${cs}${stockData.changePct.toFixed(2)}%)</span>
-              <span style="color:var(--muted);margin-left:8px;">today</span>
-            </div>
-          </div>
-        </div>
-        
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;">
-          <div>
-            <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Net Score</div>
-            <div style="font-size:1.1rem;font-weight:700;margin-top:4px;">${stockData.netScore}</div>
-          </div>
-          <div>
-            <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Bull / Bear</div>
-            <div style="font-size:1.1rem;font-weight:700;margin-top:4px;">${stockData.bullishScore} / ${stockData.bearishScore}</div>
-          </div>
-          <div>
-            <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Conviction</div>
-            <div style="font-size:1.1rem;font-weight:700;margin-top:4px;">${stockData.conviction}%</div>
-          </div>
-        </div>
-        
-        <details open style="margin-bottom:12px;">
-          <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">📊 Technical Metrics</summary>
-          <div style="padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:8px;">
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;font-size:0.85rem;">
-              <div><span style="color:var(--muted);">RSI:</span> <strong>${stockData.rsi.toFixed(1)}</strong></div>
-              <div><span style="color:var(--muted);">MACD Diff:</span> <strong>${stockData.macdDiff.toFixed(4)}</strong></div>
-              <div><span style="color:var(--muted);">Week Position:</span> <strong>${(stockData.position*100).toFixed(0)}%</strong></div>
-              <div><span style="color:var(--muted);">EMA20:</span> <strong>$${stockData.ema20.toFixed(2)}</strong></div>
-            </div>
-          </div>
-        </details>
-        
-        <details open style="margin-bottom:12px;">
-          <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">🎯 Bullish Drivers</summary>
-          <div style="padding:12px;background:rgba(76,175,80,0.05);border-radius:8px;margin-top:8px;">
-            ${bullishPills}
-          </div>
-        </details>
-        
-        <details open style="margin-bottom:12px;">
-          <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">⚠️ Bearish Concerns</summary>
-          <div style="padding:12px;background:rgba(239,83,80,0.05);border-radius:8px;margin-top:8px;">
-            ${bearishPills}
-          </div>
-        </details>
-        
-        <details style="margin-bottom:12px;">
-          <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">⚡ Catalysts</summary>
-          <div style="padding:12px;background:rgba(255,193,7,0.05);border-radius:8px;margin-top:8px;">
-            ${catalystPills}
-          </div>
-        </details>
-        
-        <details style="margin-bottom:12px;">
-          <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;padding:8px 0;">📰 Recent News</summary>
-          <div style="padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:8px;">
-            ${newsHtml}
-          </div>
-        </details>
-        
-        <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
-          ${isInPortfolio
-            ? '<span style="color:var(--muted);font-size:0.85rem;padding:12px;">✓ Already in Portfolio</span>'
-            : `<button class="btn-p" onclick="openModalWithTicker('${ticker}')" style="flex:1;font-size:0.9rem;">💼 Add to Portfolio</button>`}
-          <button class="btn-sm" onclick="window.open('https://finance.yahoo.com/quote/${ticker}', '_blank')" style="font-size:0.85rem;">📈 View on Yahoo</button>
-        </div>
-      </div>
-    `;
-    
-    // Refresh the ranked board to show the new stock
-    renderRankings(false);
-    renderOverview();
-    
-    // Clear input for next search
-    inp.value = '';
-    
-    // Scroll to search results
-    setTimeout(() => {
-      searchSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-
-  } catch (e) {
-    searchBody.innerHTML = `<div class="empty" style="color:var(--red)">⚠ Failed to load ${ticker} — ${e.message || 'Check ticker symbol'}</div>`;
-  } finally {
-    btn.textContent = '🔍 Search Stock';
-    btn.disabled = false;
-  }
-}
-
-function addToWatchlistFromSearch(ticker) {
   if (!S.watchlist.includes(ticker)) {
     S.watchlist.push(ticker);
-    save();
-    renderAll(false);
-    
-    // Update search results to show "In Watchlist"
-    searchStock();
+    saveWatchlist();
   }
 
-  // Clear input
-  document.getElementById('add-input').value = '';
-}
-function rmWatch(ticker) {
-  S.watchlist = S.watchlist.filter(t => t !== ticker);
-  save(); renderAll(false);
-}
+  S.pinnedTicker = ticker;
+  renderList();
+  document.getElementById('ts').textContent = `Loading ${ticker}…`;
 
-function setWatchlistFilter(filter) {
-  S.watchlistFilter = filter;
-  save(); // Persist filter selection
-  
-  // Update button styles
-  ['all', 'bullish', 'bearish', 'weeklow', 'earnings'].forEach(f => {
-    const btn = document.getElementById(`filter-${f}`);
-    if (btn) {
-      if (f === filter) {
-        btn.style.background = 'var(--blue)';
-        btn.style.color = 'white';
-      } else {
-        btn.style.background = '';
-        btn.style.color = '';
-      }
-    }
-  });
-  
-  renderRankings(false);
-}
-
-// Removed cache age tracking - no caching in real-time mode
-
-document.getElementById('add-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') addWatch();
-});
-
-// ══════════════════════════════════════════════════════════════
-//  PORTFOLIO ACTIONS
-// ══════════════════════════════════════════════════════════════
-function openModal()  { document.getElementById('modal').classList.add('on'); document.getElementById('m-ticker').focus(); }
-function openModalWithTicker(ticker) {
-  const modal = document.getElementById('modal');
-  const tickerInput = document.getElementById('m-ticker');
-  modal.classList.add('on');
-  tickerInput.value = ticker;
-  // Focus on shares input since ticker is pre-filled
-  document.getElementById('m-shares').focus();
-}
-function closeModal() {
-  document.getElementById('modal').classList.remove('on');
-  ['m-ticker','m-shares','m-price'].forEach(id => document.getElementById(id).value = '');
-}
-function modalBg(e)   { if (e.target === document.getElementById('modal')) closeModal(); }
-
-function addPosition() {
-  const ticker   = document.getElementById('m-ticker').value.trim().toUpperCase();
-  const shares   = parseFloat(document.getElementById('m-shares').value);
-  const buyPrice = parseFloat(document.getElementById('m-price').value);
-  if (!ticker || !shares || !buyPrice || shares <= 0 || buyPrice <= 0) {
-    alert('Please fill in all fields with valid positive numbers.'); return;
-  }
-  S.portfolio = S.portfolio.filter(p => p.ticker !== ticker);
-  S.portfolio.push({ ticker, shares, buyPrice });
-  if (!S.watchlist.includes(ticker)) { S.watchlist.push(ticker); }
-  save(); closeModal();
-  loadConfig();
-}
-
-function updatePosShares(ticker, newVal) {
-  const shares = parseFloat(newVal);
-  if (isNaN(shares) || shares <= 0) { alert('Invalid shares value'); renderAll(false); return; }
-  const pos = S.portfolio.find(p => p.ticker === ticker);
-  if (pos) { pos.shares = shares; save(); renderAll(false); }
-}
-
-function updatePosBuyPrice(ticker, newVal) {
-  const price = parseFloat(newVal.replace('$', ''));
-  if (isNaN(price) || price <= 0) { alert('Invalid price value'); renderAll(false); return; }
-  const pos = S.portfolio.find(p => p.ticker === ticker);
-  if (pos) { pos.buyPrice = price; save(); renderAll(false); }
-}
-
-function toggleTestMode() {
-  S.testMode = !S.testMode;
-  const autoBtn = document.getElementById('auto-refresh-btn');
-  const exportBtn = document.getElementById('export-trades-btn');
-  
-  if (autoBtn) {
-    autoBtn.style.display = S.testMode ? 'inline-block' : 'none';
-    if (!S.testMode && S.autoRefresh) {
-      toggleAutoRefresh(); // turn off auto-refresh when exiting test mode
-    }
-  }
-  
-  if (exportBtn) {
-    exportBtn.style.display = S.testMode ? 'inline-block' : 'none';
-  }
-  
-  renderAll(false);
-}
-
-// Export trade history for performance analysis
-function exportTradeHistory() {
-  if (!S.sim.closed || S.sim.closed.length === 0) {
-    alert('No closed trades to export. Complete some test trades first.');
-    return;
-  }
-  
-  // Enhanced CSV format with coaching data
-  const csvHeader = 'Symbol,Entry Date,Entry Time,Entry Price,Exit Date,Exit Time,Exit Price,Shares,P&L,Setup Type,Trade Number,Previous Trades PnL,Days Held\n';
-  
-  const csvRows = S.sim.closed.map((trade, idx) => {
-    // Calculate trade number and previous trades context
-    const tradeNumber = idx + 1;
-    const recentTrades = S.sim.closed.slice(Math.max(0, idx - 2), idx);
-    const prevPnLs = recentTrades.map(t => t.pnl?.toFixed(2) || '0.00').join('|');
-    
-    return [
-      trade.ticker,
-      trade.entryDate || new Date(trade.openedAt).toISOString().split('T')[0],
-      trade.entryTime || new Date(trade.openedAt).toTimeString().substring(0, 5),
-      trade.entryPrice?.toFixed(2) || '0.00',
-      trade.exitDate || new Date(trade.closedAt).toISOString().split('T')[0],
-      trade.exitTime || new Date(trade.closedAt).toTimeString().substring(0, 5),
-      trade.exitPrice?.toFixed(2) || '0.00',
-      trade.shares || 0,
-      trade.pnl?.toFixed(2) || '0.00',
-      trade.setupType || 'Auto Trade',
-      tradeNumber,
-      prevPnLs || 'N/A',
-      trade.daysHeld || 0
-    ].join(',');
-  }).join('\n');
-  
-  const csvContent = csvHeader + csvRows;
-  
-  // Create download
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  
-  const filename = `trades_${new Date().toISOString().split('T')[0]}.csv`;
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  // Enhanced alert with coaching info
-  const recentLosses = S.sim.closed.slice(-3).filter(t => t.pnl < 0).length;
-  let coachingTip = '';
-  
-  if (recentLosses >= 2) {
-    coachingTip = '\n\n⚠️  COACHING ALERT: You have 2+ recent losses. Consider stopping for the day.';
-  }
-  
-  const avgPnL = S.sim.closed.reduce((sum, t) => sum + (t.pnl || 0), 0) / S.sim.closed.length;
-  const winRate = (S.sim.closed.filter(t => t.pnl > 0).length / S.sim.closed.length * 100).toFixed(1);
-  
-  alert(`✅ Exported ${S.sim.closed.length} trades to ${filename}
-  
-📊 Quick Stats:
-• Win Rate: ${winRate}%
-• Avg P&L: $${avgPnL.toFixed(2)}
-${coachingTip}
-
-🎓 Run coaching analysis:
-python trade_journal_coach.py ${filename}
-
-📈 Run performance analysis:
-python analyze_trades.py ${filename}`);
-}
-
-function toggleAutoRefresh() {
-  S.autoRefresh = !S.autoRefresh;
-  const btn = document.getElementById('auto-refresh-btn');
-  if (!btn) return;
-  
-  if (S.autoRefresh) {
-    btn.textContent = '🔄 Auto-Refresh: ON';
-    btn.style.background = 'linear-gradient(135deg, var(--green), var(--teal))';
-    btn.style.color = 'white';
-    // Run simulation and refresh every 10 seconds in test mode
-    S.autoRefreshInterval = setInterval(() => {
-      if (S.testMode && S.autoRefresh) {
-        simRunCycle();
-        renderAll(false);
-      } else {
-        toggleAutoRefresh(); // stop if conditions changed
-      }
-    }, 10000);
-  } else {
-    btn.textContent = '🔄 Auto-Refresh: OFF';
-    btn.style.background = '';
-    btn.style.color = '';
-    if (S.autoRefreshInterval) {
-      clearInterval(S.autoRefreshInterval);
-      S.autoRefreshInterval = null;
-    }
-  }
-}
-
-function toggleDetails(id) {
-  const el = document.getElementById(id);
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-
-function exportSimLog() {
-  if (!S.sim.log.length) { alert('No simulation data to export yet.'); return; }
-  const data = {
-    exported: new Date().toISOString(),
-    startCash: S.sim.startCash,
-    currentEquity: simPortfolioValue(),
-    positions: S.sim.positions,
-    closedTrades: S.sim.closed,
-    log: S.sim.log,
-    learning: S.sim.learn
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `sim-log-${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function openSettings() {
-  const watchlist = document.getElementById('s-watchlist');
-  const proxies = document.getElementById('s-proxies');
-  watchlist.value = CONFIG.defaultWatchlist.join(', ');
-  proxies.value = CONFIG.marketTrends.map(m => `${m.ticker}:${m.label}`).join(', ');
-  document.getElementById('settings-modal').classList.add('on');
-}
-
-function closeSettings() {
-  document.getElementById('settings-modal').classList.remove('on');
-}
-
-function settingsModalBg(e) {
-  if (e.target === document.getElementById('settings-modal')) closeSettings();
-}
-
-function saveSettings() {
-  const watchlistRaw = document.getElementById('s-watchlist').value;
-  const proxiesRaw = document.getElementById('s-proxies').value;
-  
-  const watchlist = watchlistRaw.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
-  const proxies = proxiesRaw.split(',').map(p => {
-    const [ticker, label] = p.split(':').map(s => s.trim());
-    return ticker && label ? { ticker: ticker.toUpperCase(), label } : null;
-  }).filter(Boolean);
-
-  if (!watchlist.length || !proxies.length) {
-    alert('Both watchlist and market proxies must have at least one entry.');
-    return;
-  }
-
-  CONFIG.defaultWatchlist = watchlist;
-  CONFIG.marketTrends = proxies;
-  saveConfig();
-  closeSettings();
-  alert('Settings saved! Refresh to apply new market proxies.');
-}
-
-function exportWatchlist() {
-  const data = JSON.stringify(S.watchlist, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'watchlist.json';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportPortfolio() {
-  const data = JSON.stringify(S.portfolio, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'portfolio.json';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function importData() {
-  document.getElementById('import-file').click();
-}
-
-function handleImport(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const data = JSON.parse(e.target.result);
-      const filename = file.name.toLowerCase();
-      
-      if (filename.includes('watchlist')) {
-        if (Array.isArray(data)) {
-          S.watchlist = data;
-          save();
-          alert(`Imported ${data.length} tickers to watchlist!`);
-          renderAll(true);
-        } else {
-          alert('Invalid watchlist format. Expected array of tickers.');
-        }
-      } else if (filename.includes('portfolio')) {
-        if (Array.isArray(data) && data.every(p => p.ticker && p.shares && p.buyPrice)) {
-          S.portfolio = data;
-          // Add portfolio tickers to watchlist
-          data.forEach(p => { if (!S.watchlist.includes(p.ticker)) S.watchlist.push(p.ticker); });
-          save();
-          alert(`Imported ${data.length} positions to portfolio!`);
-          renderAll(true);
-        } else {
-          alert('Invalid portfolio format. Expected array with ticker, shares, and buyPrice.');
-        }
-      } else {
-        alert('Please name your file "watchlist.json" or "portfolio.json"');
-      }
-    } catch (err) {
-      alert('Failed to parse JSON file: ' + err.message);
-    }
-    // Reset input
-    event.target.value = '';
-  };
-  reader.readAsText(file);
-}
-
-function rmPos(ticker) {
-  S.portfolio = S.portfolio.filter(p => p.ticker !== ticker);
-  save(); renderAll(false);
-}
-
-// ══════════════════════════════════════════════════════════════
-//  TAB SWITCHING
-// ══════════════════════════════════════════════════════════════
-function switchTab(tabName) {
-  // Hide all tab panels
-  const panels = document.querySelectorAll('.tab-panel');
-  panels.forEach(panel => panel.classList.remove('active'));
-  
-  // Remove active class from all tab buttons
-  const buttons = document.querySelectorAll('.tab-btn');
-  buttons.forEach(btn => btn.classList.remove('active'));
-  
-  // Show selected tab panel
-  const selectedPanel = document.getElementById(`tab-${tabName}`);
-  if (selectedPanel) {
-    selectedPanel.classList.add('active');
-  }
-  
-  // Highlight active tab button
-  const activeBtn = Array.from(buttons).find(btn => 
-    btn.textContent.toLowerCase().includes(tabName.toLowerCase()) ||
-    btn.onclick.toString().includes(tabName)
-  );
-  if (activeBtn) {
-    activeBtn.classList.add('active');
-  }
-  
-  // Store active tab in localStorage
-  localStorage.setItem('ss_activeTab', tabName);
-}
-
-// Load active tab on page load
-function loadActiveTab() {
-  const savedTab = localStorage.getItem('ss_activeTab');
-  if (savedTab) {
-    switchTab(savedTab);
-  }
-  // Restore filter button state
-  setTimeout(() => setWatchlistFilter(S.watchlistFilter), 100);
+  await loadOne(ticker);
+  renderList();
+  renderMarketBar();
+  document.getElementById('ts').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ══════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════
 (async () => {
-  await load();
-  loadActiveTab();
-  renderAll(true);
-  refreshAll();
+  try {
+    const saved = localStorage.getItem('sm_watch');
+    S.watchlist = saved ? JSON.parse(saved) : [...DEFAULT_WATCHLIST];
+  } catch(e) {
+    S.watchlist = [...DEFAULT_WATCHLIST];
+  }
 
-  // Keep clients aligned with latest JSON updates from GitHub Pages.
-  setInterval(syncSharedDataFromServer, SHARED_DATA_SYNC_MS);
-  window.addEventListener('focus', syncSharedDataFromServer);
+  await refreshAll();
+
+  // Auto-refresh every 5 min when tab is visible
+  setInterval(() => { if (!document.hidden && !S.busy) refreshAll(); }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) syncSharedDataFromServer();
+    if (!document.hidden && !S.busy) refreshAll();
   });
 })();
 </script>
