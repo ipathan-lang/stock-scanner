@@ -1121,7 +1121,7 @@ async function loadOne(ticker) {
 
 // Called by rolling timer — silently refreshes next batch of 5 stocks
 async function rotateNext() {
-  if (document.hidden || S.busy) return;
+  if (S.busy) return;
   const tickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
   if (!tickers.length) return;
   if (_rotIdx >= tickers.length) _rotIdx = 0;
@@ -1232,9 +1232,12 @@ async function searchStock() {
 
   await refreshAll(); // starts rolling timer automatically
 
-  // Resume rolling when tab becomes visible again after being hidden
+  // When tab becomes visible again, immediately catch up then ensure timer is running
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !_rotTimer) startRolling();
+    if (!document.hidden) {
+      rotateNext();
+      if (!_rotTimer) startRolling();
+    }
   });
 })();
 </script>
