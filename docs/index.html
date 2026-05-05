@@ -318,18 +318,32 @@
 //  DEFAULT WATCHLIST  (edit to customise)
 // ══════════════════════════════════════════════════════════════
 const DEFAULT_WATCHLIST = [
-  // Mega-cap Tech
+  // ── Mega-cap Tech / Software
   'AAPL','MSFT','GOOGL','AMZN','NVDA','META','TSLA','ORCL','AVGO','ADBE','CRM','AMD','NFLX',
-  // Finance
-  'JPM','V','MA','BAC','WFC','GS',
-  // Healthcare
-  'LLY','UNH','JNJ','ABBV','MRK',
-  // Consumer
-  'WMT','COST','HD','PG','NKE','MCD',
-  // Energy
-  'XOM','CVX',
-  // ETFs / Macro
-  'SPY','QQQ','IWM','XLK','XLF','XLE','XLV','GLD','TLT'
+  'INTC','QCOM','TXN','MU','AMAT','LRCX','KLAC',
+
+  // ── AI Pure-Plays & Infrastructure (2026 trending)
+  'SMCI','PLTR','SOUN','AI','ARWR','ARM','MRVL','DELL','HPE','NET','SNOW','DDOG','ZS','PANW',
+
+  // ── Chip Manufacturing / Semiconductors
+  'TSM','ASML','AEHR','ONTO','WOLF','ENTG','ACLS','UCTT','FORM','SITM','MPWR',
+
+  // ── Healthcare / Biotech / GLP-1 (2026 trending)
+  'LLY','UNH','JNJ','ABBV','MRK','PFE','AMGN','BMY','GILD','REGN','VRTX',
+  'ISRG','MDT','SYK','ELV','CVS','HCA','DXCM','INCY','MRNA',
+
+  // ── Finance / Fintech
+  'JPM','V','MA','BAC','WFC','GS','MS','AXP','PYPL','SQ','COF','BRK-B',
+
+  // ── Consumer / Retail
+  'WMT','COST','HD','PG','NKE','MCD','SBUX','TGT','AMZN',
+
+  // ── Energy / Clean Energy
+  'XOM','CVX','NEE','ENPH','FSLR','CEG',
+
+  // ── ETFs / Macro / Thematic (2026 trending)
+  'SPY','QQQ','IWM','XLK','XLF','XLE','XLV','XLY','GLD','TLT',
+  'SOXX','SMH','AIQ','ROBO','ARKG','IBB','HACK','CIBR','VGT','QQQM'
 ];
 
 const MARKET_TICKERS = ['SPY','QQQ','IWM','XLK','XLF'];
@@ -464,7 +478,8 @@ function prediction(d) {
 
 function detectAssetType(ticker) {
   const etfs   = ['SPY','QQQ','IWM','XLK','XLF','XLE','XLV','XLY','XLP','VTI','VOO','IVV',
-                  'AGG','BND','VXUS','TLT','GLD','SLV','IAU'];
+                  'AGG','BND','VXUS','TLT','GLD','SLV','IAU','SOXX','SMH','AIQ','ROBO',
+                  'ARKG','IBB','HACK','CIBR','VGT','QQQM'];
   const metals = ['GDX','GDXJ','COPX','USO','UNG'];
   if (etfs.includes(ticker))    return 'ETF';
   if (metals.includes(ticker))  return 'Metal';
