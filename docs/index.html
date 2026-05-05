@@ -851,24 +851,27 @@ function parseEarnings(data) {
 }
 
 async function fetchStock(ticker) {
-  const ps          = tickerProxyStart(ticker);
-  const chartUrl    = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
-  const newsUrl     = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
-  // v7/finance/quote: returns earningsTimestamp — simpler & more proxy-friendly than quoteSummary
-  const earningsUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}&fields=earningsTimestamp,earningsTimestampStart,earningsTimestampEnd`;
+  const ps       = tickerProxyStart(ticker);
+  const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
+  const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
-  const [chart, news, earningsRaw] = await Promise.all([
+  const [chart, news] = await Promise.all([
     fetchJ(chartUrl, ps),
-    fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
-    fetchJProxy(earningsUrl, (ps + 2) % 3).catch(() => null)
+    fetchJ(newsUrl, (ps + 1) % 3).catch(() => null)
   ]);
-
-  const { nextDate, surprise } = parseEarnings(earningsRaw);
 
   const res = chart.chart?.result?.[0];
   if (!res) throw new Error('No chart data for ' + ticker);
 
   const meta = res.meta;
+
+  // Extract earnings date from chart meta — already in the response we fetch anyway
+  let nextEarnings = null;
+  const ets = meta.earningsTimestampStart ?? meta.earningsTimestamp;
+  if (ets) {
+    const d = new Date(ets * 1000);
+    if (!isNaN(d) && d > new Date()) nextEarnings = d;
+  }
   const q    = res.indicators.quote[0];
 
   const valid = [];
@@ -905,15 +908,7 @@ async function fetchStock(ticker) {
   if (changePct >= 2) { catalystScore += 1; catalystDrivers.push('Fresh buyers entering today'); }
   if (changePct >= 4) { catalystScore += 1; catalystDrivers.push('Strong daily rally momentum'); }
 
-  // ── Earnings catalyst boost ──
-  if (surprise?.beat && Math.abs(surprise.pct) >= 5) {
-    catalystScore = Math.min(catalystScore + 1, 2);
-    catalystDrivers.push(`EPS Beat last quarter (+${surprise.pct.toFixed(1)}%)`);
-  }
-  if (surprise && !surprise.beat && Math.abs(surprise.pct) >= 5) {
-    bearishScore += 1;
-    bearishDrivers.push(`EPS Miss last quarter (${surprise.pct.toFixed(1)}%)`);
-  }
+  // ── Earnings catalyst boost (no EPS data from chart endpoint) ──
 
   // Recalculate after earnings adjustment
   const netScoreFinal   = ind.bullishScore + catalystScore - bearishScore;
@@ -936,8 +931,8 @@ async function fetchStock(ticker) {
     conviction: convictionFinal,
     sortScore: sortScoreFinal,
     headlines,
-    nextEarnings: nextDate,
-    epsSurprise: surprise
+    nextEarnings,
+    epsSurprise: null
   };
 }
 
