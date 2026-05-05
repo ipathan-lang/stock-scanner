@@ -701,35 +701,11 @@ function detectAssetType(ticker) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  DISK CACHE  (20-min TTL — survives page refresh)
+//  ROLLING REFRESH STATE
+//  Refreshes 5 stocks every 20s → full 112-stock cycle ≈ 7.5 min
 // ══════════════════════════════════════════════════════════════
-const CACHE_TTL = 20 * 60 * 1000;
-let _dc = null;
-
-function getDC() {
-  if (_dc) return _dc;
-  try { _dc = JSON.parse(localStorage.getItem('sm_dcache') || '{}'); }
-  catch(e) { _dc = {}; }
-  return _dc;
-}
-function saveDC() {
-  try { localStorage.setItem('sm_dcache', JSON.stringify(_dc)); } catch(e) {}
-}
-function getCached(ticker) {
-  const e = getDC()[ticker];
-  if (!e || Date.now() - e.ts > CACHE_TTL) return null;
-  const d = { ...e.data };
-  if (d.nextEarnings) d.nextEarnings = new Date(d.nextEarnings);
-  return d;
-}
-function setCached(ticker, data) {
-  const c = getDC();
-  c[ticker] = { data: { ...data, nextEarnings: data.nextEarnings ? data.nextEarnings.getTime() : null }, ts: Date.now() };
-  const keys = Object.keys(c);
-  if (keys.length > 200) keys.sort((a,b) => c[a].ts - c[b].ts).slice(0, keys.length - 200).forEach(k => delete c[k]);
-  saveDC();
-}
-function clearDC() { _dc = {}; try { localStorage.removeItem('sm_dcache'); } catch(e) {} }
+let _rotIdx   = 0;
+let _rotTimer = null;
 
 // ══════════════════════════════════════════════════════════════
 //  FETCH  (proxy rotation + light variant for optional data)
@@ -1135,53 +1111,79 @@ function toggleDetail(id) {
 // ══════════════════════════════════════════════════════════════
 //  DATA LOADING
 // ══════════════════════════════════════════════════════════════
-async function loadOne(ticker, bypassCache = false) {
-  if (!bypassCache) {
-    const cached = getCached(ticker);
-    if (cached) { S.data[ticker] = cached; return; }
-  }
+async function loadOne(ticker) {
   try {
     S.data[ticker] = await fetchStock(ticker);
-    setCached(ticker, S.data[ticker]);
   } catch(e) {
     S.data[ticker] = { err: true, ticker };
   }
 }
 
+// Called by rolling timer — silently refreshes next batch of 5 stocks
+async function rotateNext() {
+  if (document.hidden || S.busy) return;
+  const tickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
+  if (!tickers.length) return;
+  if (_rotIdx >= tickers.length) _rotIdx = 0;
+  const batch = tickers.slice(_rotIdx, _rotIdx + 5);
+  _rotIdx += 5;
+  await Promise.all(batch.map(t => loadOne(t)));
+  renderList();
+  // Refresh market bar once per full cycle
+  if (_rotIdx >= tickers.length) {
+    await Promise.all(MARKET_TICKERS.map(t => loadOne(t)));
+    renderMarketBar();
+    const btn = document.getElementById('refresh-btn');
+    if (btn && !btn.disabled) {
+      const ts = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      btn.innerHTML = `&#x21BB; Updated ${ts}`;
+      setTimeout(() => { if (btn) btn.innerHTML = '&#x21BB; Refresh'; }, 5000);
+    }
+  }
+}
+
+function startRolling() {
+  if (_rotTimer) clearInterval(_rotTimer);
+  _rotTimer = setInterval(rotateNext, 20000); // every 20 seconds
+}
+
+// Full load — fetches everything once then starts the rolling timer
 async function refreshAll() {
   if (S.busy) return;
   S.busy = true;
+  if (_rotTimer) { clearInterval(_rotTimer); _rotTimer = null; }
 
   const refreshBtn = document.getElementById('refresh-btn');
-  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.innerHTML = '&#x21BB; Refreshing…'; }
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.innerHTML = '&#x21BB; Loading…'; }
 
-  // Market bar first (fast, parallel)
+  // Market bar first
   await Promise.all(MARKET_TICKERS.map(t => loadOne(t)));
   renderMarketBar();
 
-  // Watchlist in batches of 4 with 350ms gap to stay under rate limits
+  // Watchlist in batches of 5 with 350ms gap between batches
   const tickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
   if (S.pinnedTicker && !tickers.includes(S.pinnedTicker)) tickers.unshift(S.pinnedTicker);
 
-  for (let i = 0; i < tickers.length; i += 4) {
-    await Promise.all(tickers.slice(i, i + 4).map(t => loadOne(t)));
+  for (let i = 0; i < tickers.length; i += 5) {
+    await Promise.all(tickers.slice(i, i + 5).map(t => loadOne(t)));
     renderList();
     renderMarketBar();
-    if (i + 4 < tickers.length) await new Promise(r => setTimeout(r, 350));
+    if (i + 5 < tickers.length) await new Promise(r => setTimeout(r, 350));
   }
 
   S.busy = false;
   if (refreshBtn) {
     refreshBtn.disabled = false;
-    const t = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-    refreshBtn.innerHTML = `&#x21BB; Updated ${t}`;
+    const ts = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    refreshBtn.innerHTML = `&#x21BB; Updated ${ts}`;
     setTimeout(() => { if (refreshBtn) refreshBtn.innerHTML = '&#x21BB; Refresh'; }, 8000);
   }
   renderList();
+  _rotIdx = 0;
+  startRolling(); // kick off continuous rolling refresh
 }
 
 async function manualRefresh() {
-  clearDC();
   S.data = {};
   await refreshAll();
 }
@@ -1228,12 +1230,11 @@ async function searchStock() {
     S.watchlist = [...DEFAULT_WATCHLIST];
   }
 
-  await refreshAll();
+  await refreshAll(); // starts rolling timer automatically
 
-  // Auto-refresh every 5 min when tab is visible
-  setInterval(() => { if (!document.hidden && !S.busy) refreshAll(); }, 5 * 60 * 1000);
+  // Resume rolling when tab becomes visible again after being hidden
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !S.busy) refreshAll();
+    if (!document.hidden && !_rotTimer) startRolling();
   });
 })();
 </script>
