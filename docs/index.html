@@ -701,10 +701,53 @@ function detectAssetType(ticker) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  FETCH  (direct + CORS proxy fallback)
+//  DISK CACHE  (20-min TTL — survives page refresh)
 // ══════════════════════════════════════════════════════════════
-async function fetchJ(url) {
-  const u  = url + `&_t=${Date.now()}`;
+const CACHE_TTL = 20 * 60 * 1000;
+let _dc = null;
+
+function getDC() {
+  if (_dc) return _dc;
+  try { _dc = JSON.parse(localStorage.getItem('sm_dcache') || '{}'); }
+  catch(e) { _dc = {}; }
+  return _dc;
+}
+function saveDC() {
+  try { localStorage.setItem('sm_dcache', JSON.stringify(_dc)); } catch(e) {}
+}
+function getCached(ticker) {
+  const e = getDC()[ticker];
+  if (!e || Date.now() - e.ts > CACHE_TTL) return null;
+  const d = { ...e.data };
+  if (d.nextEarnings) d.nextEarnings = new Date(d.nextEarnings);
+  return d;
+}
+function setCached(ticker, data) {
+  const c = getDC();
+  c[ticker] = { data: { ...data, nextEarnings: data.nextEarnings ? data.nextEarnings.getTime() : null }, ts: Date.now() };
+  const keys = Object.keys(c);
+  if (keys.length > 200) keys.sort((a,b) => c[a].ts - c[b].ts).slice(0, keys.length - 200).forEach(k => delete c[k]);
+  saveDC();
+}
+function clearDC() { _dc = {}; try { localStorage.removeItem('sm_dcache'); } catch(e) {} }
+
+// ══════════════════════════════════════════════════════════════
+//  FETCH  (proxy rotation + light variant for optional data)
+// ══════════════════════════════════════════════════════════════
+const PROXIES = [
+  v => `https://api.allorigins.win/raw?url=${encodeURIComponent(v)}`,
+  v => `https://corsproxy.io/?${encodeURIComponent(v)}`,
+  v => `https://proxy.cors.sh/${v}`
+];
+
+function tickerProxyStart(ticker) {
+  let h = 0;
+  for (const c of ticker) h = (h * 31 + c.charCodeAt(0)) & 0xff;
+  return h % PROXIES.length;
+}
+
+async function fetchJ(url, proxyStart = 0) {
+  const u  = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
   const TO = AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined;
 
   try {
@@ -712,12 +755,8 @@ async function fetchJ(url) {
     if (r.ok) return await r.json();
   } catch(e) {}
 
-  const proxies = [
-    v => `https://api.allorigins.win/raw?url=${encodeURIComponent(v)}`,
-    v => `https://corsproxy.io/?${encodeURIComponent(v)}`,
-    v => `https://proxy.cors.sh/${v}`
-  ];
-  for (const p of proxies) {
+  for (let i = 0; i < PROXIES.length; i++) {
+    const p = PROXIES[(proxyStart + i) % PROXIES.length];
     try {
       const sig = AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined;
       const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
@@ -728,6 +767,20 @@ async function fetchJ(url) {
     } catch(e) { continue; }
   }
   throw new Error('All fetch attempts failed for ' + url);
+}
+
+// Lightweight: skips direct (always 401 for quoteSummary), tries ONE proxy only
+async function fetchJLight(url, proxyStart = 0) {
+  const u = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
+  const p = PROXIES[proxyStart % PROXIES.length];
+  try {
+    const sig = AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined;
+    const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
+    if (!r.ok) return null;
+    const text = await r.text();
+    if (text.trim().startsWith('<')) return null;
+    return JSON.parse(text);
+  } catch(e) { return null; }
 }
 
 function parseEarnings(data) {
@@ -762,14 +815,15 @@ function parseEarnings(data) {
 }
 
 async function fetchStock(ticker) {
+  const ps          = tickerProxyStart(ticker);
   const chartUrl    = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
   const newsUrl     = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
   const earningsUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2Cearnings`;
 
   const [chart, news, earningsRaw] = await Promise.all([
-    fetchJ(chartUrl),
-    fetchJ(newsUrl).catch(() => null),
-    fetchJ(earningsUrl).catch(() => null)
+    fetchJ(chartUrl, ps),
+    fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
+    fetchJLight(earningsUrl, (ps + 2) % 3).catch(() => null)
   ]);
 
   const { nextDate, surprise } = parseEarnings(earningsRaw);
@@ -1081,9 +1135,14 @@ function toggleDetail(id) {
 // ══════════════════════════════════════════════════════════════
 //  DATA LOADING
 // ══════════════════════════════════════════════════════════════
-async function loadOne(ticker) {
+async function loadOne(ticker, bypassCache = false) {
+  if (!bypassCache) {
+    const cached = getCached(ticker);
+    if (cached) { S.data[ticker] = cached; return; }
+  }
   try {
     S.data[ticker] = await fetchStock(ticker);
+    setCached(ticker, S.data[ticker]);
   } catch(e) {
     S.data[ticker] = { err: true, ticker };
   }
@@ -1100,14 +1159,15 @@ async function refreshAll() {
   await Promise.all(MARKET_TICKERS.map(t => loadOne(t)));
   renderMarketBar();
 
-  // Watchlist in batches of 6 to avoid API rate limits
+  // Watchlist in batches of 4 with 350ms gap to stay under rate limits
   const tickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
   if (S.pinnedTicker && !tickers.includes(S.pinnedTicker)) tickers.unshift(S.pinnedTicker);
 
-  for (let i = 0; i < tickers.length; i += 6) {
-    await Promise.all(tickers.slice(i, i + 6).map(t => loadOne(t)));
+  for (let i = 0; i < tickers.length; i += 4) {
+    await Promise.all(tickers.slice(i, i + 4).map(t => loadOne(t)));
     renderList();
     renderMarketBar();
+    if (i + 4 < tickers.length) await new Promise(r => setTimeout(r, 350));
   }
 
   S.busy = false;
@@ -1121,6 +1181,7 @@ async function refreshAll() {
 }
 
 async function manualRefresh() {
+  clearDC();
   S.data = {};
   await refreshAll();
 }
