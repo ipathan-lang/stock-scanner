@@ -140,6 +140,33 @@
     }
     .list-header h2 { font-size: 0.88rem; font-weight: 800; color: var(--ink); }
     .list-header span { font-size: 0.75rem; color: var(--muted); }
+
+    /* ── LOAD PROGRESS BAR ── */
+    #load-progress {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    #load-progress.done { color: #16a34a; }
+    #prog-track {
+      width: 100px;
+      height: 6px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    #prog-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #6366f1, #22d3ee);
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    #load-progress.done #prog-fill { background: #16a34a; }
     #stock-list { display: grid; gap: 10px; }
 
     /* ── STOCK CARD ── */
@@ -519,7 +546,10 @@
 <main>
   <div class="list-header">
     <h2>Ranked: Most Bullish → Most Bearish</h2>
-    <span id="count-label"></span>
+    <div id="load-progress">
+      <div id="prog-track"><div id="prog-fill"></div></div>
+      <span id="count-label"></span>
+    </div>
   </div>
   <div id="stock-list">
     <div class="empty">Fetching stock data… usually takes 30–60 s on first load.</div>
@@ -921,17 +951,20 @@ function renderMarketBar() {
 
 function renderList() {
   const el      = document.getElementById('stock-list');
-  const countEl = document.getElementById('count-label');
+  const progEl  = document.getElementById('load-progress');
+  const fillEl   = document.getElementById('prog-fill');
+  const countEl  = document.getElementById('count-label');
   if (!el) return;
 
   const all    = S.watchlist.map(t => S.data[t]).filter(d => d && !d.err);
   const sorted = sortStocks(all);
+  const total  = S.watchlist.length;
+  const loaded = all.length;
+  const pct    = total ? Math.round((loaded / total) * 100) : 0;
 
-  if (countEl) {
-    const total   = S.watchlist.length;
-    const loaded  = all.length;
-    countEl.textContent = loaded < total ? `${loaded} / ${total} loaded…` : `${loaded} stocks`;
-  }
+  if (fillEl)  fillEl.style.width  = pct + '%';
+  if (countEl) countEl.textContent = loaded < total ? `${loaded} / ${total} stocks` : `${loaded} stocks ✓`;
+  if (progEl)  { progEl.classList.toggle('done', loaded >= total); }
 
   if (!sorted.length) {
     const loading = S.watchlist.some(t => !S.data[t]);
