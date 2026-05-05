@@ -258,6 +258,31 @@
     .a-metal  { background: rgba(184,132,26,.1); color: var(--yellow); }
     .a-crypto { background: rgba(121,80,200,.1); color: #7950c8; }
 
+    /* Earnings row */
+    .earnings-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid rgba(19,43,67,.06);
+      font-size: 0.73rem;
+    }
+    .earn-label { color: var(--muted); font-weight: 700; flex-shrink: 0; }
+    .earn-chip {
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 0.69rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .ec-date  { background: rgba(30,99,217,.08); color: var(--blue); border-color: rgba(30,99,217,.18); }
+    .ec-soon  { background: rgba(184,132,26,.12); color: var(--yellow); border-color: rgba(184,132,26,.22); }
+    .ec-beat  { background: rgba(21,127,99,.1); color: var(--green); border-color: rgba(21,127,99,.2); }
+    .ec-miss  { background: rgba(196,81,75,.1); color: var(--red); border-color: rgba(196,81,75,.2); }
+    .ec-none  { background: rgba(19,43,67,.05); color: var(--muted); }
+
     /* Skeleton */
     .sk {
       display: inline-block; width: 55px; height: 13px;
@@ -705,14 +730,49 @@ async function fetchJ(url) {
   throw new Error('All fetch attempts failed for ' + url);
 }
 
-async function fetchStock(ticker) {
-  const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
-  const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
+function parseEarnings(data) {
+  if (!data) return { nextDate: null, surprise: null };
+  const qs = data.quoteSummary?.result?.[0];
+  if (!qs) return { nextDate: null, surprise: null };
 
-  const [chart, news] = await Promise.all([
+  // Next earnings date
+  let nextDate = null;
+  const dates = qs.calendarEvents?.earnings?.earningsDate;
+  if (dates && dates.length > 0) {
+    const ts = (dates[0].raw ?? dates[0]) * 1000;
+    const d  = new Date(ts);
+    if (!isNaN(d)) nextDate = d;
+  }
+
+  // Last quarter EPS surprise
+  let surprise = null;
+  const quarterly = qs.earnings?.earningsChart?.quarterly;
+  if (quarterly && quarterly.length > 0) {
+    const last    = quarterly[quarterly.length - 1];
+    const actual  = last.actual?.raw   ?? last.actual;
+    const est     = last.estimate?.raw ?? last.estimate;
+    if (actual != null && est != null && est !== 0) {
+      const diff = actual - est;
+      const pct  = (diff / Math.abs(est)) * 100;
+      surprise   = { beat: diff >= 0, pct, quarter: last.date ?? '' };
+    }
+  }
+
+  return { nextDate, surprise };
+}
+
+async function fetchStock(ticker) {
+  const chartUrl    = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
+  const newsUrl     = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
+  const earningsUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2Cearnings`;
+
+  const [chart, news, earningsRaw] = await Promise.all([
     fetchJ(chartUrl),
-    fetchJ(newsUrl).catch(() => null)
+    fetchJ(newsUrl).catch(() => null),
+    fetchJ(earningsUrl).catch(() => null)
   ]);
+
+  const { nextDate, surprise } = parseEarnings(earningsRaw);
 
   const res = chart.chart?.result?.[0];
   if (!res) throw new Error('No chart data for ' + ticker);
@@ -754,9 +814,20 @@ async function fetchStock(ticker) {
   if (changePct >= 2) { catalystScore += 1; catalystDrivers.push('Fresh buyers entering today'); }
   if (changePct >= 4) { catalystScore += 1; catalystDrivers.push('Strong daily rally momentum'); }
 
-  const netScore   = ind.bullishScore + catalystScore - bearishScore;
-  const conviction = clamp(Math.round(((netScore + 9) / 22) * 100), 0, 100);
-  const sortScore  = netScore * 100 + ind.bullishScore * 10 - bearishScore;
+  // ── Earnings catalyst boost ──
+  if (surprise?.beat && Math.abs(surprise.pct) >= 5) {
+    catalystScore = Math.min(catalystScore + 1, 2);
+    catalystDrivers.push(`EPS Beat last quarter (+${surprise.pct.toFixed(1)}%)`);
+  }
+  if (surprise && !surprise.beat && Math.abs(surprise.pct) >= 5) {
+    bearishScore += 1;
+    bearishDrivers.push(`EPS Miss last quarter (${surprise.pct.toFixed(1)}%)`);
+  }
+
+  // Recalculate after earnings adjustment
+  const netScoreFinal   = ind.bullishScore + catalystScore - bearishScore;
+  const convictionFinal = clamp(Math.round(((netScoreFinal + 9) / 22) * 100), 0, 100);
+  const sortScoreFinal  = netScoreFinal * 100 + ind.bullishScore * 10 - bearishScore;
 
   const headlines = [];
   if (news?.news) {
@@ -770,7 +841,12 @@ async function fetchStock(ticker) {
     assetType: detectAssetType(ticker),
     ...ind, bearishScore, bearishDrivers,
     catalystScore, catalystDrivers,
-    netScore, conviction, sortScore, headlines
+    netScore: netScoreFinal,
+    conviction: convictionFinal,
+    sortScore: sortScoreFinal,
+    headlines,
+    nextEarnings: nextDate,
+    epsSurprise: surprise
   };
 }
 
@@ -855,6 +931,36 @@ function skeletonCard(ticker, rank) {
           </div>`).join('')}
       </div>
     </div>`;
+}
+
+function buildEarningsRow(d) {
+  if (d.assetType === 'ETF') return '';   // ETFs don't report earnings
+  const parts = [];
+
+  // Next earnings date chip
+  if (d.nextEarnings) {
+    const now   = new Date();
+    const days  = Math.round((d.nextEarnings - now) / 86400000);
+    const label = d.nextEarnings.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    if (days >= 0 && days <= 365) {
+      const cls = days <= 21 ? 'ec-soon' : 'ec-date';
+      const tag = days <= 7 ? ` &#9650; ${days}d` : days <= 21 ? ` (${days}d)` : '';
+      parts.push(`<span class="earn-chip ${cls}">&#128197; ${label}${tag}</span>`);
+    }
+  }
+
+  // EPS surprise chip
+  if (d.epsSurprise) {
+    const s   = d.epsSurprise;
+    const sign = s.pct >= 0 ? '+' : '';
+    const cls  = s.beat ? 'ec-beat' : 'ec-miss';
+    const icon = s.beat ? '&#10003;' : '&#10007;';
+    const q    = s.quarter ? ` ${s.quarter}` : '';
+    parts.push(`<span class="earn-chip ${cls}">${icon} EPS${q} ${sign}${s.pct.toFixed(1)}%</span>`);
+  }
+
+  if (!parts.length) return '';
+  return `<div class="earnings-row"><span class="earn-label">Earnings</span>${parts.join('')}</div>`;
 }
 
 function buildCard(d, rank, pinned) {
@@ -949,6 +1055,8 @@ function buildCard(d, rank, pinned) {
       </div>
 
       <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
+
+      ${buildEarningsRow(d)}
 
       <div>
         <button class="detail-btn" onclick="toggleDetail('${detailId}')">&#9660; Details &amp; News</button>
