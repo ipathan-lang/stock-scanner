@@ -790,26 +790,42 @@ async function fetchJ(url, proxyStart = 0) {
   throw new Error('All fetch attempts failed for ' + url);
 }
 
-// Lightweight: skips direct (always 401 for quoteSummary), tries ONE proxy only
-async function fetchJLight(url, proxyStart = 0) {
+// Proxy-only fetch: skips direct (avoids 401s), tries all 3 proxies in order
+async function fetchJProxy(url, proxyStart = 0) {
   const u = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
-  const p = PROXIES[proxyStart % PROXIES.length];
-  try {
-    const sig = AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined;
-    const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
-    if (!r.ok) return null;
-    const text = await r.text();
-    if (text.trim().startsWith('<')) return null;
-    return JSON.parse(text);
-  } catch(e) { return null; }
+  for (let i = 0; i < PROXIES.length; i++) {
+    const p = PROXIES[(proxyStart + i) % PROXIES.length];
+    try {
+      const sig = AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined;
+      const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
+      if (!r.ok) continue;
+      const text = await r.text();
+      if (text.trim().startsWith('<')) continue;
+      return JSON.parse(text);
+    } catch(e) { continue; }
+  }
+  return null;
 }
 
 function parseEarnings(data) {
   if (!data) return { nextDate: null, surprise: null };
+
+  // v7/finance/quote response shape
+  const q7 = data.quoteResponse?.result?.[0];
+  if (q7) {
+    let nextDate = null;
+    const ts = q7.earningsTimestampStart ?? q7.earningsTimestamp;
+    if (ts) {
+      const d = new Date(ts * 1000);
+      if (!isNaN(d) && d > new Date()) nextDate = d;
+    }
+    return { nextDate, surprise: null }; // v7 doesn't carry EPS surprise
+  }
+
+  // v10/quoteSummary response shape (fallback)
   const qs = data.quoteSummary?.result?.[0];
   if (!qs) return { nextDate: null, surprise: null };
 
-  // Next earnings date
   let nextDate = null;
   const dates = qs.calendarEvents?.earnings?.earningsDate;
   if (dates && dates.length > 0) {
@@ -818,13 +834,12 @@ function parseEarnings(data) {
     if (!isNaN(d)) nextDate = d;
   }
 
-  // Last quarter EPS surprise
   let surprise = null;
   const quarterly = qs.earnings?.earningsChart?.quarterly;
   if (quarterly && quarterly.length > 0) {
-    const last    = quarterly[quarterly.length - 1];
-    const actual  = last.actual?.raw   ?? last.actual;
-    const est     = last.estimate?.raw ?? last.estimate;
+    const last   = quarterly[quarterly.length - 1];
+    const actual = last.actual?.raw   ?? last.actual;
+    const est    = last.estimate?.raw ?? last.estimate;
     if (actual != null && est != null && est !== 0) {
       const diff = actual - est;
       const pct  = (diff / Math.abs(est)) * 100;
@@ -839,12 +854,13 @@ async function fetchStock(ticker) {
   const ps          = tickerProxyStart(ticker);
   const chartUrl    = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
   const newsUrl     = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
-  const earningsUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents%2Cearnings`;
+  // v7/finance/quote: returns earningsTimestamp — simpler & more proxy-friendly than quoteSummary
+  const earningsUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}&fields=earningsTimestamp,earningsTimestampStart,earningsTimestampEnd`;
 
   const [chart, news, earningsRaw] = await Promise.all([
     fetchJ(chartUrl, ps),
     fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
-    fetchJLight(earningsUrl, (ps + 2) % 3).catch(() => null)
+    fetchJProxy(earningsUrl, (ps + 2) % 3).catch(() => null)
   ]);
 
   const { nextDate, surprise } = parseEarnings(earningsRaw);
