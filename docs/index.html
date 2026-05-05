@@ -706,6 +706,21 @@ function detectAssetType(ticker) {
 // ══════════════════════════════════════════════════════════════
 let _rotIdx   = 0;
 let _rotTimer = null;
+let _rotList  = [];  // shuffled copy rebuilt each cycle
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildRotList() {
+  _rotList = shuffle([...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t)));
+  _rotIdx  = 0;
+}
 
 // ══════════════════════════════════════════════════════════════
 //  FETCH  (proxy rotation + light variant for optional data)
@@ -1119,18 +1134,13 @@ async function loadOne(ticker) {
   }
 }
 
-// Called by rolling timer — silently refreshes next batch of 5 stocks
+// Called by rolling timer — silently refreshes next batch of 5 stocks (randomised order)
 async function rotateNext() {
   if (S.busy) return;
-  const tickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
-  if (!tickers.length) return;
-  if (_rotIdx >= tickers.length) _rotIdx = 0;
-  const batch = tickers.slice(_rotIdx, _rotIdx + 5);
-  _rotIdx += 5;
-  await Promise.all(batch.map(t => loadOne(t)));
-  renderList();
-  // Refresh market bar once per full cycle
-  if (_rotIdx >= tickers.length) {
+  if (!_rotList.length) buildRotList();
+  if (_rotIdx >= _rotList.length) {
+    // Completed a full cycle — reshuffle for next pass
+    buildRotList();
     await Promise.all(MARKET_TICKERS.map(t => loadOne(t)));
     renderMarketBar();
     const btn = document.getElementById('refresh-btn');
@@ -1140,6 +1150,10 @@ async function rotateNext() {
       setTimeout(() => { if (btn) btn.innerHTML = '&#x21BB; Refresh'; }, 5000);
     }
   }
+  const batch = _rotList.slice(_rotIdx, _rotIdx + 5);
+  _rotIdx += 5;
+  await Promise.all(batch.map(t => loadOne(t)));
+  renderList();
 }
 
 function startRolling() {
@@ -1160,9 +1174,13 @@ async function refreshAll() {
   await Promise.all(MARKET_TICKERS.map(t => loadOne(t)));
   renderMarketBar();
 
-  // Watchlist in batches of 5 with 350ms gap between batches
-  const tickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
-  if (S.pinnedTicker && !tickers.includes(S.pinnedTicker)) tickers.unshift(S.pinnedTicker);
+  // Watchlist in batches of 5 with 350ms gap — use a shuffled order so
+  // different stocks load first on each refresh, giving all 112 a fair chance
+  const allTickers = [...new Set(S.watchlist)].filter(t => !MARKET_TICKERS.includes(t));
+  const pinned = S.pinnedTicker && !MARKET_TICKERS.includes(S.pinnedTicker) ? S.pinnedTicker : null;
+  const tickers = pinned
+    ? [pinned, ...shuffle(allTickers.filter(t => t !== pinned))]
+    : shuffle(allTickers);
 
   for (let i = 0; i < tickers.length; i += 5) {
     await Promise.all(tickers.slice(i, i + 5).map(t => loadOne(t)));
@@ -1179,7 +1197,7 @@ async function refreshAll() {
     setTimeout(() => { if (refreshBtn) refreshBtn.innerHTML = '&#x21BB; Refresh'; }, 8000);
   }
   renderList();
-  _rotIdx = 0;
+  buildRotList(); // build fresh shuffled list for the rolling timer
   startRolling(); // kick off continuous rolling refresh
 }
 
