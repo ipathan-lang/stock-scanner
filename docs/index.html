@@ -459,11 +459,65 @@
       #prog-track { flex: 1; width: auto; }
       .score-visual { flex-wrap: wrap; }
       .sv-item { min-width: 30%; flex: 1 1 30%; }
+      .filter-wrap { width: 100%; }
+      #wl-filter { flex: 1; width: auto; max-width: none; }
       @media (max-width: 380px) {
         .modal-body { padding: 14px 14px 28px; }
         .ig-item { padding: 9px 10px; }
       }
     }
+
+    /* ── WATCHLIST FILTER ── */
+    .filter-wrap { display: flex; align-items: center; gap: 6px; }
+    #wl-filter {
+      width: 130px;
+      padding: 6px 11px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      font-size: 0.8rem;
+      background: rgba(255,255,255,.9);
+      color: var(--text);
+      text-transform: uppercase;
+      outline: none;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    #wl-filter::placeholder { text-transform: none; color: var(--muted); }
+    #wl-filter:focus { border-color: rgba(30,99,217,.5); box-shadow: 0 0 0 3px rgba(30,99,217,.1); }
+    #filter-clear {
+      padding: 4px 9px;
+      font-size: 0.74rem;
+      color: var(--red);
+      background: rgba(196,81,75,.07);
+      border-color: rgba(196,81,75,.2);
+    }
+
+    /* ── DATA AGE BADGE ── */
+    .age-badge { font-size: 0.67rem; color: var(--muted); opacity: .8; }
+    .age-badge.stale { color: var(--yellow); opacity: 1; }
+    .age-badge.old   { color: var(--red);    opacity: 1; }
+
+    /* ── ERROR / RETRY CARD ── */
+    .stock-card.err-card { border-color: rgba(196,81,75,.2); background: rgba(196,81,75,.02); }
+    .err-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; padding-top: 8px; font-size: 0.75rem; color: var(--muted);
+    }
+    .retry-btn {
+      font-size: 0.72rem; padding: 4px 10px; border-radius: 8px;
+      background: rgba(30,99,217,.07); color: var(--blue); border-color: rgba(30,99,217,.2);
+      flex-shrink: 0;
+    }
+    .retry-btn:hover { background: rgba(30,99,217,.14); }
+
+    /* ── 52-WEEK RANGE BAR ── */
+    .yr-range { margin: 6px 0 4px; }
+    .yr-bar-wrap {
+      height: 6px; background: var(--border); border-radius: 99px;
+      overflow: hidden; margin: 4px 0 3px;
+    }
+    .yr-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#157f63,#1e63d9); }
+    .yr-labels { display: flex; justify-content: space-between; font-size: 0.67rem; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -564,9 +618,15 @@
 <main>
   <div class="list-header">
     <h2>Ranked: Most Bullish → Most Bearish</h2>
-    <div id="load-progress">
-      <div id="prog-track"><div id="prog-fill"></div></div>
-      <span id="count-label"></span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="filter-wrap">
+        <input id="wl-filter" type="text" placeholder="Filter stocks…" maxlength="10" oninput="applyFilter()" />
+        <button id="filter-clear" onclick="clearFilter()" style="display:none">✕ Clear</button>
+      </div>
+      <div id="load-progress">
+        <div id="prog-track"><div id="prog-fill"></div></div>
+        <span id="count-label"></span>
+      </div>
     </div>
   </div>
   <div id="stock-list">
@@ -755,6 +815,7 @@ function detectAssetType(ticker) {
 let _rotIdx   = 0;
 let _rotTimer = null;
 let _rotList  = [];  // shuffled copy rebuilt each cycle
+let _filterText = ''; // live filter applied in renderList
 
 function shuffle(arr) {
   const a = [...arr];
@@ -870,7 +931,7 @@ function parseEarnings(data) {
 
 async function fetchStock(ticker) {
   const ps       = tickerProxyStart(ticker);
-  const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=60d&includePrePost=false`;
+  const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y&includePrePost=false`;
   const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
   const [chart, news] = await Promise.all([
@@ -904,6 +965,13 @@ async function fetchStock(ticker) {
   const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length - 2] ?? price;
   const change    = price - prevClose;
   const changePct = (change / prevClose) * 100;
+
+  // 52-week range and 20-day return (base for relative strength vs SPY)
+  const yearHigh = highs.length ? Math.max(...highs) : null;
+  const yearLow  = lows.length  ? Math.min(...lows)  : null;
+  const ret20    = closes.length >= 21
+    ? ((closes[closes.length - 1] / closes[closes.length - 21]) - 1) * 100
+    : null;
 
   const ind = calcIndicators(closes, highs, lows) || {
     bullishScore: 0, bullishDrivers: [], rsi: 50, macdDiff: 0, ema20: price, position: 0.5, price
@@ -942,6 +1010,7 @@ async function fetchStock(ticker) {
 
   return {
     ticker, price, change, changePct,
+    fetchedAt: Date.now(),
     assetType: detectAssetType(ticker),
     ...ind, bearishScore, bearishDrivers,
     catalystScore, catalystDrivers,
@@ -950,8 +1019,74 @@ async function fetchStock(ticker) {
     sortScore: sortScoreFinal,
     headlines,
     nextEarnings,
-    epsSurprise: null
+    epsSurprise: null,
+    yearHigh, yearLow, ret20
   };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  UI HELPERS  (filter, age, retry, error card)
+// ══════════════════════════════════════════════════════════════
+function ageLabel(ts) {
+  if (!ts) return '';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 10) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.floor(m / 60)}h ago`;
+}
+
+function ageClass(ts) {
+  if (!ts) return '';
+  const m = (Date.now() - ts) / 60000;
+  if (m > 15) return 'old';
+  if (m > 5)  return 'stale';
+  return '';
+}
+
+function applyFilter() {
+  const inp = document.getElementById('wl-filter');
+  _filterText = (inp?.value || '').toUpperCase().trim();
+  const clr = document.getElementById('filter-clear');
+  if (clr) clr.style.display = _filterText ? '' : 'none';
+  renderList();
+}
+
+function clearFilter() {
+  const inp = document.getElementById('wl-filter');
+  if (inp) inp.value = '';
+  _filterText = '';
+  const clr = document.getElementById('filter-clear');
+  if (clr) clr.style.display = 'none';
+  renderList();
+}
+
+async function retryOne(ticker) {
+  S.data[ticker] = null;
+  renderList();
+  await loadOne(ticker);
+  renderList();
+}
+
+function buildErrorCard(ticker) {
+  return `
+    <div class="stock-card err-card">
+      <div class="card-head">
+        <div class="card-id">
+          <div class="rank-no" style="color:var(--red);background:rgba(196,81,75,.1)">!</div>
+          <div>
+            <div class="ticker-name">${esc(ticker)}</div>
+            <div class="price-row" style="color:var(--red)">Failed to load</div>
+          </div>
+        </div>
+        <span class="badge br">Error</span>
+      </div>
+      <div class="err-row">
+        <span>All proxies failed — tap Retry to try again</span>
+        <button class="retry-btn" onclick="retryOne('${esc(ticker)}')">&#x21BB; Retry</button>
+      </div>
+    </div>`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -995,7 +1130,10 @@ function renderList() {
   if (countEl) countEl.textContent = loaded < total ? `${loaded} / ${total} stocks` : `${loaded} stocks ✓`;
   if (progEl)  { progEl.classList.toggle('done', loaded >= total); }
 
-  if (!sorted.length) {
+  // Apply watchlist text filter
+  const visible = _filterText ? sorted.filter(d => d.ticker.includes(_filterText)) : sorted;
+
+  if (!visible.length && !_filterText) {
     const loading = S.watchlist.some(t => !S.data[t]);
     el.innerHTML = loading
       ? S.watchlist.slice(0, 12).map((t, i) => skeletonCard(t, i + 1)).join('')
@@ -1003,16 +1141,27 @@ function renderList() {
     return;
   }
 
+  if (!visible.length && _filterText) {
+    el.innerHTML = `<div class="empty">No stocks match "<strong>${esc(_filterText)}</strong>"</div>`;
+    return;
+  }
+
   let html = '';
 
   // Pinned (searched) stock at top
-  if (S.pinnedTicker && S.data[S.pinnedTicker] && !S.data[S.pinnedTicker].err) {
+  if (S.pinnedTicker && S.data[S.pinnedTicker] && !S.data[S.pinnedTicker].err &&
+      (!_filterText || S.pinnedTicker.includes(_filterText))) {
     html += buildCard(S.data[S.pinnedTicker], 0, true);
   }
 
-  sorted
+  visible
     .filter(d => d.ticker !== S.pinnedTicker)
     .forEach((d, i) => { html += buildCard(d, i + 1, false); });
+
+  // Error cards — stocks that failed all proxy attempts
+  const errored = S.watchlist
+    .filter(t => S.data[t]?.err && (!_filterText || t.includes(_filterText)));
+  if (errored.length) html += errored.map(t => buildErrorCard(t)).join('');
 
   el.innerHTML = html;
 }
@@ -1076,6 +1225,21 @@ function buildCard(d, rank, pinned) {
   const cs   = d.changePct >= 0 ? '+' : '';
   const cc   = d.changePct >= 0 ? 'pos' : 'neg';
 
+  // Relative strength vs SPY (20-day return differential)
+  const spyRet = S.data['SPY']?.ret20;
+  const rsVal  = (d.ret20 != null && spyRet != null && d.ticker !== 'SPY')
+    ? (d.ret20 - spyRet) : null;
+  const rsColor = rsVal == null ? 'var(--muted)' : rsVal >= 1 ? 'var(--green)' : rsVal <= -1 ? 'var(--red)' : 'var(--ink)';
+  const rsTxt   = rsVal == null ? '—' : `${rsVal >= 0 ? '+' : ''}${rsVal.toFixed(1)}%`;
+
+  // Data age badge
+  const ageTxt = ageLabel(d.fetchedAt);
+  const ageCls = ageClass(d.fetchedAt);
+
+  // 52-week position (% of range)
+  const yrPct = (d.yearHigh && d.yearLow && d.yearHigh > d.yearLow)
+    ? Math.round(((d.price - d.yearLow) / (d.yearHigh - d.yearLow)) * 100) : null;
+
   const atBadge = d.assetType !== 'Stock'
     ? `<span class="abadge a-${d.assetType.toLowerCase()}">${d.assetType}</span>`
     : '';
@@ -1120,6 +1284,7 @@ function buildCard(d, rank, pinned) {
               $${d.price.toFixed(2)}&nbsp;&nbsp;
               <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
               &nbsp;<span style="color:var(--muted)">(${d.change >= 0 ? '+' : ''}$${d.change.toFixed(2)})</span>
+              ${ageTxt ? `&nbsp;&middot;&nbsp;<span class="age-badge ${ageCls}">${ageTxt}</span>` : ''}
             </div>
           </div>
         </div>
@@ -1159,6 +1324,10 @@ function buildCard(d, rank, pinned) {
           <div class="ind-label">Day Change</div>
           <div class="ind-val" style="color:${d.changePct >= 0 ? 'var(--green)' : 'var(--red)'}">${cs}${d.changePct.toFixed(2)}%</div>
         </div>
+        <div class="ind-item">
+          <div class="ind-label">vs SPY</div>
+          <div class="ind-val" style="color:${rsColor}">${rsTxt}</div>
+        </div>
       </div>
 
       <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
@@ -1169,6 +1338,15 @@ function buildCard(d, rank, pinned) {
         <button class="detail-btn" onclick="toggleDetail('${detailId}')">&#9660; Details &amp; News</button>
         <div class="detail-body" id="${detailId}">
           ${bullPills || bearPills ? `<div class="drivers">${bullPills}${bearPills}</div>` : ''}
+          ${d.yearHigh && d.yearLow ? `<div class="yr-range">
+            <div style="font-size:.67rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">52-Week Range</div>
+            <div class="yr-bar-wrap"><div class="yr-bar-fill" style="width:${yrPct ?? 50}%"></div></div>
+            <div class="yr-labels">
+              <span>Low $${d.yearLow.toFixed(2)}</span>
+              ${yrPct != null ? `<span style="color:var(--ink);font-weight:700">${yrPct}% of range</span>` : ''}
+              <span>High $${d.yearHigh.toFixed(2)}</span>
+            </div>
+          </div>` : ''}
           <div class="news-wrap">${newsHtml}</div>
         </div>
       </div>
