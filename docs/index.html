@@ -999,7 +999,7 @@ function parseEarnings(data) {
 
 async function fetchStock(ticker) {
   const ps       = tickerProxyStart(ticker);
-  const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y&includePrePost=false`;
+  const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y&includePrePost=false&events=earnings`;
   const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
   const [chart, news] = await Promise.all([
@@ -1012,12 +1012,38 @@ async function fetchStock(ticker) {
 
   const meta = res.meta;
 
-  // Extract earnings date from chart meta — already in the response we fetch anyway
+  // Extract next earnings date from chart events.earnings (past dates) + meta fallback.
+  // v8/finance/chart includes historical earnings in events.earnings when &events=earnings
+  // is appended to the URL. We find the most recent past date and project forward ~91 days.
   let nextEarnings = null;
+
+  // 1. Try meta fields first (occasionally populated by Yahoo)
   const ets = meta.earningsTimestampStart ?? meta.earningsTimestamp;
   if (ets) {
     const d = new Date(ets * 1000);
-    if (!isNaN(d) && d > new Date()) nextEarnings = d;
+    if (!isNaN(d) && d > Date.now()) nextEarnings = d;
+  }
+
+  // 2. Parse events.earnings — a map of {timestamp: {date, ...}} with historical quarters
+  if (!nextEarnings && res.events?.earnings) {
+    const earnTs = Object.values(res.events.earnings)
+      .map(e => (e.date ?? e.reportDate) * 1000)
+      .filter(t => !isNaN(t))
+      .sort((a, b) => a - b);          // ascending
+    const pastDates = earnTs.filter(t => t < Date.now());
+    if (pastDates.length >= 2) {
+      // Use median interval across last 4 quarters (or fewer if not available)
+      const recent = pastDates.slice(-4);
+      const intervals = [];
+      for (let i = 1; i < recent.length; i++) intervals.push(recent[i] - recent[i - 1]);
+      const medianInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const projected = new Date(pastDates[pastDates.length - 1] + medianInterval);
+      if (projected > new Date()) nextEarnings = projected;
+    } else if (pastDates.length === 1) {
+      // Only one past date — project 91 days forward
+      const projected = new Date(pastDates[0] + 91 * 86400000);
+      if (projected > new Date()) nextEarnings = projected;
+    }
   }
   const q    = res.indicators.quote[0];
 
