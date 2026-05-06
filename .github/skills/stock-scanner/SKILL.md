@@ -307,35 +307,44 @@ console.time('refresh'); await refreshAll(); console.timeEnd('refresh');
 
 ## Scoring Algorithm (Net Score System)
 
-**Location**: `fetchStock()` function around lines 1400-1550
+**Location**: `fetchStock()` + `calcIndicators()` + `getCatalystBonus()` + `getTrendPenalty()`
 
-Each stock gets a **net score** from -10 to +10 by adding bullish points and subtracting bearish points:
+`netScore = bullishScore (calcIndicators) + catalystScore (base + getCatalystBonus) − bearishScore (base + getTrendPenalty)`
 
-### Bullish Indicators (+points)
+### Bullish Indicators — `calcIndicators()` (+points)
 - Price in lower 50% of weekly range: +2
-- RSI 30-65: +2
-- MACD above signal: +2
-- Price >= 97% of EMA20: +2
-- Price in lower 35% of range (bonus): +1
-- RSI 35-55 (bonus): +1
-- RSI < 30 (oversold): +1
-- Change > 1%: +1
-- Volume > 1.2x avg: +1
+- RSI 35-60: +2
+- MACD above signal with momentum: +2
+- Price >= 99% of EMA20: +2
+- Price in lower 30% of range (bonus): +1
+- RSI 40-55 (bonus): +1
 
-### Bearish Indicators (-points)
-- RSI > 70 (overbought): -2
+### Bearish Indicators — base in `fetchStock()` (-points)
+- Price in upper 70% of weekly range: -2
+- RSI >= 65 (overheated): -2
 - MACD below signal: -2
-- Price < 95% of EMA20: -2
-- Price in upper 20% of range: -1
-- Change < -2%: -2
-- Volume < 0.5x avg: -1
+- Price < 99% of EMA20: -2
+- Daily change <= -1%: -1
+- Daily change <= -3%: -2
+- Daily change <= -5%: -2
 
-**Market Mode Classification**:
-- `STRONG_BUY`: netScore >= 6
-- `BUY`: netScore 3-5
-- `HOLD`: netScore 0-2
-- `WATCH`: netScore -2 to -1
-- `SELL`: netScore <= -3
+### Catalyst Bonus — `getCatalystBonus()` (additive modifier, does NOT change base)
+- Earnings within -1 to +5 days: **+2**
+- Position > 80% of week range AND volume > 1.5x AND change > 1.5%: **+2** (volume breakout)
+- Price >= 99% of 52-week high AND volume > 1.3x AND change > 1%: **+2** (52-week breakout)
+
+### Trend Quality Penalty — `getTrendPenalty()` (additive to bearishScore, does NOT change base)
+- Below EMA20 AND change < -0.5% today: **+2 bearish** (falling knife)
+- Position < 25% of week range AND change < 0 AND volume > 1.3x: **+2 bearish** (distribution)
+- Today's close below 5-day prior low by >0.5%: **+2 bearish** (fresh breakdown)
+
+**Signal Labels** (from `netScore`):
+- Strong Bullish: >= 7 with MACD positive
+- Bullish: >= 5
+- Balanced: >= 2
+- Cautious: >= 0
+- Weak: >= -3
+- Bearish: < -3
 
 ## Test Lab Automated Simulator
 
@@ -430,7 +439,10 @@ Analyzes last 10 closed trades:
 
 | Function | Location | Purpose |
 |----------|----------|---------|
-| `fetchStock(ticker)` | ~1400 | Fetch from Yahoo/Alpha Vantage, calculate netScore |
+| `fetchStock(ticker)` | ~1400 | Fetch from Yahoo, compute netScore via calcIndicators + modifiers |
+| `calcIndicators(closes,highs,lows)` | ~752 | Base bullish scoring (RSI, MACD, EMA20, range position) |
+| `getCatalystBonus({...})` | ~775 | Additive catalyst score: earnings proximity, volume breakout, 52w high |
+| `getTrendPenalty({...})` | ~810 | Additive bearish penalty: falling knife, distribution, fresh breakdown |
 | `refreshAll()` | ~2660 | Main refresh: fetch all data, run simulator, render UI |
 | `loadOne(ticker)` | ~2655 | Load single stock data |
 | `save()` | ~1150 | Persist all data to localStorage |

@@ -773,6 +773,74 @@ function calcIndicators(closes, highs, lows) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  CATALYST BONUS  — rewards breakouts driven by earnings/volume
+//  Does NOT touch base scoring; adds to catalystScore only.
+// ══════════════════════════════════════════════════════════════
+function getCatalystBonus({ nextEarnings, changePct, position, volumeRatio, price, yearHigh }) {
+  let bonus = 0;
+  const drivers = [];
+
+  // Earnings proximity window: -1 to +5 days around earnings date
+  if (nextEarnings) {
+    const daysToEarnings = (nextEarnings - Date.now()) / 86400000;
+    if (daysToEarnings >= -1 && daysToEarnings <= 5) {
+      bonus += 2;
+      const label = daysToEarnings < 0 ? 'just reported' : `in ${Math.ceil(daysToEarnings)}d`;
+      drivers.push(`Earnings ${label} — catalyst window active`);
+    }
+  }
+
+  // Volume-confirmed breakout at/near week high
+  // Stock is extended but institutions are still buying — not a pullback candidate
+  if (position > 0.80 && volumeRatio != null && volumeRatio > 1.5 && changePct > 1.5) {
+    bonus += 2;
+    drivers.push('Volume-confirmed breakout — institutional demand at highs');
+  }
+
+  // 52-week high breakout on elevated volume
+  if (yearHigh != null && price >= yearHigh * 0.99 && volumeRatio != null && volumeRatio > 1.3 && changePct > 1) {
+    bonus += 2;
+    drivers.push('52-week high breakout on elevated volume');
+  }
+
+  return { bonus, drivers };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TREND QUALITY PENALTY  — penalises falling-knife patterns
+//  Adds to bearishScore only; core scoring unchanged.
+// ══════════════════════════════════════════════════════════════
+function getTrendPenalty({ position, changePct, volumeRatio, price, ema20, closes }) {
+  let penalty = 0;
+  const drivers = [];
+
+  // Falling knife: already below EMA20 support AND still declining today
+  if (price < ema20 * 0.99 && changePct < -0.5) {
+    penalty += 2;
+    drivers.push('Below EMA20 and still declining — falling knife risk');
+  }
+
+  // Distribution at week-low: price near low but selling on above-average volume
+  // This is supply overwhelming demand, not a support bounce
+  if (position < 0.25 && changePct < 0 && volumeRatio != null && volumeRatio > 1.3) {
+    penalty += 2;
+    drivers.push('Selling pressure at week-low on volume — distribution pattern');
+  }
+
+  // Fresh breakdown: today's close is below the 5-day prior close range
+  // Means stock just broke to a new short-term low — avoid catching the knife
+  if (closes && closes.length >= 7) {
+    const priorRangeLow = Math.min(...closes.slice(-6, -1));
+    if (closes[closes.length - 1] < priorRangeLow * 0.995) {
+      penalty += 2;
+      drivers.push('Fresh 5-day low breakdown — support failed');
+    }
+  }
+
+  return { penalty, drivers };
+}
+
+// ══════════════════════════════════════════════════════════════
 //  SIGNAL & PREDICTION
 // ══════════════════════════════════════════════════════════════
 function signal(d) {
@@ -961,6 +1029,15 @@ async function fetchStock(ticker) {
   const closes    = valid.map(v => v.c);
   const highs     = valid.map(v => v.h);
   const lows      = valid.map(v => v.l);
+
+  // Volume data for catalyst/penalty modifiers
+  const rawVols     = (q.volume ?? []).filter(v => v != null && v > 0);
+  const currentVol  = meta.regularMarketVolume ?? (rawVols.length ? rawVols[rawVols.length - 1] : null);
+  const avgVol      = rawVols.length >= 21
+    ? rawVols.slice(-21, -1).reduce((a, b) => a + b, 0) / 20
+    : null;
+  const volumeRatio = (currentVol && avgVol && avgVol > 0) ? currentVol / avgVol : null;
+
   const price     = meta.regularMarketPrice ?? closes[closes.length - 1];
   const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length - 2] ?? price;
   const change    = price - prevClose;
@@ -994,9 +1071,20 @@ async function fetchStock(ticker) {
   if (changePct >= 2) { catalystScore += 1; catalystDrivers.push('Fresh buyers entering today'); }
   if (changePct >= 4) { catalystScore += 1; catalystDrivers.push('Strong daily rally momentum'); }
 
-  // ── Earnings catalyst boost (no EPS data from chart endpoint) ──
+  // ── Catalyst bonus: earnings proximity + volume-confirmed breakouts ──
+  const { bonus: catBonus, drivers: catBonusDrivers } = getCatalystBonus({
+    nextEarnings, changePct, position: ind.position, volumeRatio, price, yearHigh
+  });
+  catalystScore += catBonus;
+  catalystDrivers.push(...catBonusDrivers);
 
-  // Recalculate after earnings adjustment
+  // ── Trend quality penalty: falling knife + distribution at lows ──
+  const { penalty: trendPenalty, drivers: trendPenaltyDrivers } = getTrendPenalty({
+    position: ind.position, changePct, volumeRatio, price, ema20: ind.ema20, closes
+  });
+  bearishScore += trendPenalty;
+  bearishDrivers.push(...trendPenaltyDrivers);
+
   const netScoreFinal   = ind.bullishScore + catalystScore - bearishScore;
   const convictionFinal = clamp(Math.round(((netScoreFinal + 9) / 22) * 100), 0, 100);
   const sortScoreFinal  = netScoreFinal * 100 + ind.bullishScore * 10 - bearishScore;
@@ -1020,7 +1108,8 @@ async function fetchStock(ticker) {
     headlines,
     nextEarnings,
     epsSurprise: null,
-    yearHigh, yearLow, ret20
+    yearHigh, yearLow, ret20,
+    volumeRatio
   };
 }
 
