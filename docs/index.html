@@ -1052,13 +1052,76 @@ function parseEarnings(data) {
   return { nextDate, surprise };
 }
 
+// ══════════════════════════════════════════════════════════════
+//  FUNDAMENTAL SCORE  — valuation, growth, leverage quality
+//  Contribution capped at ±4 so technicals stay primary signal
+// ══════════════════════════════════════════════════════════════
+function getFundamentalScore(fund) {
+  if (!fund) return { score: 0, bullish: [], bearish: [] };
+  const bullish = [], bearish = [];
+  let score = 0;
+  const { forwardPE, pegRatio, revenueGrowth, earningsGrowth,
+          debtToEquity, profitMargins, returnOnEquity } = fund;
+
+  // Valuation — Forward P/E
+  if (forwardPE != null && forwardPE > 0) {
+    if (forwardPE < 12)      { score += 2; bullish.push(`Fwd P/E ${forwardPE.toFixed(1)} — deep value`); }
+    else if (forwardPE < 20) { score += 1; bullish.push(`Fwd P/E ${forwardPE.toFixed(1)} — reasonable valuation`); }
+    else if (forwardPE > 50) { score -= 2; bearish.push(`Fwd P/E ${forwardPE.toFixed(1)} — highly overvalued`); }
+    else if (forwardPE > 30) { score -= 1; bearish.push(`Fwd P/E ${forwardPE.toFixed(1)} — elevated valuation`); }
+  }
+
+  // Growth-adjusted valuation — PEG ratio
+  if (pegRatio != null && pegRatio > 0) {
+    if (pegRatio < 1)      { score += 1; bullish.push(`PEG ${pegRatio.toFixed(2)} — undervalued vs growth`); }
+    else if (pegRatio > 3) { score -= 1; bearish.push(`PEG ${pegRatio.toFixed(2)} — expensive vs growth`); }
+  }
+
+  // Revenue growth (YoY)
+  if (revenueGrowth != null) {
+    const p = (revenueGrowth * 100).toFixed(0);
+    if (revenueGrowth > 0.20)       { score += 2; bullish.push(`Revenue +${p}% YoY — strong growth`); }
+    else if (revenueGrowth > 0.08)  { score += 1; bullish.push(`Revenue +${p}% YoY — growing`); }
+    else if (revenueGrowth < -0.05) { score -= 2; bearish.push(`Revenue -${Math.abs(p)}% YoY — business declining`); }
+    else if (revenueGrowth < 0)     { score -= 1; bearish.push(`Revenue slightly declining YoY`); }
+  }
+
+  // Earnings growth (YoY)
+  if (earningsGrowth != null) {
+    const p = (earningsGrowth * 100).toFixed(0);
+    if (earningsGrowth > 0.25)       { score += 1; bullish.push(`EPS +${p}% YoY — strong earnings growth`); }
+    else if (earningsGrowth < -0.10) { score -= 1; bearish.push(`EPS -${Math.abs(p)}% YoY — earnings declining`); }
+  }
+
+  // Profit quality — net margin
+  if (profitMargins != null) {
+    const p = (profitMargins * 100).toFixed(0);
+    if (profitMargins > 0.20)  { score += 1; bullish.push(`Net margin ${p}% — high quality business`); }
+    else if (profitMargins < 0){ score -= 1; bearish.push(`Negative net margin — company losing money`); }
+  }
+
+  // Leverage risk — Debt/Equity
+  if (debtToEquity != null) {
+    if (debtToEquity > 300)      { score -= 2; bearish.push(`D/E ${debtToEquity.toFixed(0)}% — dangerously leveraged`); }
+    else if (debtToEquity > 150) { score -= 1; bearish.push(`D/E ${debtToEquity.toFixed(0)}% — high leverage`); }
+    else if (debtToEquity < 40)  { score += 1; bullish.push(`D/E ${debtToEquity.toFixed(0)}% — low debt, financially strong`); }
+  }
+
+  // Capital efficiency — ROE
+  if (returnOnEquity != null && returnOnEquity > 0.25) {
+    score += 1; bullish.push(`ROE ${(returnOnEquity * 100).toFixed(0)}% — exceptional capital efficiency`);
+  }
+
+  return { score, bullish, bearish };
+}
+
 async function fetchStock(ticker) {
   const ps       = tickerProxyStart(ticker);
   const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y&includePrePost=false&events=earnings`;
   const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
   const nasdaqUrl    = `https://api.nasdaq.com/api/company/${ticker}/earnings-surprise`;
-  const calendarUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents&formatted=false`;
+  const calendarUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents,defaultKeyStatistics,financialData&formatted=false`;
   const [chart, news, nasdaqData, calendarData] = await Promise.all([
     fetchJ(chartUrl, ps),
     fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
@@ -1076,8 +1139,23 @@ async function fetchStock(ticker) {
   // is appended to the URL. We find the most recent past date and project forward ~91 days.
   let nextEarnings = null;
 
+  // Extract fundamentals from the same quoteSummary response
+  const _calRes  = calendarData?.quoteSummary?.result?.[0] ?? {};
+  const _getNum  = v => (v != null && typeof v === 'object' ? (v.raw ?? null) : (v ?? null));
+  const _ks = _calRes.defaultKeyStatistics ?? {};
+  const _fd = _calRes.financialData ?? {};
+  const fundamentals = {
+    forwardPE:      _getNum(_ks.forwardPE),
+    pegRatio:       _getNum(_ks.pegRatio),
+    debtToEquity:   _getNum(_fd.debtToEquity),
+    revenueGrowth:  _getNum(_fd.revenueGrowth),
+    earningsGrowth: _getNum(_fd.earningsGrowth),
+    profitMargins:  _getNum(_fd.profitMargins),
+    returnOnEquity: _getNum(_fd.returnOnEquity),
+  };
+
   // SOURCE 1 — Yahoo calendarEvents module (most accurate: actual scheduled date)
-  const calEarnings = calendarData?.quoteSummary?.result?.[0]?.calendarEvents?.earnings?.earningsDate;
+  const calEarnings = _calRes?.calendarEvents?.earnings?.earningsDate;
   if (Array.isArray(calEarnings) && calEarnings.length > 0) {
     const future = calEarnings
       .map(e => new Date((e.raw ?? e) * 1000))
@@ -1266,7 +1344,30 @@ async function fetchStock(ticker) {
   bearishScore += trendPenalty;
   bearishDrivers.push(...trendPenaltyDrivers);
 
-  const netScoreFinal   = ind.bullishScore + catalystScore - bearishScore;
+  // ── Earnings day reaction: score the actual EPS result when stock just reported ──
+  // Detects if the most recent NASDAQ row was reported today or yesterday
+  const isEarningsDay = (() => {
+    if (!nasdaqRows?.length) return false;
+    const d = new Date(nasdaqRows[0]?.dateReported);
+    return !isNaN(d) && Math.abs((Date.now() - d.getTime()) / 86400000) <= 2;
+  })();
+  if (isEarningsDay && epsSurprise) {
+    const eps = epsSurprise.pct;
+    if (eps > 15)      { catalystScore += 2; catalystDrivers.push(`EPS beat +${eps.toFixed(0)}% — strong earnings catalyst`); }
+    else if (eps > 5)  { catalystScore += 1; catalystDrivers.push(`EPS beat +${eps.toFixed(0)}%`); }
+    else if (eps < -10){ bearishScore  += 3; bearishDrivers.push(`EPS miss −${Math.abs(eps).toFixed(0)}% — major earnings miss`); }
+    else if (eps < -3) { bearishScore  += 2; bearishDrivers.push(`EPS miss −${Math.abs(eps).toFixed(0)}%`); }
+    else if (eps < 0)  { bearishScore  += 1; bearishDrivers.push(`Slight EPS miss −${Math.abs(eps).toFixed(1)}%`); }
+  }
+
+  // ── Fundamental quality scoring ──
+  const { score: fundScore, bullish: fundBullD, bearish: fundBearD } = getFundamentalScore(fundamentals);
+  const fundBullAdj = Math.min(Math.max(0,  fundScore), 4);   // cap contribution at +4
+  const fundBearAdj = Math.min(Math.max(0, -fundScore), 4);   // cap contribution at +4
+  if (fundBullAdj > 0) { ind.bullishDrivers.push(...fundBullD); }
+  if (fundBearAdj > 0) { bearishDrivers.push(...fundBearD); }
+
+  const netScoreFinal   = (ind.bullishScore + fundBullAdj) + catalystScore - (bearishScore + fundBearAdj);
   // Conviction: calibrated to the wider score range after all signal additions
   // Maps netScore -15 → 0%, 0 → 50%, +15 → 100%
   const convictionFinal = clamp(Math.round(((netScoreFinal + 15) / 30) * 100), 0, 100);
@@ -1291,6 +1392,9 @@ async function fetchStock(ticker) {
     headlines,
     nextEarnings,
     epsSurprise,
+    isEarningsDay,
+    fundamentals,
+    fundamentalScore: fundScore,
     yearHigh, yearLow, ret20,
     volumeRatio
   };
@@ -1503,6 +1607,35 @@ function buildEarningsRow(d) {
   return `<div class="earnings-row"><span class="earn-label">Earnings</span>${parts.join('')}</div>`;
 }
 
+function buildFundamentalsRow(d) {
+  const f = d.fundamentals;
+  if (!f || d.assetType === 'ETF') return '';
+  const parts = [];
+  const chip = (label, val, good) => {
+    if (val == null) return;
+    const cls = good === true ? 'ec-beat' : good === false ? 'ec-miss' : 'ec-date';
+    parts.push(`<span class="earn-chip ${cls}">${label}: ${val}</span>`);
+  };
+  if (f.forwardPE != null && f.forwardPE > 0)
+    chip('P/E', f.forwardPE.toFixed(1), f.forwardPE < 20 ? true : f.forwardPE > 40 ? false : null);
+  if (f.pegRatio != null && f.pegRatio > 0)
+    chip('PEG', f.pegRatio.toFixed(2), f.pegRatio < 1.5 ? true : f.pegRatio > 3 ? false : null);
+  if (f.revenueGrowth != null) {
+    const s = (f.revenueGrowth >= 0 ? '+' : '') + (f.revenueGrowth * 100).toFixed(0) + '% rev';
+    chip('Growth', s, f.revenueGrowth > 0.08 ? true : f.revenueGrowth < 0 ? false : null);
+  }
+  if (f.earningsGrowth != null) {
+    const s = (f.earningsGrowth >= 0 ? '+' : '') + (f.earningsGrowth * 100).toFixed(0) + '% eps';
+    chip('EPS Grw', s, f.earningsGrowth > 0.10 ? true : f.earningsGrowth < 0 ? false : null);
+  }
+  if (f.profitMargins != null)
+    chip('Margin', (f.profitMargins * 100).toFixed(0) + '%', f.profitMargins > 0.15 ? true : f.profitMargins < 0 ? false : null);
+  if (f.debtToEquity != null)
+    chip('D/E', f.debtToEquity.toFixed(0) + '%', f.debtToEquity < 60 ? true : f.debtToEquity > 200 ? false : null);
+  if (!parts.length) return '';
+  return `<div class="earnings-row"><span class="earn-label">Fundamentals</span>${parts.join('')}</div>`;
+}
+
 function buildCard(d, rank, pinned) {
   const sig  = signal(d);
   const pred = prediction(d);
@@ -1568,6 +1701,7 @@ function buildCard(d, rank, pinned) {
               $${d.price.toFixed(2)}&nbsp;&nbsp;
               <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
               &nbsp;<span style="color:var(--muted)">(${d.change >= 0 ? '+' : ''}$${d.change.toFixed(2)})</span>
+              ${d.isEarningsDay ? `&nbsp;&middot;&nbsp;<span class="age-badge" style="background:#fff3e0;color:#b45309;border:1px solid #fcd34d">&#128226; Earnings Day</span>` : ''}
               ${ageTxt ? `&nbsp;&middot;&nbsp;<span class="age-badge ${ageCls}">${ageTxt}</span>` : ''}
             </div>
           </div>
@@ -1617,6 +1751,7 @@ function buildCard(d, rank, pinned) {
       <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
 
       ${buildEarningsRow(d)}
+      ${buildFundamentalsRow(d)}
 
       <div>
         <button class="detail-btn" onclick="toggleDetail('${detailId}')">&#9660; Details &amp; News</button>
