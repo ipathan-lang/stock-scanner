@@ -860,6 +860,32 @@ function getTrendPenalty({ position, changePct, volumeRatio, price, ema20, close
     }
   }
 
+  // Position reversal: stock is FALLING INTO the lower range today, not bouncing off support.
+  // When calcIndicators sees pos < 0.4 it awards +2 bullish — this cancels that out.
+  if (position < 0.40 && changePct < -1.5) {
+    penalty += 2;
+    drivers.push('Falling into lower range — not a support bounce, a fresh breakdown');
+  }
+
+  // Consecutive declining closes — multi-day sustained selling pressure
+  if (closes && closes.length >= 4) {
+    const n = closes.length;
+    if (closes[n-1] < closes[n-2] && closes[n-2] < closes[n-3] && closes[n-3] < closes[n-4]) {
+      penalty += 2;
+      drivers.push('4 consecutive lower closes — sustained distribution');
+    } else if (closes[n-1] < closes[n-2] && closes[n-2] < closes[n-3]) {
+      penalty += 1;
+      drivers.push('3 consecutive lower closes — selling pressure building');
+    }
+  }
+
+  // Short-term slope: down meaningfully over 5 days signals momentum breakdown
+  if (closes && closes.length >= 6) {
+    const ret5d = ((closes[closes.length-1] / closes[closes.length-6]) - 1) * 100;
+    if (ret5d < -4)      { penalty += 2; drivers.push(`Down ${Math.abs(ret5d).toFixed(1)}% over 5 days — momentum breakdown`); }
+    else if (ret5d < -2) { penalty += 1; drivers.push(`Down ${Math.abs(ret5d).toFixed(1)}% over 5 days — weakening trend`); }
+  }
+
   return { penalty, drivers };
 }
 
@@ -1137,6 +1163,10 @@ async function fetchStock(ticker) {
     bullishScore: 0, bullishDrivers: [], rsi: 50, macdDiff: 0, ema20: price, position: 0.5, price
   };
 
+  // Intraday direction: is price continuing to fall from today's open?
+  const marketOpen = meta.regularMarketOpen ?? price;
+  const openChangePct = marketOpen > 0 ? ((price - marketOpen) / marketOpen) * 100 : 0;
+
   // ── Bearish scoring ──
   let bearishScore = 0;
   const bearishDrivers = [];
@@ -1144,9 +1174,12 @@ async function fetchStock(ticker) {
   if (ind.rsi >= 65)             { bearishScore += 2; bearishDrivers.push('RSI overheated — pullback risk'); }
   if (ind.macdDiff < 0)          { bearishScore += 2; bearishDrivers.push('MACD below signal line'); }
   if (price < ind.ema20 * 0.99)  { bearishScore += 2; bearishDrivers.push('Below EMA20 trend support'); }
-  if (changePct <= -1)           { bearishScore += 1; bearishDrivers.push('Daily downside pressure'); }
-  if (changePct <= -3)           { bearishScore += 2; bearishDrivers.push('Strong daily decline'); }
+  if (changePct <= -1)           { bearishScore += 2; bearishDrivers.push('Daily downside pressure'); }
+  if (changePct <= -2)           { bearishScore += 1; bearishDrivers.push('Accelerating daily decline'); }
+  if (changePct <= -3)           { bearishScore += 1; bearishDrivers.push('Strong daily decline'); }
   if (changePct <= -5)           { bearishScore += 2; bearishDrivers.push('Major selloff warning'); }
+  if (openChangePct <= -1)       { bearishScore += 1; bearishDrivers.push('Intraday selloff — price below open'); }
+  if (openChangePct <= -2.5)     { bearishScore += 1; bearishDrivers.push('Deep intraday decline — sellers in control'); }
 
   // ── Catalyst scoring ──
   let catalystScore = 0;
