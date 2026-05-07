@@ -1148,9 +1148,14 @@ async function fetchStock(ticker) {
   const volumeRatio = (currentVol && avgVol && avgVol > 0) ? currentVol / avgVol : null;
 
   const price     = meta.regularMarketPrice ?? closes[closes.length - 1];
-  const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length - 2] ?? price;
-  const change    = price - prevClose;
-  const changePct = (change / prevClose) * 100;
+  // regularMarketPreviousClose is Yahoo's canonical unadjusted prev-day close.
+  // meta.previousClose can be adjusted/stale (causes fake +50-100% readings on earnings days).
+  const prevClose = meta.regularMarketPreviousClose ?? meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length - 2] ?? price;
+  const change    = meta.regularMarketChange ?? (price - prevClose);
+  // Use Yahoo's own calculated changePercent when available (decimal → ×100)
+  const changePct = meta.regularMarketChangePercent != null
+    ? meta.regularMarketChangePercent * 100
+    : (prevClose > 0 ? (change / prevClose) * 100 : 0);
 
   // 52-week range and 20-day return (base for relative strength vs SPY)
   const yearHigh = highs.length ? Math.max(...highs) : null;
@@ -1163,9 +1168,14 @@ async function fetchStock(ticker) {
     bullishScore: 0, bullishDrivers: [], rsi: 50, macdDiff: 0, ema20: price, position: 0.5, price
   };
 
-  // Intraday direction: is price continuing to fall from today's open?
-  const marketOpen = meta.regularMarketOpen ?? price;
-  const openChangePct = marketOpen > 0 ? ((price - marketOpen) / marketOpen) * 100 : 0;
+  // Intraday direction signals using open + day-high from Yahoo meta
+  const marketOpen  = meta.regularMarketOpen  ?? price;
+  const marketDayHigh = meta.regularMarketDayHigh ?? null;
+  const openChangePct    = marketOpen > 0 ? ((price - marketOpen)    / marketOpen)    * 100 : 0;
+  const dayHighRevertPct = (marketDayHigh && marketDayHigh > price)
+    ? ((price - marketDayHigh) / marketDayHigh) * 100 : 0;
+  // Gap-and-fade: stock gapped up strongly on earnings/news but is now trading below the open
+  const gapAndFade = changePct > 8 && openChangePct < -2;
 
   // ── Bearish scoring ──
   let bearishScore = 0;
@@ -1178,8 +1188,12 @@ async function fetchStock(ticker) {
   if (changePct <= -2)           { bearishScore += 1; bearishDrivers.push('Accelerating daily decline'); }
   if (changePct <= -3)           { bearishScore += 1; bearishDrivers.push('Strong daily decline'); }
   if (changePct <= -5)           { bearishScore += 2; bearishDrivers.push('Major selloff warning'); }
-  if (openChangePct <= -1)       { bearishScore += 1; bearishDrivers.push('Intraday selloff — price below open'); }
-  if (openChangePct <= -2.5)     { bearishScore += 1; bearishDrivers.push('Deep intraday decline — sellers in control'); }
+  if (openChangePct <= -1)       { bearishScore += 2; bearishDrivers.push('Intraday selloff — price below open'); }
+  if (openChangePct <= -3)       { bearishScore += 2; bearishDrivers.push('Heavy intraday selling — sellers in full control'); }
+  if (openChangePct <= -5)       { bearishScore += 2; bearishDrivers.push('Severe intraday reversal — institutional distribution'); }
+  if (gapAndFade)                { bearishScore += 3; bearishDrivers.push('Gap-and-fade — opened strong on news, sellers taking over'); }
+  if (dayHighRevertPct < -5)     { bearishScore += 2; bearishDrivers.push(`Reversed ${Math.abs(dayHighRevertPct).toFixed(1)}% from day high — bearish intraday reversal`); }
+  if (dayHighRevertPct < -10)    { bearishScore += 2; bearishDrivers.push('Deep reversal from day high — strong distribution'); }
 
   // ── Catalyst scoring ──
   let catalystScore = 0;
