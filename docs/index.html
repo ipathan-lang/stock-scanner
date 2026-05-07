@@ -1052,11 +1052,13 @@ async function fetchStock(ticker) {
   const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y&includePrePost=false&events=earnings`;
   const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
-  const nasdaqUrl = `https://api.nasdaq.com/api/company/${ticker}/earnings-surprise`;
-  const [chart, news, nasdaqData] = await Promise.all([
+  const nasdaqUrl    = `https://api.nasdaq.com/api/company/${ticker}/earnings-surprise`;
+  const calendarUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents&formatted=false`;
+  const [chart, news, nasdaqData, calendarData] = await Promise.all([
     fetchJ(chartUrl, ps),
     fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
-    fetchJProxy(nasdaqUrl, ps).catch(() => null)
+    fetchJProxy(nasdaqUrl, ps).catch(() => null),
+    fetchJProxy(calendarUrl, (ps + 2) % 3).catch(() => null)
   ]);
 
   const res = chart.chart?.result?.[0];
@@ -1069,52 +1071,83 @@ async function fetchStock(ticker) {
   // is appended to the URL. We find the most recent past date and project forward ~91 days.
   let nextEarnings = null;
 
-  // 1. Try meta fields first (occasionally populated by Yahoo)
-  const ets = meta.earningsTimestampStart ?? meta.earningsTimestamp;
-  if (ets) {
-    const d = new Date(ets * 1000);
-    if (!isNaN(d) && d > Date.now()) nextEarnings = d;
+  // SOURCE 1 — Yahoo calendarEvents module (most accurate: actual scheduled date)
+  const calEarnings = calendarData?.quoteSummary?.result?.[0]?.calendarEvents?.earnings?.earningsDate;
+  if (Array.isArray(calEarnings) && calEarnings.length > 0) {
+    const future = calEarnings
+      .map(e => new Date((e.raw ?? e) * 1000))
+      .filter(d => !isNaN(d) && d > new Date())
+      .sort((a, b) => a - b);
+    if (future.length > 0) nextEarnings = future[0];
   }
 
-  // 2. Parse events.earnings — a map of {timestamp: {date, ...}} with historical quarters
+  // SOURCE 2 — Yahoo meta earningsTimestamp (occasionally live)
+  if (!nextEarnings) {
+    const ets = meta.earningsTimestampStart ?? meta.earningsTimestamp;
+    if (ets) {
+      const d = new Date(ets * 1000);
+      if (!isNaN(d) && d > new Date()) nextEarnings = d;
+    }
+  }
+
+  // SOURCE 3 — NASDAQ earnings-surprise: fiscal-calendar-aware projection
+  // Uses company's own quarter-end dates + historical reporting lag instead of naive +91d
+  let epsSurprise = null;
+  const nasdaqRows = nasdaqData?.data?.earningsSurpriseTable?.rows;
+  if (!nextEarnings && nasdaqRows?.length > 0) {
+    // Parse "Dec 2025" → last day of that month
+    const parseQtrEnd = s => {
+      if (!s) return null;
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const parts = s.trim().split(/\s+/);
+      const mIdx = months.indexOf(parts[0]);
+      const yr   = parseInt(parts[1]);
+      if (mIdx < 0 || isNaN(yr)) return null;
+      return new Date(yr, mIdx + 1, 0); // last day of month
+    };
+
+    // Calculate this company's average days from quarter-end → report date
+    const lags = [];
+    for (const row of nasdaqRows.slice(0, 4)) {
+      const rep = new Date(row.dateReported);
+      const qe  = parseQtrEnd(row.fiscalQtrEnd);
+      if (qe && !isNaN(rep) && rep > qe) lags.push(Math.round((rep - qe) / 86400000));
+    }
+    const avgLag = lags.length ? Math.round(lags.reduce((a, b) => a + b, 0) / lags.length) : 35;
+
+    // Project: next quarter end = last quarter end + 91d, then add company lag
+    const lastQtrEnd = parseQtrEnd(nasdaqRows[0]?.fiscalQtrEnd);
+    if (lastQtrEnd) {
+      let projected = new Date(lastQtrEnd.getTime() + (91 + avgLag) * 86400000);
+      if (projected <= new Date()) {
+        projected = new Date(lastQtrEnd.getTime() + (182 + avgLag) * 86400000);
+      }
+      if (projected > new Date()) nextEarnings = projected;
+    }
+  }
+
+  // SOURCE 4 — Yahoo events.earnings historical dates: project using actual company intervals
   if (!nextEarnings && res.events?.earnings) {
     const earnTs = Object.values(res.events.earnings)
       .map(e => (e.date ?? e.reportDate) * 1000)
       .filter(t => !isNaN(t))
-      .sort((a, b) => a - b);          // ascending
-    const pastDates = earnTs.filter(t => t < Date.now());
-    if (pastDates.length >= 2) {
-      // Use median interval across last 4 quarters (or fewer if not available)
-      const recent = pastDates.slice(-4);
+      .sort((a, b) => a - b);
+    const past = earnTs.filter(t => t < Date.now());
+    if (past.length >= 2) {
+      const recent = past.slice(-4);
       const intervals = [];
       for (let i = 1; i < recent.length; i++) intervals.push(recent[i] - recent[i - 1]);
-      const medianInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      const projected = new Date(pastDates[pastDates.length - 1] + medianInterval);
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const projected = new Date(past[past.length - 1] + avgInterval);
       if (projected > new Date()) nextEarnings = projected;
-    } else if (pastDates.length === 1) {
-      // Only one past date — project 91 days forward
-      const projected = new Date(pastDates[0] + 91 * 86400000);
+    } else if (past.length === 1) {
+      const projected = new Date(past[0] + 91 * 86400000);
       if (projected > new Date()) nextEarnings = projected;
     }
   }
 
-  // 3. NASDAQ earnings-surprise: reliable per-ticker earnings date + EPS data
-  let epsSurprise = null;
-  const nasdaqRows = nasdaqData?.data?.earningsSurpriseTable?.rows;
+  // EPS surprise from most recently reported past quarter (NASDAQ rows)
   if (nasdaqRows?.length > 0) {
-    const mostRecent = nasdaqRows[0];
-    if (mostRecent?.dateReported) {
-      const lastDate = new Date(mostRecent.dateReported);
-      if (!isNaN(lastDate)) {
-        // Project next earnings ~91 days after last report
-        let projected = new Date(lastDate.getTime() + 91 * 86400000);
-        if (projected <= new Date()) {
-          projected = new Date(lastDate.getTime() + 182 * 86400000);
-        }
-        if (projected > new Date()) nextEarnings = projected;
-      }
-    }
-    // EPS surprise from most recently reported past quarter
     const now = Date.now();
     for (const row of nasdaqRows) {
       const d = new Date(row.dateReported);
