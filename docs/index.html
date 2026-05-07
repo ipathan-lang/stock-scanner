@@ -80,6 +80,11 @@
       transition: all .15s;
     }
     button:hover { border-color: rgba(30,99,217,.35); color: var(--blue); }
+    .sort-btn { font-size: .78rem; padding: 4px 10px; }
+    .sort-btn.active {
+      background: linear-gradient(135deg,#1d6ce0,#0f766e) !important;
+      color: #fff !important; border-color: transparent !important;
+    }
     .btn-p {
       background: linear-gradient(135deg, #1d6ce0, #0f766e) !important;
       color: #fff !important;
@@ -617,8 +622,12 @@
 
 <main>
   <div class="list-header">
-    <h2>Ranked: Most Bullish → Most Bearish</h2>
+    <h2 id="sort-label">Ranked: Most Bullish → Most Bearish</h2>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:4px">
+        <button id="sort-btn-bullish" class="sort-btn active" onclick="setSortMode('bullish')">&#x2605; Bullish</button>
+        <button id="sort-btn-earnings" class="sort-btn" onclick="setSortMode('earnings')">&#128197; Earnings</button>
+      </div>
       <div class="filter-wrap">
         <input id="wl-filter" type="text" placeholder="Filter stocks…" maxlength="10" oninput="applyFilter()" />
         <button id="filter-clear" onclick="clearFilter()" style="display:none">✕ Clear</button>
@@ -692,6 +701,20 @@ function esc(str) {
 }
 
 function sortStocks(list) {
+  if (_sortMode === 'earnings') {
+    const now = Date.now();
+    const daysTo = d => d.nextEarnings ? (d.nextEarnings - now) / 86400000 : Infinity;
+    return [...list].sort((a, b) => {
+      const da = daysTo(a), db = daysTo(b);
+      // Both have upcoming earnings (within 90 days): nearest first, then bullish
+      if (da < 90 && db < 90) return da - db || (b.sortScore ?? -9999) - (a.sortScore ?? -9999);
+      // Only one has upcoming earnings within 90 days: that one first
+      if (da < 90) return -1;
+      if (db < 90) return  1;
+      // Neither has earnings within 90 days: sort by bullish score
+      return (b.sortScore ?? -9999) - (a.sortScore ?? -9999);
+    });
+  }
   return [...list].sort((a, b) =>
     (b.sortScore  ?? -9999) - (a.sortScore  ?? -9999) ||
     (b.netScore   ??  -999) - (a.netScore   ??  -999) ||
@@ -884,6 +907,7 @@ let _rotIdx   = 0;
 let _rotTimer = null;
 let _rotList  = [];  // shuffled copy rebuilt each cycle
 let _filterText = ''; // live filter applied in renderList
+let _sortMode   = 'bullish'; // 'bullish' | 'earnings'
 
 function shuffle(arr) {
   const a = [...arr];
@@ -1191,6 +1215,18 @@ function ageClass(ts) {
   if (m > 15) return 'old';
   if (m > 5)  return 'stale';
   return '';
+}
+
+function setSortMode(mode) {
+  _sortMode = mode;
+  const label = document.getElementById('sort-label');
+  if (label) label.textContent = mode === 'earnings'
+    ? 'Ranked: Soonest Earnings → Bullish'
+    : 'Ranked: Most Bullish → Most Bearish';
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  const active = document.getElementById(`sort-btn-${mode}`);
+  if (active) active.classList.add('active');
+  renderList();
 }
 
 function applyFilter() {
