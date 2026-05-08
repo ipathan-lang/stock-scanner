@@ -1367,6 +1367,59 @@ async function fetchStock(ticker) {
   if (fundBullAdj > 0) { ind.bullishDrivers.push(...fundBullD); }
   if (fundBearAdj > 0) { bearishDrivers.push(...fundBearD); }
 
+  // ── Market regime overlay — macro context from SPY + QQQ ──────────────────────────────
+  // Root cause of false bullish (CEG/DELL/GILD/JPM): individual signals look fine but market
+  // is falling. Without a macro filter, stocks score Bullish even in a down-tape session.
+  // Fix: when SPY+QQQ are weak/bearish, add a headwind penalty to ALL individual stocks.
+  //      When market is strongly bullish, give a tailwind bonus.
+  if (ticker !== 'SPY' && ticker !== 'QQQ' && ticker !== 'IWM') {
+    const spyScore = S.data['SPY']?.netScore ?? null;
+    const qqqScore = S.data['QQQ']?.netScore ?? null;
+    if (spyScore !== null || qqqScore !== null) {
+      const mktAvg = (spyScore ?? qqqScore) + (qqqScore !== null && spyScore !== null ? qqqScore : 0);
+      const validCount = (spyScore !== null ? 1 : 0) + (qqqScore !== null ? 1 : 0);
+      const mktMean = mktAvg / validCount;
+      if (mktMean < -1) {
+        // Broad market bearish — significant headwind for any individual long
+        bearishScore += 2;
+        bearishDrivers.push('Broad market bearish (SPY+QQQ) — macro headwind, avoid new longs');
+      } else if (mktMean < 2) {
+        // Market cautious/weak — reduces conviction in bullish reads
+        bearishScore += 1;
+        bearishDrivers.push('Market showing weakness — reduces individual stock conviction');
+      } else if (mktMean >= 6) {
+        // Market strongly bullish — macro tailwind lifts all boats
+        catalystScore += 1;
+        catalystDrivers.push('Broad market bullish (SPY+QQQ) — macro tailwind');
+      }
+    }
+  }
+
+  // ── Relative strength vs SPY — laggards vs leaders ─────────────────────────────────────
+  // Root cause of false bullish (CEG/DELL/GILD): these were underperforming SPY by 5-10%
+  // while still showing "Bullish" from isolated technical reads.
+  // Root cause of false balanced (AAPL/GOOGL/AMZN): they were recovering faster than SPY
+  // but the system had no signal to reward relative outperformance.
+  if (ticker !== 'SPY') {
+    const spyRet20 = S.data['SPY']?.ret20 ?? null;
+    if (spyRet20 !== null && ret20 !== null) {
+      const rsVsSpy = ret20 - spyRet20;
+      if (rsVsSpy > 8) {
+        catalystScore += 2;
+        catalystDrivers.push(`Outperforming SPY by +${rsVsSpy.toFixed(1)}% (20d) — market leader`);
+      } else if (rsVsSpy > 4) {
+        catalystScore += 1;
+        catalystDrivers.push(`Outperforming SPY by +${rsVsSpy.toFixed(1)}% (20d) — relative strength`);
+      } else if (rsVsSpy < -8) {
+        bearishScore += 2;
+        bearishDrivers.push(`Underperforming SPY by ${rsVsSpy.toFixed(1)}% (20d) — sector laggard, avoid`);
+      } else if (rsVsSpy < -4) {
+        bearishScore += 1;
+        bearishDrivers.push(`Underperforming SPY by ${rsVsSpy.toFixed(1)}% (20d) — relative weakness`);
+      }
+    }
+  }
+
   const netScoreFinal   = (ind.bullishScore + fundBullAdj) + catalystScore - (bearishScore + fundBearAdj);
   // Conviction: calibrated to the wider score range after all signal additions
   // Maps netScore -15 → 0%, 0 → 50%, +15 → 100%

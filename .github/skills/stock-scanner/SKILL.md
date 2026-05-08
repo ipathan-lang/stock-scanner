@@ -733,6 +733,58 @@ After running simulations, document what worked/didn't work:
 ### 5. Common Issues & Solutions
 Add to "Debugging Guide" section any new bugs encountered and their fixes
 
+---
+
+## Daily Learning Log — Post-Mortems & Fixes
+
+### 2026-05-08 — False Bullish on CEG/DELL/GILD/JPM + False Balanced on AAPL/GOOGL/AMZN
+
+**What Happened:**
+- CEG, DELL, GILD, JPM showed "Bullish" but fell 5-6% the next session
+- AAPL, GOOGL, AMAZON showed "Balanced" but rallied strongly the next session
+
+**Root Cause Analysis:**
+
+**False Bullish (CEG/DELL/GILD/JPM):**
+`calcIndicators()` awards up to +7 bullish points purely from isolated technical reads:
+RSI in healthy range (+2+1) + holding EMA20 (+2) + in lower weekly range (+2+1) = 7 points.
+The system had ZERO awareness that SPY/QQQ were in a downtrend that session.
+In a bearish macro tape, individual stocks get dragged down regardless of their technicals.
+
+**False Balanced (AAPL/GOOGL/AMZN):**
+These stocks were stuck in "correction accounting" — being penalized for MACD negative (+2 bearish),
+below EMA20 (+2 bearish), negative ret20 (+1-2 bearish). These were macro-driven corrections
+(tariffs/rates), not stock-specific weakness. When the macro reversed (recovery day), these
+stocks led the bounce, but the system had no signal to reward that relative outperformance.
+
+**Fixes Applied (commit 7cbde63 + follow-on commit):**
+
+1. **Market Regime Overlay** added in `fetchStock()` after all other scoring:
+   - Uses `S.data['SPY']?.netScore` + `S.data['QQQ']?.netScore` (already computed from MARKET_TICKERS)
+   - Market mean < -1: +2 bearish headwind penalty → "Broad market bearish — macro headwind"
+   - Market mean < 2: +1 bearish → "Market showing weakness — reduces conviction"
+   - Market mean >= 6: +1 catalyst → "Broad market bullish — macro tailwind"
+   - Skipped for SPY, QQQ, IWM themselves
+
+2. **Relative Strength vs SPY** added in `fetchStock()`:
+   - Uses `S.data['SPY']?.ret20` vs individual `ret20`
+   - Outperforming SPY >8% (20d): +2 catalyst "market leader"
+   - Outperforming >4%: +1 catalyst "relative strength"
+   - Underperforming <-8%: +2 bearish "sector laggard, avoid"
+   - Underperforming <-4%: +1 bearish "relative weakness"
+   - CEG/GILD/DELL were underperforming SPY → caught by this
+   - AAPL/GOOGL/AMZN outperforming SPY on recovery → rewarded by this
+
+**Prevention Rule:** Never rely only on isolated technical reads. ALWAYS check:
+1. What is SPY's netScore right now? (proxy for macro tape)
+2. Is this stock outperforming or underperforming SPY over 20 days?
+If market is weak AND stock is lagging SPY → Never go Bullish regardless of RSI/MACD.
+
+**Code Locations:**
+- Market regime overlay: in `fetchStock()`, after `getFundamentalScore()` block
+- RS vs SPY: immediately after market regime block, before `netScoreFinal`
+- Both blocks skip SPY/QQQ/IWM so they don't self-reference
+
 ## Deployment Checklist
 
 Before pushing changes:
