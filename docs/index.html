@@ -645,35 +645,36 @@
 
 <script>
 // ══════════════════════════════════════════════════════════════
-//  DEFAULT WATCHLIST  (edit to customise)
+//  DEFAULT WATCHLIST  — Top 50: 45 highest market-cap stocks + 5 market-context ETFs
+//  (SPY/QQQ/IWM/XLK/XLF are required for market regime overlay — do not remove)
 // ══════════════════════════════════════════════════════════════
 const DEFAULT_WATCHLIST = [
-  // ── Mega-cap Tech / Software
-  'AAPL','MSFT','GOOGL','AMZN','NVDA','META','TSLA','ORCL','AVGO','ADBE','CRM','AMD','NFLX',
-  'INTC','QCOM','TXN','MU','AMAT','LRCX','KLAC',
+  // ── Market-context ETFs (required for macro regime overlay)
+  'SPY','QQQ','IWM','XLK','XLF',
 
-  // ── AI Pure-Plays & Infrastructure (2026 trending)
-  'SMCI','PLTR','SOUN','AI','ARWR','ARM','MRVL','DELL','HPE','NET','SNOW','DDOG','ZS','PANW',
+  // ── Mega-cap Tech (top by market cap)
+  'NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AVGO','ORCL','NFLX',
 
-  // ── Chip Manufacturing / Semiconductors
-  'TSM','ASML','AEHR','ONTO','WOLF','ENTG','ACLS','UCTT','FORM','SITM','MPWR',
+  // ── Enterprise Software / Cloud
+  'ADBE','CRM','AMD',
 
-  // ── Healthcare / Biotech / GLP-1 (2026 trending)
-  'LLY','UNH','JNJ','ABBV','MRK','PFE','AMGN','BMY','GILD','REGN','VRTX',
-  'ISRG','MDT','SYK','ELV','CVS','HCA','DXCM','INCY','MRNA',
+  // ── Semiconductors
+  'TSM','ASML','QCOM','TXN','MU',
 
-  // ── Finance / Fintech
-  'JPM','V','MA','BAC','WFC','GS','MS','AXP','PYPL','SQ','COF','BRK-B',
+  // ── Financials
+  'JPM','V','MA','BAC','WFC','GS','MS','BRK-B',
+
+  // ── Healthcare / Pharma
+  'LLY','UNH','JNJ','ABBV','MRK','AMGN','REGN','VRTX','ISRG',
 
   // ── Consumer / Retail
-  'WMT','COST','HD','PG','NKE','MCD','SBUX','TGT','AMZN',
+  'WMT','COST','HD','PG',
 
-  // ── Energy / Clean Energy
-  'XOM','CVX','NEE','ENPH','FSLR','CEG',
+  // ── Energy
+  'XOM','CVX','NEE',
 
-  // ── ETFs / Macro / Thematic (2026 trending)
-  'SPY','QQQ','IWM','XLK','XLF','XLE','XLV','XLY','GLD','TLT',
-  'SOXX','SMH','AIQ','ROBO','ARKG','IBB','HACK','CIBR','VGT','QQQM'
+  // ── High-conviction AI/Growth (large-cap leaders)
+  'PLTR','ARM','PANW'
 ];
 
 const MARKET_TICKERS = ['SPY','QQQ','IWM','XLK','XLF'];
@@ -1955,7 +1956,14 @@ async function searchStock() {
 (async () => {
   try {
     const saved = localStorage.getItem('sm_watch');
-    S.watchlist = saved ? JSON.parse(saved) : [...DEFAULT_WATCHLIST];
+    // v2026-05-08: reset to curated top-50 if saved list has >60 entries (old large list)
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      S.watchlist = parsed.length > 60 ? [...DEFAULT_WATCHLIST] : parsed;
+      if (parsed.length > 60) localStorage.setItem('sm_watch', JSON.stringify(S.watchlist));
+    } else {
+      S.watchlist = [...DEFAULT_WATCHLIST];
+    }
   } catch(e) {
     S.watchlist = [...DEFAULT_WATCHLIST];
   }
