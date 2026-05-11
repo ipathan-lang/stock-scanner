@@ -1889,7 +1889,7 @@ function buildFundamentalsRow(d) {
 
 // Builds the "Today's Hold" conviction bar shown on every stock card.
 // Answers the question: "will this move hold for the rest of the day?"
-function buildHoldBar(d) {
+function buildHoldBar(d, atrTag = '') {
   const dc = d.dayConviction ?? 'None';
   const dc_score = d.dcScore ?? 0;
   const reasons  = d.dcReasons ?? [];
@@ -1939,6 +1939,10 @@ function buildHoldBar(d) {
     ? `<div class="hold-bar-reasons">${reasons.map(r => `<span class="hold-reason">${esc(r)}</span>`).join('')}</div>`
     : '';
 
+  const atrBadgeHtml = atrTag
+    ? `<div style="margin-top:6px">${atrTag}</div>`
+    : '';
+
   return `
     <div class="hold-bar ${barCls}">
       <div class="hold-bar-label">Today's<br>Hold</div>
@@ -1946,8 +1950,10 @@ function buildHoldBar(d) {
         <div class="hold-bar-verdict" style="color:${textColor}">${verdict}</div>
         <div class="hold-bar-dots">${dots}</div>
         ${reasonPills}
+        ${atrBadgeHtml}
       </div>
     </div>`;
+}
 }
 
 function buildCard(d, rank, pinned) {
@@ -2031,7 +2037,6 @@ function buildCard(d, rank, pinned) {
               <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
               &nbsp;<span style="color:var(--muted)">(${d.change >= 0 ? '+' : ''}$${d.change.toFixed(2)})</span>
               ${d.isEarningsDay ? `&nbsp;&middot;&nbsp;<span class="age-badge" style="background:#fff3e0;color:#b45309;border:1px solid #fcd34d">&#128226; Earnings Day</span>` : ''}
-              ${atrTag ? `&nbsp;&middot;&nbsp;${atrTag}` : ''}
               ${ageTxt ? `&nbsp;&middot;&nbsp;<span class="age-badge ${ageCls}">${ageTxt}</span>` : ''}
             </div>
           </div>
@@ -2080,7 +2085,7 @@ function buildCard(d, rank, pinned) {
 
       <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
 
-      ${buildHoldBar(d)}
+      ${buildHoldBar(d, atrTag)}
 
       ${buildEarningsRow(d)}
       ${buildFundamentalsRow(d)}
