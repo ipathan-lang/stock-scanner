@@ -728,7 +728,7 @@
     <div class="fc-head">
       <div>
         <h3 id="forecast-title">Forecast</h3>
-        <div class="fc-sub">Model projection · 5-min intervals · Next 2 hours</div>
+        <div class="fc-sub">Model projection · 30-min intervals · Next 24 hours</div>
       </div>
       <button class="fc-close" onclick="closeForecast()">&#x2715;</button>
     </div>
@@ -736,9 +736,9 @@
       <div class="fc-chart-wrap">
         <div id="forecast-chart"></div>
         <div class="fc-legend">
-          <span><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#16a34a" stroke-width="2.5"/></svg> Predicted path</span>
-          <span><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/></svg> Confidence band</span>
-          <span><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/></svg> Current price</span>
+          <span><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#16a34a" stroke-width="2.5"/></svg> Rising bar</span>
+          <span><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#dc2626" stroke-width="2.5"/></svg> Falling bar</span>
+          <span><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3"/></svg> Current / Session</span>
         </div>
       </div>
       <div id="forecast-drivers"></div>
@@ -2052,11 +2052,9 @@ function openForecast(ticker) {
   const dir = (d.changePct ?? 0) >= 0;
   document.getElementById('forecast-title').textContent =
     `${ticker}  ·  $${d.price.toFixed(2)}  ${dir ? '▲' : '▼'} ${Math.abs(d.changePct ?? 0).toFixed(2)}%`;
-  document.getElementById('forecast-chart').innerHTML   = buildForecastSVG(d);
-  document.getElementById('forecast-drivers').innerHTML = buildForecastDrivers(d);
-  // Update legend line color to match direction
-  const legendLine = document.querySelector('#forecast-modal .fc-legend svg line');
-  if (legendLine) legendLine.setAttribute('stroke', dir ? '#16a34a' : '#dc2626');
+  const result = buildForecastSVG(d);
+  document.getElementById('forecast-chart').innerHTML   = result.svg;
+  document.getElementById('forecast-drivers').innerHTML = buildForecastDrivers(d, result);
   document.getElementById('forecast-modal').classList.add('open');
 }
 function closeForecast() {
@@ -2064,144 +2062,209 @@ function closeForecast() {
 }
 
 function buildForecastSVG(d) {
-  const BARS    = 24; // 24 × 5min = 2 hours
-  const price   = d.price;
-  const atrPct  = d.atrPct  ?? 1.5;
-  const macdSlope = d.macdSlope ?? 0;
-  const rsi     = d.rsi     ?? 50;
-  const dcScore = d.dcScore ?? 0;
-  const changePct    = d.changePct ?? 0;
-  const todayRangePct = d.todayRangePct ?? 0;
-  const netScore = clamp(d.netScore ?? 0, -15, 15);
+  // ── Inputs ──────────────────────────────────────────────────
+  const BARS        = 48;  // 30-min × 48 = 24 hours
+  const price       = d.price;
+  const atrPct      = d.atrPct      ?? 1.5;
+  const macdSlope   = d.macdSlope   ?? 0;
+  const rsi         = d.rsi         ?? 50;
+  const dcScore     = d.dcScore     ?? 0;
+  const netScore    = clamp(d.netScore ?? 0, -15, 15);
 
-  // Direction: follow current day's direction
-  const dir = changePct >= 0 ? 1 : -1;
+  // ── Seeded deterministic PRNG (same ticker+day → same chart) ─
+  const today = new Date();
+  let seed = d.ticker.split('').reduce((a, c) => a + c.charCodeAt(0) * 31, 7);
+  seed += today.getDate() * 97 + today.getMonth() * 317 + today.getFullYear() * 3;
+  seed = seed | 0;
+  const rng = () => {
+    seed = Math.imul(1664525, seed) + 1013904223 | 0;
+    return (seed >>> 0) / 0xFFFFFFFF * 2 - 1; // -1..1
+  };
 
-  // Per-5min ATR: divide daily ATR by sqrt(78 bars/day)
-  const atrPer5 = atrPct / Math.sqrt(78);
+  // ── Per-30min volatility: daily ATR / sqrt(13 half-hour bars) ─
+  const atrPer30 = atrPct / Math.sqrt(13);
 
-  // Base drift per 5-min bar as % of price
-  // Stronger netScore = more drift; capped at 80% of per-bar ATR
-  const baseDrift = clamp((netScore / 15) * atrPer5 * 0.65, -atrPer5 * 0.8, atrPer5 * 0.8);
+  // ── Signal-driven drift ──────────────────────────────────────
+  const dir      = netScore >= 0 ? 1 : -1;
+  const strength = Math.abs(netScore) / 15;           // 0..1
+  const driftAmp = dir * strength * atrPer30 * 0.55; // max ~half a bar ATR
 
-  // Decay rate: how fast the directional momentum fades
-  // RSI extreme → fast mean-reversion decay
-  // High conviction + aligned MACD → slow decay (move persists)
-  const rsiExtreme  = (dir > 0 && rsi > 72) || (dir < 0 && rsi < 28);
-  const macdAligned = (dir > 0 && macdSlope > 0.02) || (dir < 0 && macdSlope < -0.02);
-  let decayRate = 0.07;
-  if (rsiExtreme)                        decayRate = 0.13; // overbought/oversold reversal
-  else if (dcScore >= 4 && macdAligned)  decayRate = 0.025; // strong hold, slow fade
-  else if (dcScore >= 2 && macdAligned)  decayRate = 0.05;
-  else if (!macdAligned && macdSlope !== 0) decayRate = 0.10; // opposing MACD = faster fade
+  // RSI mean-reversion nudge (counter-direction when overbought/oversold)
+  const rsiMR = rsi > 70 ? -(rsi - 70) / 30 * atrPer30 * 0.7
+              : rsi < 30 ?  (30 - rsi) / 30 * atrPer30 * 0.7 : 0;
 
-  // If stock already used > 1.5× its daily ATR range, less room to move further
-  const atrUsedFactor = todayRangePct > 1.5 ? 0.55 : todayRangePct > 1.0 ? 0.78 : 1.0;
+  // MACD early momentum boost (decays over first 6 bars)
+  const macdBoost = Math.sign(macdSlope) * Math.min(Math.abs(macdSlope) * 12, atrPer30 * 0.25);
 
-  // Confidence band sigma per bar (widens with sqrt of time)
-  const noiseSigma = atrPer5 * (1.0 + (5 - dcScore) * 0.12);
+  // ── Session map: market (9:30–16:00) vs overnight ─────────────
+  const now = new Date();
+  const sessionMap = Array.from({ length: BARS + 1 }, (_, i) => {
+    const t = new Date(now.getTime() + i * 30 * 60000);
+    const h = t.getHours() + t.getMinutes() / 60;
+    return h >= 9.5 && h < 16 ? 'market' : 'overnight';
+  });
 
-  // Generate projected price path
+  // ── Generate price path ───────────────────────────────────────
   const prices = [price];
-  const upper  = [price];
-  const lower  = [price];
+  let momentum = 0;
 
   for (let t = 1; t <= BARS; t++) {
-    const decay     = Math.exp(-t * decayRate);
-    const drift     = baseDrift * decay * atrUsedFactor * dir / 100;
-    const nextPrice = prices[t - 1] * (1 + drift);
-    prices.push(nextPrice);
-    const band = (noiseSigma * Math.sqrt(t)) / 100;
-    upper.push(nextPrice * (1 + band));
-    lower.push(nextPrice * (1 - band));
+    const isMarket = sessionMap[t] === 'market';
+    const decay    = Math.exp(-t * 0.04);   // signal strength decays over 24h
+    const volScale = isMarket ? 1.0 : 0.12; // near-flat overnight
+
+    // Momentum-clustered noise: creates realistic runs of up/down bars
+    const raw  = rng();
+    momentum   = momentum * 0.58 + raw * 0.42;
+    const noise = momentum * atrPer30 * volScale * 1.05;
+
+    const drift = isMarket
+      ? driftAmp * decay
+        + rsiMR * decay * 0.5
+        + (t <= 6 ? macdBoost * Math.exp(-t * 0.25) : 0)
+      : driftAmp * decay * 0.06; // overnight: tiny drift only
+
+    prices.push(prices[t - 1] * (1 + (drift + noise) / 100));
   }
 
-  // SVG layout
-  const W = 340, H = 185;
-  const PAD = { top: 14, right: 16, bottom: 28, left: 54 };
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top  - PAD.bottom;
+  // ── Derived stats ─────────────────────────────────────────────
+  const finalPrice  = prices[BARS];
+  const finalPct    = (finalPrice - price) / price * 100;
+  const projHigh    = Math.max(...prices.slice(1));
+  const projLow     = Math.min(...prices.slice(1));
+  const projHighPct = (projHigh - price) / price * 100;
+  const projLowPct  = (projLow  - price) / price * 100;
 
-  // Y scale
-  const allY   = [...prices, ...upper, ...lower];
-  const yMin   = Math.min(...allY);
-  const yMax   = Math.max(...allY);
+  // ── SVG geometry ─────────────────────────────────────────────
+  const W   = 400, H = 205;
+  const PAD = { top: 14, right: 54, bottom: 30, left: 54 };
+  const cW  = W - PAD.left - PAD.right;
+  const cH  = H - PAD.top  - PAD.bottom;
+
+  const yMin   = Math.min(...prices) * 0.9992;
+  const yMax   = Math.max(...prices) * 1.0008;
   const yRange = yMax - yMin || price * 0.01;
+
   const xS = i => PAD.left + (i / BARS) * cW;
   const yS = p => PAD.top  + cH - ((p - yMin) / yRange) * cH;
 
-  // Path strings
-  const pts   = n => prices.map((p, i) => `${i===0?'M':'L'}${xS(i).toFixed(1)},${yS(p).toFixed(1)}`).join(' ');
-  const uPts  =       upper.map((p, i) => `${i===0?'M':'L'}${xS(i).toFixed(1)},${yS(p).toFixed(1)}`).join(' ');
-  const lPts  =       lower.map((p, i) => `${i===0?'M':'L'}${xS(i).toFixed(1)},${yS(p).toFixed(1)}`).join(' ');
-  const area  = [
-    ...upper.map((p, i) => `${i===0?'M':'L'}${xS(i).toFixed(1)},${yS(p).toFixed(1)}`),
-    ...lower.slice().reverse().map((p, i) => `L${xS(BARS-i).toFixed(1)},${yS(p).toFixed(1)}`),
-    'Z'
-  ].join(' ');
+  // ── Color each segment green (up) / red (down) ───────────────
+  const upClr = '#16a34a', dnClr = '#dc2626';
+  const segs = prices.slice(1).map((p, i) => {
+    const c = p >= prices[i] ? upClr : dnClr;
+    return `<line x1="${xS(i).toFixed(1)}" y1="${yS(prices[i]).toFixed(1)}" `+
+           `x2="${xS(i+1).toFixed(1)}" y2="${yS(p).toFixed(1)}" `+
+           `stroke="${c}" stroke-width="2.2" stroke-linecap="round" opacity=".9"/>`;
+  }).join('');
 
-  const lineClr  = dir > 0 ? '#16a34a' : '#dc2626';
-  const bandFill = dir > 0 ? 'rgba(22,163,74,.09)' : 'rgba(220,38,38,.08)';
-  const bandEdge = dir > 0 ? 'rgba(22,163,74,.28)' : 'rgba(220,38,38,.25)';
+  // ── Session boundary markers ──────────────────────────────────
+  let sessionLines = '';
+  for (let i = 1; i <= BARS; i++) {
+    if (sessionMap[i] !== sessionMap[i - 1]) {
+      const lbl = sessionMap[i] === 'overnight' ? 'Close' : 'Open';
+      const sx = xS(i).toFixed(1);
+      sessionLines +=
+        `<line x1="${sx}" y1="${PAD.top}" x2="${sx}" y2="${H-PAD.bottom}" `+
+        `stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" opacity=".5"/>`+
+        `<text x="${(+sx+3).toFixed(1)}" y="${(PAD.top+9).toFixed(1)}" `+
+        `font-size="7" fill="#94a3b8" font-family="system-ui">${lbl}</text>`;
+    }
+  }
 
-  // Y axis ticks
-  const yTicks = Array.from({ length: 4 }, (_, i) => {
-    const p = yMin + (yRange / 3) * i;
+  // ── Y-axis ticks ──────────────────────────────────────────────
+  const yTicks = Array.from({ length: 5 }, (_, i) => {
+    const p   = yMin + (yRange / 4) * i;
     const lbl = p >= 1000 ? p.toFixed(0) : p >= 100 ? p.toFixed(1) : p.toFixed(2);
-    return `<line x1="${PAD.left}" y1="${yS(p).toFixed(1)}" x2="${W-PAD.right}" y2="${yS(p).toFixed(1)}" stroke="#e2e8f0" stroke-width="1"/>
-    <text x="${(PAD.left-4).toFixed(1)}" y="${(yS(p)+3.5).toFixed(1)}" font-size="8.5" fill="#94a3b8" text-anchor="end" font-family="system-ui">${lbl}</text>`;
+    return `<line x1="${PAD.left}" y1="${yS(p).toFixed(1)}" x2="${W-PAD.right}" y2="${yS(p).toFixed(1)}" stroke="#e8edf3" stroke-width="1"/>`+
+           `<text x="${(PAD.left-4).toFixed(1)}" y="${(yS(p)+3.5).toFixed(1)}" font-size="8.5" fill="#94a3b8" text-anchor="end" font-family="system-ui">${lbl}</text>`;
   }).join('');
 
-  // X axis time labels every 6 bars (30min)
-  const now = new Date();
-  const xLabels = Array.from({ length: 5 }, (_, i) => {
-    const barIdx = i * 6;
-    const t = new Date(now.getTime() + barIdx * 5 * 60000);
-    const lbl = `${t.getHours()}:${t.getMinutes().toString().padStart(2,'0')}`;
-    return `<text x="${xS(barIdx).toFixed(1)}" y="${(H-8).toFixed(1)}" font-size="8" fill="#94a3b8" text-anchor="middle" font-family="system-ui">${lbl}</text>`;
+  // ── X-axis time labels every 8 bars (= 4 hours) ───────────────
+  const xLabels = Array.from({ length: 7 }, (_, i) => {
+    const bi = i * 8;
+    if (bi > BARS) return '';
+    const t2  = new Date(now.getTime() + bi * 30 * 60000);
+    const lbl = `${t2.getHours()}:${t2.getMinutes().toString().padStart(2,'0')}`;
+    return `<text x="${xS(bi).toFixed(1)}" y="${(H-9).toFixed(1)}" font-size="7.8" fill="#94a3b8" text-anchor="middle" font-family="system-ui">${lbl}</text>`;
   }).join('');
 
-  // End annotation
-  const finalPrice = prices[BARS];
-  const finalPct   = (finalPrice - price) / price * 100;
-  const finalX     = xS(BARS);
-  const finalY     = yS(finalPrice);
-  const lblX       = Math.min(finalX, W - PAD.right - 30);
+  // ── Current price dashed reference ───────────────────────────
+  const cpY    = yS(price).toFixed(1);
+  const curLine = `<line x1="${PAD.left}" y1="${cpY}" x2="${W-PAD.right}" y2="${cpY}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" opacity=".6"/>`+
+                  `<text x="${(PAD.left-4).toFixed(1)}" y="${(+cpY+3.5).toFixed(1)}" font-size="7.5" fill="#64748b" text-anchor="end" font-family="system-ui" font-weight="600">now</text>`;
 
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
+  // ── End annotation badge ──────────────────────────────────────
+  const fx      = xS(BARS);
+  const fy      = yS(finalPrice);
+  const finalClr = finalPct >= 0 ? upClr : dnClr;
+  const endBadge =
+    `<rect x="${(W-PAD.right+4).toFixed(1)}" y="${(fy-9).toFixed(1)}" width="48" height="16" rx="4" fill="${finalClr}"/>`+
+    `<text x="${(W-PAD.right+28).toFixed(1)}" y="${(fy+3).toFixed(1)}" font-size="8.5" fill="#fff" text-anchor="middle" font-family="system-ui" font-weight="700">${finalPct>=0?'+':''}${finalPct.toFixed(2)}%</text>`;
+
+  // ── Projected High / Low right-side labels ────────────────────
+  const phY = yS(projHigh);
+  const plY = yS(projLow);
+  const hlLabels =
+    `<text x="${(W-PAD.right+4).toFixed(1)}" y="${(phY-2).toFixed(1)}" font-size="7.5" fill="${upClr}" font-family="system-ui" font-weight="700">H ${projHighPct>=0?'+':''}${projHighPct.toFixed(1)}%</text>`+
+    `<text x="${(W-PAD.right+4).toFixed(1)}" y="${(plY+9).toFixed(1)}" font-size="7.5" fill="${dnClr}" font-family="system-ui" font-weight="700">L ${projLowPct.toFixed(1)}%</text>`;
+
+  const startClr = dir >= 0 ? upClr : dnClr;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
     ${yTicks}
-    <line x1="${PAD.left}" y1="${yS(price).toFixed(1)}" x2="${W-PAD.right}" y2="${yS(price).toFixed(1)}"
-          stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>
-    <path d="${area}" fill="${bandFill}"/>
-    <path d="${uPts}" fill="none" stroke="${bandEdge}" stroke-width="1" stroke-dasharray="3,2"/>
-    <path d="${lPts}" fill="none" stroke="${bandEdge}" stroke-width="1" stroke-dasharray="3,2"/>
-    <path d="${pts()}" fill="none" stroke="${lineClr}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${xS(0).toFixed(1)}" cy="${yS(price).toFixed(1)}" r="4" fill="${lineClr}"/>
-    <circle cx="${finalX.toFixed(1)}" cy="${finalY.toFixed(1)}" r="4" fill="${lineClr}"/>
-    <rect x="${(lblX-28).toFixed(1)}" y="${(finalY-16).toFixed(1)}" width="34" height="14" rx="4" fill="${lineClr}" opacity=".9"/>
-    <text x="${(lblX-11).toFixed(1)}" y="${(finalY-5.5).toFixed(1)}" font-size="8" fill="#fff" text-anchor="middle" font-family="system-ui" font-weight="700">${finalPct>=0?'+':''}${finalPct.toFixed(2)}%</text>
+    ${curLine}
+    ${sessionLines}
+    ${segs}
+    <circle cx="${xS(0).toFixed(1)}" cy="${yS(price).toFixed(1)}" r="4" fill="${startClr}" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="4" fill="${finalClr}" stroke="#fff" stroke-width="1.5"/>
+    ${endBadge}
+    ${hlLabels}
     ${xLabels}
     <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${H-PAD.bottom}" stroke="#cbd5e1" stroke-width="1"/>
     <line x1="${PAD.left}" y1="${H-PAD.bottom}" x2="${W-PAD.right}" y2="${H-PAD.bottom}" stroke="#cbd5e1" stroke-width="1"/>
   </svg>`;
+
+  return { svg, projHighPct, projLowPct, finalPct };
 }
 
-function buildForecastDrivers(d) {
-  const dir      = (d.changePct ?? 0) >= 0;
+function buildForecastDrivers(d, stats) {
+  const { projHighPct, projLowPct, finalPct } = stats;
+  const dir      = (d.netScore ?? 0) >= 0;
   const dirColor = dir ? '#15803d' : '#dc2626';
+  const finalClr = finalPct >= 0 ? '#15803d' : '#dc2626';
 
   const items = [
-    { label: 'Direction bias',      val: dir ? 'Bullish ↑' : 'Bearish ↓', color: dirColor },
-    { label: 'Net score',           val: `${d.netScore ?? '—'} / 15`,      color: '#1e293b' },
-    { label: 'Day conviction',      val: d.dayConviction ?? '—',
-      color: d.dayConviction === 'High' ? '#15803d' : d.dayConviction === 'Medium' ? '#92400e' : '#64748b' },
-    { label: 'Expected daily range',val: d.atrPct != null ? `${d.atrPct.toFixed(1)}%` : '—', color: '#1e293b' },
-    { label: 'RSI (14)',
-      val: d.rsi != null ? `${d.rsi.toFixed(1)}${d.rsi > 70 ? ' ⚠ overbought' : d.rsi < 30 ? ' ⚠ oversold' : ''}` : '—',
-      color: d.rsi > 70 || d.rsi < 30 ? '#92400e' : '#1e293b' },
-    { label: 'MACD momentum',
-      val: d.macdSlope > 0.05 ? 'Accelerating ↑' : d.macdSlope < -0.05 ? 'Fading ↓' : 'Neutral',
-      color: d.macdSlope > 0.05 ? '#15803d' : d.macdSlope < -0.05 ? '#dc2626' : '#64748b' },
+    {
+      label: '24h projected move',
+      val:   `${finalPct >= 0 ? '+' : ''}${finalPct.toFixed(2)}%`,
+      color: finalClr
+    },
+    {
+      label: 'Expected high / low',
+      val:   `+${projHighPct.toFixed(1)}% / ${projLowPct.toFixed(1)}%`,
+      color: '#1e293b'
+    },
+    {
+      label: 'Day conviction',
+      val:   d.dayConviction ?? '—',
+      color: d.dayConviction === 'High' ? '#15803d' : d.dayConviction === 'Medium' ? '#92400e' : '#64748b'
+    },
+    {
+      label: 'RSI (14)',
+      val:   d.rsi != null
+        ? `${d.rsi.toFixed(1)}${d.rsi > 70 ? ' ⚠ overbought' : d.rsi < 30 ? ' ⚠ oversold' : ''}`
+        : '—',
+      color: d.rsi > 70 || d.rsi < 30 ? '#92400e' : '#1e293b'
+    },
+    {
+      label: 'MACD momentum',
+      val:   d.macdSlope > 0.05 ? 'Accelerating ↑' : d.macdSlope < -0.05 ? 'Fading ↓' : 'Neutral',
+      color: d.macdSlope > 0.05 ? '#15803d' : d.macdSlope < -0.05 ? '#dc2626' : '#64748b'
+    },
+    {
+      label: 'Net score',
+      val:   `${d.netScore ?? '—'} / 15`,
+      color: '#1e293b'
+    },
   ];
 
   return `<div class="fc-drivers">
@@ -2211,9 +2274,9 @@ function buildForecastDrivers(d) {
     </div>`).join('')}
   </div>
   <div class="fc-disclaimer">
-    ⚠ This is a model-based projection derived from RSI, MACD slope, ATR volatility,
-    net score and conviction signals — not live price data. The band shows uncertainty
-    widening over time. Actual prices will differ. Not financial advice.
+    ⚠ Model projection using RSI, MACD, ATR &amp; net score. Green bars = projected rise,
+    red bars = projected dip. "Close" / "Open" mark session boundaries. Chart is
+    deterministic per ticker per day — same stock = same pattern each session. Not financial advice.
   </div>`;
 }
 
