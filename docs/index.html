@@ -728,7 +728,7 @@
     <div class="fc-head">
       <div>
         <h3 id="forecast-title">Forecast</h3>
-        <div class="fc-sub">Model projection · 30-min intervals · Next 24 hours</div>
+        <div class="fc-sub">Model projection · 30-min intervals · 7 AM – 8 PM today</div>
       </div>
       <button class="fc-close" onclick="closeForecast()">&#x2715;</button>
     </div>
@@ -2083,7 +2083,7 @@ function buildForecastSVG(d) {
   //  - Choppy   : low score → range-bound oscillation
   //  - Steady   : default → linear grind
   // ════════════════════════════════════════════════════════════
-  const BARS        = 48;  // 30-min × 48 = 24 hours
+  const BARS        = 26;  // 30-min × 26 = 13 hours (7 AM → 8 PM)
   const price       = d.price;
   const atrPct      = d.atrPct      ?? 1.5;
   const netScore    = clamp(d.netScore   ?? 0, -15, 15);
@@ -2162,64 +2162,76 @@ function buildForecastSVG(d) {
   };
   shape(0); // trigger patternLabel assignment
 
-  // ── Session map: market hours vs overnight ────────────────────────
-  const now = new Date();
-  const isMkt = Array.from({ length: BARS + 1 }, (_, i) => {
-    const t = new Date(now.getTime() + i * 30 * 60000);
-    const h = t.getHours() + t.getMinutes() / 60;
-    return h >= 9.5 && h < 16;
+  // ── Session map: 7 AM → 8 PM (pre-market / regular / after-hours) ────
+  const now      = new Date();
+  const dayStart = new Date(now); dayStart.setHours(7, 0, 0, 0);
+  const barTimes = Array.from({ length: BARS + 1 }, (_, i) =>
+    new Date(dayStart.getTime() + i * 30 * 60000));
+  const barH = barTimes.map(t => t.getHours() + t.getMinutes() / 60);
+
+  // Three trading zones — each gets its own oscillation strength
+  const isPreMkt = barH.map(h => h >= 7   && h < 9.5);  // 7:00–9:30  pre-market
+  const isMkt    = barH.map(h => h >= 9.5  && h < 16);  // 9:30–16:00 regular
+  const isAH     = barH.map(h => h >= 16   && h < 20);  // 16:00–20:00 after-hours
+
+  const preMktIdx = isPreMkt.map((v, i) => v ? i : -1).filter(i => i >= 0);
+  const mktIdx    = isMkt.map((v, i) => v ? i : -1).filter(i => i >= 0);
+  const ahIdx     = isAH.map((v, i) => v ? i : -1).filter(i => i >= 0);
+  const totalMkt  = mktIdx.length;
+
+  // "now" bar — vertical marker showing current position in the day
+  const nowBarIdx = Math.min(BARS, Math.max(0,
+    Math.round((now - dayStart) / (30 * 60000))));
+
+  // fractions[i] = how much of expectedReturn has been realised by bar i
+  //  Pre-market : 0 → 0.08  (stocks drift slightly before open)
+  //  Regular    : 0.08 → 0.92  (main price discovery via shape template)
+  //  After-hours: 0.92 → 1.0  (slow continuation / fade)
+  const fractions = new Array(BARS + 1).fill(0);
+  preMktIdx.forEach((barIdx, pos) => {
+    fractions[barIdx] = 0.08 * (pos / Math.max(preMktIdx.length - 1, 1));
   });
-
-  // All market-hours bar indices within the 24h window
-  const mktIdx   = isMkt.map((m, i) => m ? i : -1).filter(i => i >= 0);
-  const totalMkt = mktIdx.length;
-
-  // Assign each bar a "fraction of expected move completed"
-  // Market bars: use shape template based on position within combined market hours
-  // Overnight bars: interpolate at 10% weight (stocks barely move after-hours)
-  const fractions = new Array(BARS + 1).fill(null);
-  fractions[0] = 0;
   mktIdx.forEach((barIdx, pos) => {
-    fractions[barIdx] = shape(pos / Math.max(totalMkt - 1, 1));
+    fractions[barIdx] = 0.08 + 0.84 * shape(pos / Math.max(totalMkt - 1, 1));
   });
-  for (let i = 1; i <= BARS; i++) {
-    if (fractions[i] !== null) continue;
-    let prev = i - 1;
-    while (prev > 0  && fractions[prev] === null) prev--;
-    let next = i + 1;
-    while (next <= BARS && fractions[next] === null) next++;
-    const pF = fractions[prev] ?? 0;
-    const nF = next <= BARS && fractions[next] !== null ? fractions[next] : pF;
-    const t  = (i - prev) / Math.max(next - prev, 1);
-    fractions[i] = pF + t * (nF - pF) * 0.10; // 10% of linear = near-flat overnight
-  }
+  ahIdx.forEach((barIdx, pos) => {
+    const t = pos / Math.max(ahIdx.length - 1, 1);
+    fractions[barIdx] = 0.92 + 0.08 * t;
+  });
 
-  // ── Deterministic intraday oscillation overlay ───────────────────
-  // Every stock gets a different visual shape because these values differ:
-  //   oscFreq  : 2-5 intraday waves — derived from RSI distance from 50
-  //   oscPhase : timing offset 0-2π — derived from macdDiff magnitude
-  //   oscAmp   : wave height = 18% of daily ATR (typical intraday swing)
-  // Envelope = 4x(1-x): volume-bell shape — low at open/close, peaks midday
+  // ── Deterministic intraday oscillation — unique per stock, per zone ──
+  //  oscFreq  : 2–5 waves, derived from RSI distance from 50
+  //  oscPhase : 0–2π offset, derived from macdDiff × 137 (spreads phases)
+  //  oscAmp   : 18% of ATR for regular session (each zone scales differently)
   const oscFreq  = 2 + Math.floor(Math.abs(rsi - 50) / 15);
-  const oscPhase = (Math.abs(macdDiff * 137) % (2 * Math.PI));  // spread 0–2π
+  const oscPhase = Math.abs(macdDiff * 137) % (2 * Math.PI);
   const oscAmp   = atrPct * 0.18;
 
   const oscillations = new Array(BARS + 1).fill(0);
-  mktIdx.forEach((barIdx, pos) => {
-    const mktPos   = pos / Math.max(totalMkt - 1, 1);
-    const envelope = 4 * mktPos * (1 - mktPos);  // bell: peaks midday
-    oscillations[barIdx] = oscAmp * envelope * Math.sin(oscFreq * 2 * Math.PI * mktPos + oscPhase);
-  });
-  // Overnight: gentle slow drift — 1 arc of 6% ATR (models futures drift)
-  const overnightBars = Array.from({ length: BARS + 1 }, (_, i) => i).filter(i => !isMkt[i] && i > 0);
-  overnightBars.forEach((barIdx, pos) => {
-    const t = pos / Math.max(overnightBars.length - 1, 1);
-    oscillations[barIdx] = atrPct * 0.06 * Math.sin(Math.PI * t + oscPhase * 0.5);
+
+  // Pre-market: 20% amp, single gentle arc (thin spreads, fewer participants)
+  preMktIdx.forEach((barIdx, pos) => {
+    const t = pos / Math.max(preMktIdx.length - 1, 1);
+    oscillations[barIdx] = oscAmp * 0.20 * Math.sin(Math.PI * t + oscPhase);
   });
 
-  // Build price path: directional trend (from shape) + intraday oscillation
+  // Regular session: full bell-envelope oscillation (volume peaks midday)
+  mktIdx.forEach((barIdx, pos) => {
+    const mktPos   = pos / Math.max(totalMkt - 1, 1);
+    const envelope = 4 * mktPos * (1 - mktPos);  // 0 at open/close, 1 at noon
+    oscillations[barIdx] = oscAmp * envelope * Math.sin(oscFreq * 2 * Math.PI * mktPos + oscPhase);
+  });
+
+  // After-hours: 35% amp, decaying — wide spreads, lower liquidity
+  ahIdx.forEach((barIdx, pos) => {
+    const t    = pos / Math.max(ahIdx.length - 1, 1);
+    const fade = 1 - t * 0.6;  // amplitude tapers as AH session progresses
+    oscillations[barIdx] = oscAmp * 0.35 * fade * Math.sin(2 * Math.PI * t + oscPhase * 0.7);
+  });
+
+  // Build price path: directional trend + per-zone oscillation
   const prices = fractions.map((f, i) =>
-    price * (1 + (expectedReturn * (f ?? 0) + oscillations[i]) / 100)
+    price * (1 + (expectedReturn * f + oscillations[i]) / 100)
   );
 
   // ── SVG geometry ─────────────────────────────────────────────────
@@ -2262,25 +2274,37 @@ function buildForecastSVG(d) {
       `font-size="7" fill="${emaClr}" text-anchor="end" font-family="system-ui" font-weight="600">EMA</text>`
     : '';
 
-  // Session boundary vertical lines
+  // Session boundary vertical lines (Pre | Open | Close/AH)
   let sessionLines = '';
-  for (let i = 1; i <= BARS; i++) {
-    if (isMkt[i] !== isMkt[i-1]) {
-      const lbl = isMkt[i] ? 'Open' : 'Close';
-      const sx  = xS(i).toFixed(1);
+  const zoneBoundaries = [
+    { bar: 0,               label: 'Pre',   always: true },
+    { bar: preMktIdx.length, label: 'Open',  always: false },
+    { bar: preMktIdx.length + mktIdx.length, label: 'AH', always: false },
+  ];
+  zoneBoundaries.forEach(({ bar, label, always }) => {
+    if (bar > BARS) return;
+    const sx = xS(bar).toFixed(1);
+    if (!always) {
       sessionLines += `<line x1="${sx}" y1="${PAD.top}" x2="${sx}" y2="${H-PAD.bottom}" `+
-                      `stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>`+
-                      `<text x="${(+sx+3).toFixed(1)}" y="${(PAD.top+9).toFixed(1)}" `+
-                      `font-size="7" fill="#94a3b8" font-family="system-ui">${lbl}</text>`;
+                      `stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>`;
     }
-  }
+    sessionLines += `<text x="${(+sx+3).toFixed(1)}" y="${(PAD.top+9).toFixed(1)}" `+
+                    `font-size="7.5" fill="#94a3b8" font-family="system-ui" font-weight="600">${label}</text>`;
+  });
 
-  // Current price reference line
+  // "Now" vertical marker — blue line showing current position in the day
+  const nowX    = xS(nowBarIdx).toFixed(1);
+  const nowLine = nowBarIdx > 0 && nowBarIdx < BARS
+    ? `<line x1="${nowX}" y1="${PAD.top}" x2="${nowX}" y2="${H-PAD.bottom}" `+
+      `stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="3,2" opacity=".75"/>`+
+      `<text x="${(+nowX+3).toFixed(1)}" y="${(PAD.top+9).toFixed(1)}" `+
+      `font-size="7" fill="#3b82f6" font-family="system-ui" font-weight="700">now</text>`
+    : '';
+
+  // Current price reference line (horizontal)
   const cpY     = yS(price).toFixed(1);
   const curLine = `<line x1="${PAD.left}" y1="${cpY}" x2="${W-PAD.right}" y2="${cpY}" `+
-                  `stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" opacity=".5"/>`+
-                  `<text x="${(PAD.left-3).toFixed(1)}" y="${(+cpY+3.5).toFixed(1)}" `+
-                  `font-size="7" fill="#64748b" text-anchor="end" font-family="system-ui" font-weight="600">now</text>`;
+                  `stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>`;
 
   // Y-axis grid + price labels
   const yTicks = Array.from({ length: 5 }, (_, i) => {
@@ -2290,11 +2314,11 @@ function buildForecastSVG(d) {
            `<text x="${(PAD.left-3).toFixed(1)}" y="${(yS(p)+3.5).toFixed(1)}" font-size="8.5" fill="#94a3b8" text-anchor="end" font-family="system-ui">${lbl}</text>`;
   }).join('');
 
-  // X-axis time labels every 8 bars (4h intervals)
-  const xLabels = Array.from({ length: 7 }, (_, i) => {
-    const bi = i * 8;
+  // X-axis time labels every 4 bars (2h intervals)
+  const xLabels = Array.from({ length: 8 }, (_, i) => {
+    const bi = i * 4;
     if (bi > BARS) return '';
-    const t2  = new Date(now.getTime() + bi * 30 * 60000);
+    const t2  = barTimes[bi];
     const lbl = `${t2.getHours()}:${t2.getMinutes().toString().padStart(2,'0')}`;
     return `<text x="${xS(bi).toFixed(1)}" y="${(H-9).toFixed(1)}" font-size="7.8" fill="#94a3b8" text-anchor="middle" font-family="system-ui">${lbl}</text>`;
   }).join('');
@@ -2320,7 +2344,7 @@ function buildForecastSVG(d) {
   const startClr = expectedReturn >= 0 ? upClr : dnClr;
   const svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
     ${yTicks}
-    ${emaLine}${curLine}${sessionLines}${segs}
+    ${emaLine}${curLine}${sessionLines}${nowLine}${segs}
     <circle cx="${xS(0).toFixed(1)}" cy="${cpY}" r="4" fill="${startClr}" stroke="#fff" stroke-width="1.5"/>
     <circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="4" fill="${finalClr}" stroke="#fff" stroke-width="1.5"/>
     ${endBadge}${hlLabels}${xLabels}
