@@ -728,7 +728,7 @@
     <div class="fc-head">
       <div>
         <h3 id="forecast-title">Forecast</h3>
-        <div class="fc-sub">Model projection · 30-min intervals · 7 AM – 8 PM today</div>
+        <div class="fc-sub">Model projection · 30-min intervals · 7 AM today – 11 AM tomorrow</div>
       </div>
       <button class="fc-close" onclick="closeForecast()">&#x2715;</button>
     </div>
@@ -2083,7 +2083,7 @@ function buildForecastSVG(d) {
   //  - Choppy   : low score → range-bound oscillation
   //  - Steady   : default → linear grind
   // ════════════════════════════════════════════════════════════
-  const BARS        = 26;  // 30-min × 26 = 13 hours (7 AM → 8 PM)
+  const BARS        = 56;  // 30-min × 56 = 28 hours (7 AM today → 11 AM tomorrow)
   const price       = d.price;
   const atrPct      = d.atrPct      ?? 1.5;
   const netScore    = clamp(d.netScore   ?? 0, -15, 15);
@@ -2162,41 +2162,61 @@ function buildForecastSVG(d) {
   };
   shape(0); // trigger patternLabel assignment
 
-  // ── Session map: 7 AM → 8 PM (pre-market / regular / after-hours) ────
+  // ── Session map: 7 AM today → 11 AM tomorrow (6 zones) ──────────────────
   const now      = new Date();
   const dayStart = new Date(now); dayStart.setHours(7, 0, 0, 0);
   const barTimes = Array.from({ length: BARS + 1 }, (_, i) =>
     new Date(dayStart.getTime() + i * 30 * 60000));
-  const barH = barTimes.map(t => t.getHours() + t.getMinutes() / 60);
+  const barH   = barTimes.map(t => t.getHours() + t.getMinutes() / 60);
+  const barDate = barTimes.map(t => t.getDate());
+  const today   = barDate[0];
 
-  // Three trading zones — each gets its own oscillation strength
-  const isPreMkt = barH.map(h => h >= 7   && h < 9.5);  // 7:00–9:30  pre-market
-  const isMkt    = barH.map(h => h >= 9.5  && h < 16);  // 9:30–16:00 regular
-  const isAH     = barH.map(h => h >= 16   && h < 20);  // 16:00–20:00 after-hours
+  // Six zones, each with its own oscillation character:
+  //  PreToday  7:00-9:30    gentle pre-market drift
+  //  RegToday  9:30-16:00   main price discovery (most of the move)
+  //  AH        16:00-20:00  after-hours, low liquidity
+  //  Overnight 20:00-7:00   near-flat futures drift
+  //  PreTmrw   7:00-9:30    tomorrow pre-market (gap potential)
+  //  RegTmrw   9:30-11:00   tomorrow open (morning continuation)
+  const preMktTodayIdx = barTimes.map((_,i) => barDate[i]===today && barH[i]>=7    && barH[i]<9.5  ? i:-1).filter(i=>i>=0);
+  const mktTodayIdx    = barTimes.map((_,i) => barDate[i]===today && barH[i]>=9.5   && barH[i]<16   ? i:-1).filter(i=>i>=0);
+  const ahTodayIdx     = barTimes.map((_,i) => barDate[i]===today && barH[i]>=16    && barH[i]<20   ? i:-1).filter(i=>i>=0);
+  const overnightIdx   = barTimes.map((_,i) => (barDate[i]===today && barH[i]>=20)  || (barDate[i]!==today && barH[i]<7) ? i:-1).filter(i=>i>=0);
+  const preMktTmrwIdx  = barTimes.map((_,i) => barDate[i]!==today && barH[i]>=7    && barH[i]<9.5  ? i:-1).filter(i=>i>=0);
+  const mktTmrwIdx     = barTimes.map((_,i) => barDate[i]!==today && barH[i]>=9.5   && barH[i]<=11  ? i:-1).filter(i=>i>=0);
 
-  const preMktIdx = isPreMkt.map((v, i) => v ? i : -1).filter(i => i >= 0);
-  const mktIdx    = isMkt.map((v, i) => v ? i : -1).filter(i => i >= 0);
-  const ahIdx     = isAH.map((v, i) => v ? i : -1).filter(i => i >= 0);
-  const totalMkt  = mktIdx.length;
+  // mktIdx / totalMkt = today's regular session (drives shape template)
+  const mktIdx   = mktTodayIdx;
+  const totalMkt = mktIdx.length;
 
-  // "now" bar — vertical marker showing current position in the day
+  // "now" bar — clamped to chart range
   const nowBarIdx = Math.min(BARS, Math.max(0,
     Math.round((now - dayStart) / (30 * 60000))));
 
-  // fractions[i] = how much of expectedReturn has been realised by bar i
-  //  Pre-market : 0 → 0.08  (stocks drift slightly before open)
-  //  Regular    : 0.08 → 0.92  (main price discovery via shape template)
-  //  After-hours: 0.92 → 1.0  (slow continuation / fade)
+  // fractions[i]: cumulative fraction of expectedReturn delivered by bar i
+  //  PreToday  0.00 → 0.05   slight pre-market drift
+  //  RegToday  0.05 → 0.85   main session (shape template drives this)
+  //  AH        0.85 → 0.90   slow continuation / fade
+  //  Overnight 0.90 flat     futures barely move directionally
+  //  PreTmrw   0.90 → 0.94   morning gap potential
+  //  RegTmrw   0.94 → 1.00   full projection realised by 11 AM
   const fractions = new Array(BARS + 1).fill(0);
-  preMktIdx.forEach((barIdx, pos) => {
-    fractions[barIdx] = 0.08 * (pos / Math.max(preMktIdx.length - 1, 1));
+  preMktTodayIdx.forEach((barIdx, pos) => {
+    fractions[barIdx] = 0.05 * (pos / Math.max(preMktTodayIdx.length - 1, 1));
   });
-  mktIdx.forEach((barIdx, pos) => {
-    fractions[barIdx] = 0.08 + 0.84 * shape(pos / Math.max(totalMkt - 1, 1));
+  mktTodayIdx.forEach((barIdx, pos) => {
+    fractions[barIdx] = 0.05 + 0.80 * shape(pos / Math.max(totalMkt - 1, 1));
   });
-  ahIdx.forEach((barIdx, pos) => {
-    const t = pos / Math.max(ahIdx.length - 1, 1);
-    fractions[barIdx] = 0.92 + 0.08 * t;
+  ahTodayIdx.forEach((barIdx, pos) => {
+    const t = pos / Math.max(ahTodayIdx.length - 1, 1);
+    fractions[barIdx] = 0.85 + 0.05 * t;
+  });
+  overnightIdx.forEach(barIdx => { fractions[barIdx] = 0.90; });
+  preMktTmrwIdx.forEach((barIdx, pos) => {
+    fractions[barIdx] = 0.90 + 0.04 * (pos / Math.max(preMktTmrwIdx.length - 1, 1));
+  });
+  mktTmrwIdx.forEach((barIdx, pos) => {
+    fractions[barIdx] = 0.94 + 0.06 * (pos / Math.max(mktTmrwIdx.length - 1, 1));
   });
 
   // ── Deterministic intraday oscillation — unique per stock, per zone ──
@@ -2209,24 +2229,38 @@ function buildForecastSVG(d) {
 
   const oscillations = new Array(BARS + 1).fill(0);
 
-  // Pre-market: 20% amp, single gentle arc (thin spreads, fewer participants)
-  preMktIdx.forEach((barIdx, pos) => {
-    const t = pos / Math.max(preMktIdx.length - 1, 1);
+  // Pre-market today: 20% amp, single gentle arc
+  preMktTodayIdx.forEach((barIdx, pos) => {
+    const t = pos / Math.max(preMktTodayIdx.length - 1, 1);
     oscillations[barIdx] = oscAmp * 0.20 * Math.sin(Math.PI * t + oscPhase);
   });
-
-  // Regular session: full bell-envelope oscillation (volume peaks midday)
-  mktIdx.forEach((barIdx, pos) => {
+  // Regular session today: full bell-envelope (volume peaks midday)
+  mktTodayIdx.forEach((barIdx, pos) => {
     const mktPos   = pos / Math.max(totalMkt - 1, 1);
-    const envelope = 4 * mktPos * (1 - mktPos);  // 0 at open/close, 1 at noon
+    const envelope = 4 * mktPos * (1 - mktPos);
     oscillations[barIdx] = oscAmp * envelope * Math.sin(oscFreq * 2 * Math.PI * mktPos + oscPhase);
   });
-
-  // After-hours: 35% amp, decaying — wide spreads, lower liquidity
-  ahIdx.forEach((barIdx, pos) => {
-    const t    = pos / Math.max(ahIdx.length - 1, 1);
-    const fade = 1 - t * 0.6;  // amplitude tapers as AH session progresses
+  // After-hours today: 35% amp, decaying
+  ahTodayIdx.forEach((barIdx, pos) => {
+    const t    = pos / Math.max(ahTodayIdx.length - 1, 1);
+    const fade = 1 - t * 0.6;
     oscillations[barIdx] = oscAmp * 0.35 * fade * Math.sin(2 * Math.PI * t + oscPhase * 0.7);
+  });
+  // Overnight: very gentle 8% amp arc (futures drift, near-flat)
+  overnightIdx.forEach((barIdx, pos) => {
+    const t = pos / Math.max(overnightIdx.length - 1, 1);
+    oscillations[barIdx] = oscAmp * 0.08 * Math.sin(Math.PI * t + oscPhase * 0.3);
+  });
+  // Pre-market tomorrow: 25% amp (slightly more, gap potential)
+  preMktTmrwIdx.forEach((barIdx, pos) => {
+    const t = pos / Math.max(preMktTmrwIdx.length - 1, 1);
+    oscillations[barIdx] = oscAmp * 0.25 * Math.sin(Math.PI * t + oscPhase * 1.3);
+  });
+  // Regular tomorrow (9:30-11 AM): morning-rush envelope, tapers from open
+  mktTmrwIdx.forEach((barIdx, pos) => {
+    const mktPos   = pos / Math.max(mktTmrwIdx.length - 1, 1);
+    const envelope = 1 - 0.4 * mktPos;  // high at open, tapering
+    oscillations[barIdx] = oscAmp * 0.80 * envelope * Math.sin(oscFreq * Math.PI * mktPos + oscPhase * 0.9);
   });
 
   // Build price path: directional trend + per-zone oscillation
@@ -2274,22 +2308,31 @@ function buildForecastSVG(d) {
       `font-size="7" fill="${emaClr}" text-anchor="end" font-family="system-ui" font-weight="600">EMA</text>`
     : '';
 
-  // Session boundary vertical lines (Pre | Open | Close/AH)
+  // Session boundary lines + overnight shaded background
   let sessionLines = '';
+  // Overnight shaded band (dim gray background, bars 20:00-7:00)
+  if (overnightIdx.length > 0) {
+    const oStart = xS(overnightIdx[0]).toFixed(1);
+    const oEnd   = xS(overnightIdx[overnightIdx.length - 1] + 1).toFixed(1);
+    sessionLines += `<rect x="${oStart}" y="${PAD.top}" width="${(+oEnd - +oStart).toFixed(1)}" height="${cH}" fill="#1e293b" opacity=".10" rx="0"/>`;
+  }
   const zoneBoundaries = [
-    { bar: 0,               label: 'Pre',   always: true },
-    { bar: preMktIdx.length, label: 'Open',  always: false },
-    { bar: preMktIdx.length + mktIdx.length, label: 'AH', always: false },
+    { bar: 0,                                                                                                              label: 'Pre',   clr: '#94a3b8' },
+    { bar: preMktTodayIdx.length,                                                                                          label: 'Open',  clr: '#94a3b8' },
+    { bar: preMktTodayIdx.length + mktTodayIdx.length,                                                                    label: 'AH',    clr: '#94a3b8' },
+    { bar: preMktTodayIdx.length + mktTodayIdx.length + ahTodayIdx.length,                                                label: 'Night', clr: '#64748b' },
+    { bar: preMktTodayIdx.length + mktTodayIdx.length + ahTodayIdx.length + overnightIdx.length,                          label: 'Pre↑',  clr: '#7c3aed' },
+    { bar: preMktTodayIdx.length + mktTodayIdx.length + ahTodayIdx.length + overnightIdx.length + preMktTmrwIdx.length,   label: 'Open↑', clr: '#7c3aed' },
   ];
-  zoneBoundaries.forEach(({ bar, label, always }) => {
+  zoneBoundaries.forEach(({ bar, label, clr }, idx) => {
     if (bar > BARS) return;
     const sx = xS(bar).toFixed(1);
-    if (!always) {
+    if (idx > 0) {
       sessionLines += `<line x1="${sx}" y1="${PAD.top}" x2="${sx}" y2="${H-PAD.bottom}" `+
-                      `stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>`;
+                      `stroke="${clr}" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>`;
     }
     sessionLines += `<text x="${(+sx+3).toFixed(1)}" y="${(PAD.top+9).toFixed(1)}" `+
-                    `font-size="7.5" fill="#94a3b8" font-family="system-ui" font-weight="600">${label}</text>`;
+                    `font-size="7" fill="${clr}" font-family="system-ui" font-weight="600">${label}</text>`;
   });
 
   // "Now" vertical marker — blue line showing current position in the day
@@ -2314,13 +2357,18 @@ function buildForecastSVG(d) {
            `<text x="${(PAD.left-3).toFixed(1)}" y="${(yS(p)+3.5).toFixed(1)}" font-size="8.5" fill="#94a3b8" text-anchor="end" font-family="system-ui">${lbl}</text>`;
   }).join('');
 
-  // X-axis time labels every 4 bars (2h intervals)
-  const xLabels = Array.from({ length: 8 }, (_, i) => {
-    const bi = i * 4;
+  // X-axis time labels every 6 bars (3h) across 28h window
+  // Today labels in gray, tomorrow labels in purple
+  const xLabels = Array.from({ length: 10 }, (_, i) => {
+    const bi = i * 6;
     if (bi > BARS) return '';
-    const t2  = barTimes[bi];
-    const lbl = `${t2.getHours()}:${t2.getMinutes().toString().padStart(2,'0')}`;
-    return `<text x="${xS(bi).toFixed(1)}" y="${(H-9).toFixed(1)}" font-size="7.8" fill="#94a3b8" text-anchor="middle" font-family="system-ui">${lbl}</text>`;
+    const t2    = barTimes[bi];
+    const isTmrw = barDate[bi] !== today;
+    const hh    = t2.getHours();
+    const mm    = t2.getMinutes().toString().padStart(2,'0');
+    const lbl   = isTmrw ? `${hh}:${mm}↑` : `${hh}:${mm}`;
+    const clr   = isTmrw ? '#7c3aed' : '#94a3b8';
+    return `<text x="${xS(bi).toFixed(1)}" y="${(H-9).toFixed(1)}" font-size="7.8" fill="${clr}" text-anchor="middle" font-family="system-ui">${lbl}</text>`;
   }).join('');
 
   // Stats
