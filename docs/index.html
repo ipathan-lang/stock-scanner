@@ -252,6 +252,57 @@
       font-weight: 600;
     }
 
+    /* Today's Hold bar */
+    .hold-bar {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 11px;
+      padding: 11px 14px;
+      border-radius: 10px;
+      border-left: 5px solid #cbd5e1;
+    }
+    .hold-bar.hb-high   { background: #dcfce7; border-left-color: #16a34a; }
+    .hold-bar.hb-medium { background: #fef9c3; border-left-color: #ca8a04; }
+    .hold-bar.hb-low    { background: #f1f5f9; border-left-color: #64748b; }
+    .hold-bar.hb-none   { background: #f8fafc; border-left-color: #cbd5e1; }
+    .hold-bar-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #64748b;
+      white-space: nowrap;
+      padding-top: 2px;
+      line-height: 1.4;
+    }
+    .hold-bar-body { flex: 1; min-width: 0; }
+    .hold-bar-verdict {
+      font-size: 0.88rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: #0f172a;
+    }
+    .hold-bar-dots { display: flex; gap: 4px; margin-top: 6px; }
+    .hold-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #e2e8f0;
+    }
+    .hold-dot.on-high   { background: #16a34a; }
+    .hold-dot.on-medium { background: #ca8a04; }
+    .hold-dot.on-low    { background: #64748b; }
+    .hold-bar-reasons {
+      display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px;
+    }
+    .hold-reason {
+      font-size: 0.69rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+      background: rgba(0,0,0,.07);
+      color: #1e293b;
+    }
+
     /* Detail toggle */
     .detail-btn {
       font-size: 0.72rem;
@@ -541,6 +592,7 @@
       <div class="score-visual">
         <div class="sv-item sv-sb"><span class="sv-sig">&#9650;&#9650;</span><span>Strong<br>Bullish</span><span class="sv-range">&#x2265; 7</span></div>
         <div class="sv-item sv-b"><span class="sv-sig">&#9650;</span><span>Bullish</span><span class="sv-range">5 – 6</span></div>
+        <div class="sv-item sv-ba"><span class="sv-sig">&#8623;</span><span>Pulling<br>Back</span><span class="sv-range">&#x2265;5, below open</span></div>
         <div class="sv-item sv-ba"><span class="sv-sig">&#9644;</span><span>Balanced</span><span class="sv-range">2 – 4</span></div>
         <div class="sv-item sv-ca"><span class="sv-sig">&#9661;</span><span>Cautious</span><span class="sv-range">0 – 1</span></div>
         <div class="sv-item sv-w"><span class="sv-sig">&#9660;</span><span>Weak</span><span class="sv-range">-3 – -1</span></div>
@@ -773,6 +825,40 @@ function calcMacd(closes) {
   return { diff: m - s };
 }
 
+// ATR(14): measures average daily true range as % of price
+// True Range = max(high-low, |high-prevClose|, |low-prevClose|)
+function calcATR(closes, highs, lows, period = 14) {
+  if (!closes || closes.length < period + 1) return null;
+  const trs = [];
+  for (let i = 1; i < closes.length; i++) {
+    const hl  = highs[i]  - lows[i];
+    const hpc = Math.abs(highs[i]  - closes[i - 1]);
+    const lpc = Math.abs(lows[i]   - closes[i - 1]);
+    trs.push(Math.max(hl, hpc, lpc));
+  }
+  if (trs.length < period) return null;
+  // Wilder smoothing
+  let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trs.length; i++)
+    atr = (atr * (period - 1) + trs[i]) / period;
+  const lastPrice = closes[closes.length - 1];
+  return { atr, atrPct: lastPrice > 0 ? (atr / lastPrice) * 100 : 0 };
+}
+
+// MACD slope: is MACD diff accelerating (growing) or decelerating this session?
+// Returns positive = momentum building, negative = momentum fading
+function calcMacdSlope(closes) {
+  if (!closes || closes.length < 27) return 0;
+  const e12 = emaArr(closes, 12);
+  const e26 = emaArr(closes, 26);
+  const line = closes.map((_, i) => e12[i] != null && e26[i] != null ? e12[i] - e26[i] : null).filter(v => v != null);
+  const sig  = emaArr(line, 9);
+  if (line.length < 2 || sig.length < 2) return 0;
+  const prev = line[line.length - 2] - sig[sig.length - 2];
+  const curr = line[line.length - 1] - sig[sig.length - 1];
+  return curr - prev; // positive = diff widening (accelerating), negative = narrowing (decelerating)
+}
+
 function calcIndicators(closes, highs, lows) {
   if (!closes || closes.length < 26) return null;
   const price = closes[closes.length - 1];
@@ -901,23 +987,40 @@ function getTrendPenalty({ position, changePct, volumeRatio, price, ema20, close
 function signal(d) {
   if (!d || d.err) return { label: '—', cls: 'by' };
   const s = d.netScore;
-  if (s >= 7 && d.macdDiff > 0) return { label: 'Strong Bullish', cls: 'bg' };
-  if (s >= 5)                    return { label: 'Bullish',         cls: 'bg' };
-  if (s >= 2)                    return { label: 'Balanced',        cls: 'by' };
-  if (s >= 0)                    return { label: 'Cautious',        cls: 'by' };
-  if (s >= -3)                   return { label: 'Weak',            cls: 'br' };
-  return                                { label: 'Bearish',         cls: 'br' };
+  // Intraday direction override: if stock is trading below its open, the bullish
+  // label is misleading regardless of historical score — show "Pulling Back" instead.
+  const fadingFromOpen = d.openChangePct != null && d.openChangePct < -0.5;
+  if (s >= 7 && d.macdDiff > 0 && !fadingFromOpen) return { label: 'Strong Bullish', cls: 'bg' };
+  if (s >= 5 && !fadingFromOpen) return { label: 'Bullish',      cls: 'bg' };
+  if (s >= 5 && fadingFromOpen)  return { label: 'Pulling Back', cls: 'by' };
+  if (s >= 2)                    return { label: 'Balanced',     cls: 'by' };
+  if (s >= 0)                    return { label: 'Cautious',     cls: 'by' };
+  if (s >= -3)                   return { label: 'Weak',         cls: 'br' };
+  return                                { label: 'Bearish',      cls: 'br' };
 }
 
 function prediction(d) {
   if (!d || d.err) return { text: '—', color: 'var(--muted)' };
   const s = d.netScore;
-  if (s >= 7)  return { text: 'Upside setup is dominant',      color: 'var(--green)' };
-  if (s >= 5)  return { text: 'Bias remains positive',          color: 'var(--green)' };
-  if (s >= 2)  return { text: 'Balanced — wait for a trigger',  color: 'var(--muted)' };
-  if (s >= 0)  return { text: 'Downside risk is building',      color: 'var(--red)'   };
-  if (s >= -3) return { text: 'Weak setup — avoid entry',       color: 'var(--red)'   };
-  return              { text: 'Bearish pressure is dominant',   color: 'var(--red)'   };
+
+  // Coil warning: ATR compressed + no strong directional signal = watch, don't trade
+  if (d.atrRatio != null && d.atrRatio < 0.75 && Math.abs(s) < 5) {
+    return { text: 'Volatility coil — explosive move pending, wait for direction', color: '#d97706' };
+  }
+
+  // High day-conviction qualifiers: append context to prediction text
+  const suffix = d.dayConviction === 'High'
+    ? ` · High day conviction (${(d.dcReasons ?? []).join(', ')})`
+    : d.dayConviction === 'Medium'
+    ? ` · Moderate conviction`
+    : '';
+
+  if (s >= 7)  return { text: 'Upside setup is dominant' + suffix,      color: 'var(--green)' };
+  if (s >= 5)  return { text: 'Bias remains positive' + suffix,          color: 'var(--green)' };
+  if (s >= 2)  return { text: 'Balanced — wait for a trigger',            color: 'var(--muted)' };
+  if (s >= 0)  return { text: 'Downside risk is building' + suffix,       color: 'var(--red)'   };
+  if (s >= -3) return { text: 'Weak setup — avoid entry',                 color: 'var(--red)'   };
+  return              { text: 'Bearish pressure is dominant' + suffix,    color: 'var(--red)'   };
 }
 
 function detectAssetType(ticker) {
@@ -1281,7 +1384,23 @@ async function fetchStock(ticker) {
     ? ((closes[closes.length - 1] / closes[closes.length - 21]) - 1) * 100
     : null;
 
-  const ind = calcIndicators(closes, highs, lows) || {
+  // ── ATR & Volatility metrics ──────────────────────────────────────────────────────────
+  // ATR(14): average true range as % of price — the baseline daily "expected move"
+  const atrData    = calcATR(closes, highs, lows, 14);
+  const atrPct     = atrData?.atrPct ?? null;  // e.g. 2.5 means stock normally moves 2.5%/day
+  // Short-term ATR (5-day) vs longer (14-day) reveals volatility compression or expansion
+  const atrShort   = calcATR(closes.slice(-8),  highs.slice(-8),  lows.slice(-8),  5);
+  const atrLong    = calcATR(closes.slice(-17), highs.slice(-17), lows.slice(-17), 14);
+  // Compression ratio < 0.75 = tight coil (imminent breakout potential either way)
+  // Expansion ratio > 1.4   = explosive move already started (continuation likely)
+  const atrRatio   = (atrShort?.atr && atrLong?.atr && atrLong.atr > 0)
+    ? atrShort.atr / atrLong.atr : null;
+  // Today's actual range (using live price as high or low anchor)
+  const todayRangePct = atrPct != null
+    ? (Math.abs(changePct) / Math.max(atrPct, 0.01)) : null;  // > 1.5 = above-normal move today
+  // MACD acceleration: is the momentum diff growing or shrinking vs yesterday?
+  const macdSlope  = calcMacdSlope(closes);
+
     bullishScore: 0, bullishDrivers: [], rsi: 50, macdDiff: 0, ema20: price, position: 0.5, price
   };
 
@@ -1298,7 +1417,8 @@ async function fetchStock(ticker) {
   const dayHighRevertPct = (marketDayHigh && marketDayHigh > price)
     ? ((price - marketDayHigh) / marketDayHigh) * 100 : 0;
   // Gap-and-fade: stock gapped up strongly on earnings/news but is now trading below the open
-  const gapAndFade = changePct > 8 && openChangePct < -2;
+  // Threshold lowered (was >8 && <-2) so small fades from gap-up days are caught
+  const gapAndFade = changePct > 5 && openChangePct < -0.5;
 
   // ── Bearish scoring ──
   let bearishScore = 0;
@@ -1317,8 +1437,8 @@ async function fetchStock(ticker) {
   if (openChangePct <= -3)       { bearishScore += 2; bearishDrivers.push('Heavy intraday selling — sellers in full control'); }
   if (openChangePct <= -5)       { bearishScore += 2; bearishDrivers.push('Severe intraday reversal — institutional distribution'); }
   if (gapAndFade)                { bearishScore += 3; bearishDrivers.push('Gap-and-fade — opened strong on news, sellers taking over'); }
-  if (dayHighRevertPct < -5)     { bearishScore += 2; bearishDrivers.push(`Reversed ${Math.abs(dayHighRevertPct).toFixed(1)}% from day high — bearish intraday reversal`); }
-  if (dayHighRevertPct < -10)    { bearishScore += 2; bearishDrivers.push('Deep reversal from day high — strong distribution'); }
+  if (dayHighRevertPct < -3)     { bearishScore += 2; bearishDrivers.push(`Reversed ${Math.abs(dayHighRevertPct).toFixed(1)}% from day high — bearish intraday reversal`); }
+  if (dayHighRevertPct < -7)     { bearishScore += 2; bearishDrivers.push('Deep reversal from day high — strong distribution'); }
   // 20-day medium-term trend
   if (ret20 !== null && ret20 < -8)  { bearishScore += 2; bearishDrivers.push(`Down ${Math.abs(ret20).toFixed(1)}% over 20 days — sustained downtrend`); }
   else if (ret20 !== null && ret20 < -4) { bearishScore += 1; bearishDrivers.push(`Down ${Math.abs(ret20).toFixed(1)}% over 20 days — medium-term weakness`); }
@@ -1421,6 +1541,68 @@ async function fetchStock(ticker) {
     }
   }
 
+  // ── ATR & Volatility scoring — sudden move detection ─────────────────────────────────
+  // Coiled spring: ATR has been compressing (short ATR < 75% of long ATR) = explosive breakout risk
+  // Gives no directional score — only flags the setup; direction comes from other signals
+  if (atrRatio !== null && atrRatio < 0.75) {
+    // No score change — but we mark it for the day conviction display
+    // (Adding a bullish score here would create false signals; ATR compression is neutral)
+  }
+
+  // ATR breakout: today's actual price move is larger than 1.5× the 14-day average range
+  // This means the move is institutionally driven (random retail noise rarely exceeds 1.5× ATR)
+  if (todayRangePct !== null && todayRangePct >= 1.5) {
+    if (changePct > 0) {
+      // Up-move larger than normal ATR = institutions buying — bullish conviction
+      catalystScore += 1;
+      catalystDrivers.push(`ATR breakout: today's move ${Math.abs(changePct).toFixed(1)}% > ${(atrPct ?? 0).toFixed(1)}% avg — volume-backed surge`);
+      if (todayRangePct >= 2.5 && volumeRatio != null && volumeRatio > 1.5) {
+        catalystScore += 1;
+        catalystDrivers.push('Extreme ATR expansion + volume surge — high day-conviction upside');
+      }
+    } else {
+      // Down-move larger than normal ATR = institutional distribution — bearish conviction
+      bearishScore += 1;
+      bearishDrivers.push(`ATR breakdown: today's drop ${Math.abs(changePct).toFixed(1)}% > ${(atrPct ?? 0).toFixed(1)}% avg — distribution selloff`);
+      if (todayRangePct >= 2.5 && volumeRatio != null && volumeRatio > 1.5) {
+        bearishScore += 1;
+        bearishDrivers.push('Extreme ATR expansion + volume surge — high day-conviction downside');
+      }
+    }
+  }
+
+  // MACD acceleration: momentum diff widening (accelerating) vs yesterday = move has follow-through
+  if (macdSlope > 0.05 && changePct > 0) {
+    catalystScore += 1;
+    catalystDrivers.push('MACD momentum accelerating — follow-through rally likely');
+  } else if (macdSlope < -0.05 && changePct < 0) {
+    bearishScore += 1;
+    bearishDrivers.push('MACD momentum decelerating — follow-through selling likely');
+  }
+
+  // ── Day Conviction composite ─────────────────────────────────────────────────────────
+  // Answers: "if I take this trade today, how likely is the move to persist for 1 day?"
+  // Score 0–5: each signal that confirms direction adds 1 point
+  let dcScore = 0;
+  const dcDirection = changePct >= 0 ? 'up' : 'down';
+  const dcReasons   = [];
+  // 1. Volume: institutions are involved
+  if (volumeRatio != null && volumeRatio >= 1.5) { dcScore++; dcReasons.push(`Volume ${volumeRatio.toFixed(1)}× avg`); }
+  // 2. ATR breakout: move larger than normal — not just noise
+  if (todayRangePct != null && todayRangePct >= 1.5) { dcScore++; dcReasons.push(`ATR ${todayRangePct.toFixed(1)}× normal`); }
+  // 3. MACD aligned and accelerating
+  if (dcDirection === 'up' && ind.macdDiff > 0 && macdSlope > 0)   { dcScore++; dcReasons.push('MACD accelerating up'); }
+  if (dcDirection === 'down' && ind.macdDiff < 0 && macdSlope < 0) { dcScore++; dcReasons.push('MACD accelerating down'); }
+  // 4. Coiled spring breakout (ATR was compressed before today)
+  if (atrRatio !== null && atrRatio < 0.75) { dcScore++; dcReasons.push('Volatility coil breakout'); }
+  // 5. Price + intraday direction aligned (not a gap-and-fade)
+  if (dcDirection === 'up'   && openChangePct > 0.3)  { dcScore++; dcReasons.push('Holding above open'); }
+  if (dcDirection === 'down' && openChangePct < -0.3) { dcScore++; dcReasons.push('Below open — sellers in control'); }
+  const dayConviction = dcScore >= 4 ? 'High'
+                      : dcScore >= 2 ? 'Medium'
+                      : dcScore >= 1 ? 'Low'
+                      : 'None';
+
   const netScoreFinal   = (ind.bullishScore + fundBullAdj) + catalystScore - (bearishScore + fundBearAdj);
   // Conviction: calibrated to the wider score range after all signal additions
   // Maps netScore -15 → 0%, 0 → 50%, +15 → 100%
@@ -1450,7 +1632,10 @@ async function fetchStock(ticker) {
     fundamentals,
     fundamentalScore: fundScore,
     yearHigh, yearLow, ret20,
-    volumeRatio
+    volumeRatio,
+    openChangePct, gapAndFade,
+    atrPct, atrRatio, todayRangePct, macdSlope,
+    dayConviction, dcScore, dcReasons
   };
 }
 
@@ -1690,6 +1875,69 @@ function buildFundamentalsRow(d) {
   return `<div class="earnings-row"><span class="earn-label">Fundamentals</span>${parts.join('')}</div>`;
 }
 
+// Builds the "Today's Hold" conviction bar shown on every stock card.
+// Answers the question: "will this move hold for the rest of the day?"
+function buildHoldBar(d) {
+  const dc = d.dayConviction ?? 'None';
+  const dc_score = d.dcScore ?? 0;
+  const reasons  = d.dcReasons ?? [];
+  const dir      = (d.changePct ?? 0) >= 0;
+
+  // Determine bar variant class and colors
+  const barCls    = dc === 'High'   ? 'hb-high'
+                  : dc === 'Medium' ? 'hb-medium'
+                  : dc === 'Low'    ? 'hb-low'
+                  : 'hb-none';
+  const textColor = dc === 'High'   ? '#15803d'
+                  : dc === 'Medium' ? '#92400e'
+                  : dc === 'Low'    ? '#475569'
+                  : '#64748b';
+  const dotCls    = dc === 'High' ? 'on-high' : dc === 'Medium' ? 'on-medium' : dc === 'Low' ? 'on-low' : '';
+
+  // Verdict text: direction + conviction level + ATR context
+  let verdict;
+  const coil = d.atrRatio != null && d.atrRatio < 0.75;
+  const atrBreak = d.todayRangePct != null && d.todayRangePct >= 1.5;
+  if (dc === 'None') {
+    verdict = coil
+      ? '⚡ Coiled — big move coming, direction unclear'
+      : 'No clear hold signal today';
+  } else if (dc === 'Low') {
+    verdict = dir
+      ? 'Weak upside — likely to fade, wait for confirmation'
+      : 'Weak downside — could bounce, no strong sellers yet';
+  } else if (dc === 'Medium') {
+    verdict = dir
+      ? `Moderate hold ${dir && atrBreak ? '· Above-normal range move' : ''}`
+      : `Moderate downside hold ${!dir && atrBreak ? '· Above-normal selloff' : ''}`;
+  } else {
+    // High
+    verdict = dir
+      ? `Strong hold UP today${atrBreak ? ' · Breakout range (' + (d.todayRangePct ?? 0).toFixed(1) + '× ATR)' : ''}`
+      : `Strong hold DOWN today${atrBreak ? ' · Breakdown range (' + (d.todayRangePct ?? 0).toFixed(1) + '× ATR)' : ''}`;
+  }
+
+  // 5 strength dots
+  const dots = Array.from({ length: 5 }, (_, i) =>
+    `<div class="hold-dot${i < dc_score ? ' ' + dotCls : ''}"></div>`
+  ).join('');
+
+  // Reason pills (only when there are some)
+  const reasonPills = reasons.length
+    ? `<div class="hold-bar-reasons">${reasons.map(r => `<span class="hold-reason">${esc(r)}</span>`).join('')}</div>`
+    : '';
+
+  return `
+    <div class="hold-bar ${barCls}">
+      <div class="hold-bar-label">Today's<br>Hold</div>
+      <div class="hold-bar-body">
+        <div class="hold-bar-verdict" style="color:${textColor}">${verdict}</div>
+        <div class="hold-bar-dots">${dots}</div>
+        ${reasonPills}
+      </div>
+    </div>`;
+}
+
 function buildCard(d, rank, pinned) {
   const sig  = signal(d);
   const pred = prediction(d);
@@ -1725,6 +1973,21 @@ function buildCard(d, rank, pinned) {
   const bbColor   = d.bullishScore > d.bearishScore ? 'var(--green)'
                   : d.bearishScore > d.bullishScore  ? 'var(--red)' : 'var(--ink)';
 
+  // Day Conviction display
+  const dcColor = d.dayConviction === 'High'   ? 'var(--green)'
+                : d.dayConviction === 'Medium' ? '#d97706'
+                : d.dayConviction === 'Low'    ? 'var(--muted)'
+                : 'var(--muted)';
+  // ATR coil alert: volatility compressed for days — explosive move imminent (direction unknown)
+  const coilAlert = d.atrRatio != null && d.atrRatio < 0.75;
+  // ATR breakout alert: today's move is 1.5× or more than normal expected daily range
+  const atrBreakout = d.todayRangePct != null && d.todayRangePct >= 1.5;
+  const atrTag = coilAlert
+    ? `<span class="age-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d">&#9889; Coiled</span>`
+    : atrBreakout
+    ? `<span class="age-badge" style="background:${d.changePct >= 0 ? 'rgba(16,185,129,.12)' : 'rgba(196,81,75,.1)'};color:${d.changePct >= 0 ? 'var(--green)' : 'var(--red)'};border:1px solid currentColor">&#9650; ATR Break</span>`
+    : '';
+
   const bullPills = (d.bullishDrivers || []).map(x =>
     `<span class="dpill bull">${esc(x)}</span>`).join('');
   const bearPills = (d.bearishDrivers || []).map(x =>
@@ -1756,6 +2019,7 @@ function buildCard(d, rank, pinned) {
               <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
               &nbsp;<span style="color:var(--muted)">(${d.change >= 0 ? '+' : ''}$${d.change.toFixed(2)})</span>
               ${d.isEarningsDay ? `&nbsp;&middot;&nbsp;<span class="age-badge" style="background:#fff3e0;color:#b45309;border:1px solid #fcd34d">&#128226; Earnings Day</span>` : ''}
+              ${atrTag ? `&nbsp;&middot;&nbsp;${atrTag}` : ''}
               ${ageTxt ? `&nbsp;&middot;&nbsp;<span class="age-badge ${ageCls}">${ageTxt}</span>` : ''}
             </div>
           </div>
@@ -1803,6 +2067,8 @@ function buildCard(d, rank, pinned) {
       </div>
 
       <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
+
+      ${buildHoldBar(d)}
 
       ${buildEarningsRow(d)}
       ${buildFundamentalsRow(d)}
