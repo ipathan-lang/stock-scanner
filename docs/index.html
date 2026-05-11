@@ -565,6 +565,16 @@
       flex-shrink: 0;
     }
     .retry-btn:hover { background: rgba(30,99,217,.14); }
+    .search-err {
+      display: none; margin-top: 6px;
+      padding: 8px 12px; border-radius: 9px;
+      background: #fef2f2; border: 1px solid #fecaca;
+      color: #991b1b; font-size: 0.76rem; font-weight: 600; line-height: 1.5;
+    }
+    .search-err .se-ticker { font-size: 1rem; font-weight: 800; }
+    .search-err .se-hint   { font-weight: 400; color: #b91c1c; margin-top: 2px; }
+    .search-err .se-remove { float: right; cursor: pointer; opacity: .6; font-size: .9rem; }
+    .search-err .se-remove:hover { opacity: 1; }
 
     /* ── 52-WEEK RANGE BAR ── */
     .yr-range { margin: 6px 0 4px; }
@@ -661,6 +671,7 @@
     <button class="btn-p" onclick="searchStock()">Search</button>
     <button onclick="manualRefresh()" id="refresh-btn">&#x21BB; Refresh</button>
   </div>
+  <div id="search-err-box" class="search-err"></div>
 </header>
 
 <div id="market-bar">
@@ -2189,11 +2200,26 @@ async function manualRefresh() {
 function openInfo()  { document.getElementById('info-modal').classList.add('open'); }
 function closeInfo() { document.getElementById('info-modal').classList.remove('open'); }
 
+function showSearchErr(ticker) {
+  const box = document.getElementById('search-err-box');
+  if (!box) return;
+  box.innerHTML = `
+    <span class="se-remove" onclick="hideSearchErr()">&#x2715;</span>
+    <div class="se-ticker">"${esc(ticker)}" not found</div>
+    <div class="se-hint">&#x26A0; No data came back for this ticker. Check your spelling — common mistakes: extra letters, wrong exchange suffix (e.g. use <strong>TSLA</strong> not <strong>TSLA.US</strong>).</div>`;
+  box.style.display = 'block';
+}
+function hideSearchErr() {
+  const box = document.getElementById('search-err-box');
+  if (box) box.style.display = 'none';
+}
+
 async function searchStock() {
   const input  = document.getElementById('q');
   const ticker = (input.value || '').trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, '');
   if (!ticker) return;
   input.value = '';
+  hideSearchErr();
 
   if (!S.watchlist.includes(ticker)) {
     S.watchlist.push(ticker);
@@ -2206,6 +2232,17 @@ async function searchStock() {
   if (sb) { sb.disabled = true; sb.innerHTML = `&#x21BB; Loading ${ticker}…`; }
 
   await loadOne(ticker);
+
+  // If the ticker failed to load, it's likely misspelled — tell the user immediately
+  if (S.data[ticker]?.err) {
+    showSearchErr(ticker);
+    // Remove the bad ticker from the watchlist so it doesn't persist
+    S.watchlist = S.watchlist.filter(t => t !== ticker);
+    saveWatchlist();
+    S.pinnedTicker = null;
+    delete S.data[ticker];
+  }
+
   renderList();
   renderMarketBar();
   if (sb) {
