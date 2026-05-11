@@ -1401,7 +1401,8 @@ async function fetchStock(ticker) {
   // MACD acceleration: is the momentum diff growing or shrinking vs yesterday?
   const macdSlope  = calcMacdSlope(closes);
 
-    bullishScore: 0, bullishDrivers: [], rsi: 50, macdDiff: 0, ema20: price, position: 0.5, price
+  const ind = closes.length >= 10 ? calcIndicators(closes, highs, lows) : {
+    bullishScore: 0, bullishDrivers: [], rsi: 50, macdDiff: 0, ema20: price, position: 0.5
   };
 
   // Live position: recalculate using today's actual market price vs historical 5-day range.
