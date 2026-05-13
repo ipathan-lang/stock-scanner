@@ -1,8 +1,12 @@
 [
   "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","ORCL","AVGO","ADBE","CRM","NFLX","AMD","INTC",
-  "BRK.B","JPM","V","MA","BAC","WFC","MS","GS",
-  "LLY","UNH","JNJ","ABBV","MRK","TMO","PFE","NVO",
-  "WMT","COST","HD","PG","NKE","MCD","LOW","TM","BABA",
-  "XOM","CVX","SHEL",
-  "SPY","QQQ","IWM","VTI","VOO","IVV","XLK","XLF","XLE","XLV","XLY","XLP","VXUS","GLD","SLV","TLT", "CVNA"
+  "NOW","UBER","INTU","WDAY","NET","CRWD","DDOG","ON",
+  "BRK.B","JPM","V","MA","BAC","WFC","MS","GS","AXP","BLK","C","SCHW","SPGI",
+  "LLY","UNH","JNJ","ABBV","MRK","TMO","PFE","NVO","GILD","BSX",
+  "WMT","COST","HD","PG","NKE","MCD","LOW","DIS","SBUX","TM","BABA",
+  "SHOP","MELI","PDD","CPNG","JD","ETSY",
+  "XOM","CVX","SHEL","COP","SLB","OXY",
+  "APP","COIN","PLTR","ARM","PANW",
+  "SPY","QQQ","IWM","VTI","VOO","IVV","XLK","XLF","XLE","XLV","XLY","XLP","VXUS","GLD","SLV","TLT","CVNA"
 ]
+

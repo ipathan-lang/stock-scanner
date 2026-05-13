@@ -252,6 +252,50 @@
       font-weight: 600;
     }
 
+    /* ── Sudden Move Banner ── */
+    .sudden-move-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      margin: 8px 0 4px;
+      border: 1.5px solid;
+      flex-wrap: wrap;
+    }
+    .sudden-move-banner.surge {
+      background: rgba(16,185,129,0.10);
+      color: #047857;
+      border-color: rgba(16,185,129,0.45);
+    }
+    .sudden-move-banner.dip {
+      background: rgba(196,81,75,0.10);
+      color: #b91c1c;
+      border-color: rgba(196,81,75,0.40);
+    }
+    .sudden-move-banner .sm-icon { font-size: 1.1rem; }
+    .sudden-move-banner .sm-label { font-size: 0.85rem; }
+    .sudden-move-banner .sm-conf {
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .sudden-move-banner.surge .sm-conf { background: rgba(16,185,129,0.20); color: #065f46; }
+    .sudden-move-banner.dip   .sm-conf { background: rgba(196,81,75,0.18);  color: #991b1b; }
+    .sudden-move-banner .sm-factors {
+      font-size: 0.67rem;
+      font-weight: 600;
+      opacity: 0.80;
+      flex: 1 1 100%;
+      margin-top: 2px;
+    }
+
     /* Today's Hold bar */
     .hold-bar {
       display: flex;
@@ -1048,34 +1092,43 @@ const DEFAULT_WATCHLIST = [
 
   // ── Mega-cap Tech (top by market cap)
   'NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AVGO','ORCL','NFLX',
+  'NOW','UBER',                          // ServiceNow (~$200B), Uber (~$170B)
 
   // ── Enterprise Software / Cloud
   'ADBE','CRM','AMD',
+  'INTU','WDAY','NET','CRWD','DDOG',     // Intuit (~$180B), Workday (~$65B), Cloudflare (~$40B), CrowdStrike (~$80B), Datadog (~$40B)
 
   // ── Semiconductors
   'TSM','ASML','QCOM','TXN','MU',
   'AMAT','KLAC','LRCX','ADI','MRVL',    // chip equipment + analog/networking
+  'INTC','ON',                           // Intel (~$90B), ON Semiconductor (~$25B)
 
   // ── AI & Infrastructure
   'DELL','IBM','SNOW','SMCI',            // AI servers, data platforms, enterprise AI
+  'APP','COIN',                          // AppLovin (~$100B+), Coinbase (~$50B+)
 
   // ── Financials
   'JPM','V','MA','BAC','WFC','GS','MS','BRK-B',
+  'AXP','BLK','C','SCHW','SPGI',         // Amex (~$200B), BlackRock (~$130B), Citi (~$130B), Schwab (~$130B), S&P Global (~$150B)
 
   // ── Healthcare / Pharma
   'LLY','UNH','JNJ','ABBV','MRK','AMGN','REGN','VRTX','ISRG',
+  'PFE','TMO','GILD','BSX',              // Pfizer (~$180B), Thermo Fisher (~$190B), Gilead (~$100B), Boston Scientific (~$140B)
 
   // ── Baby Food & Infant Nutrition
   'ABT','KHC',                           // Abbott (Similac), Kraft Heinz (Heinz baby food)
 
   // ── Consumer / Retail
   'WMT','COST','HD','PG',
+  'MCD','DIS','NKE','SBUX','LOW',        // McDonald's (~$220B), Disney (~$180B), Nike (~$70B), Starbucks (~$100B), Lowe's (~$140B)
 
   // ── E-Commerce
   'SHOP','MELI','BABA','PDD','CPNG',    // Shopify, MercadoLibre, Alibaba, PinDuoDuo/Temu, Coupang
+  'JD','ETSY',                           // JD.com (~$50B), Etsy (~$12B)
 
   // ── Energy
   'XOM','CVX','NEE',
+  'COP','SLB','OXY',                     // ConocoPhillips (~$130B), SLB (~$60B), Occidental (~$50B)
 
   // ── High-conviction AI/Growth (large-cap leaders)
   'PLTR','ARM','PANW'
@@ -1380,7 +1433,11 @@ function computeConfidence(d) {
   if (!d || d.err) return 0;
   let pts = 0;
 
-  const pos    = d.livePos             ?? 0.5;
+  // Use the more favourable of live position (current price) and close-based position
+  // (yesterday's close). On a big rally day livePos can jump from 18% to 65%+ while
+  // the close-based position still reflects where the stock spent most of the week.
+  // Taking the minimum correctly identifies stocks that are still near their week low.
+  const pos    = Math.min(d.livePos ?? 0.5, d.position ?? 0.5);
   const r20    = d.ret20               ?? 0;
   const nDown  = d.consecutiveDownDays ?? 0;
   const chg    = d.changePct           ?? 0;
@@ -1460,7 +1517,9 @@ function computeConfidence(d) {
 function signal(d) {
   if (!d || d.err) return { label: '—', cls: 'by', conf: 0 };
   const s   = d.netScore;
-  const pos = d.livePos ?? 0.5;
+  // Use the more favourable of live position and close-based position (see computeConfidence).
+  // Prevents a single big-up day from hiding a stock that spent the whole week near its low.
+  const pos = Math.min(d.livePos ?? 0.5, d.position ?? 0.5);
   const r20 = d.ret20   ?? 0;
 
   // Compute confidence FIRST — it gates what label we can show.
@@ -2324,6 +2383,30 @@ async function fetchStock(ticker) {
     bearishDrivers.push('MACD momentum decelerating — follow-through selling likely');
   }
 
+  // ── Sudden Move Detection ─────────────────────────────────────────────────────────────
+  // 3-factor confirmation: Volume spike + ATR breach + intraday VWAP deviation
+  // A genuine sudden move needs at least 2 of 3 factors — eliminates low-liquidity noise.
+  // VWAP approximation: (open + dayHigh + dayLow + price) / 4  (Typical Price variant)
+  const marketDayLow  = meta.regularMarketDayLow ?? price;
+  const vwapApprox    = (marketOpen + (marketDayHigh ?? price) + marketDayLow + price) / 4;
+  const vwapDevPct    = vwapApprox > 0 ? ((price - vwapApprox) / vwapApprox * 100) : 0;
+
+  const smFactors = [];
+  let smScore = 0;
+  // Factor 1: Volume spike — institutions are involved (not retail noise)
+  if (volumeRatio != null && volumeRatio >= 2.0)     { smScore++; smFactors.push(`Vol ${volumeRatio.toFixed(1)}× avg`); }
+  // Factor 2: ATR breach — move exceeds normal daily range (true structural move)
+  if (todayRangePct != null && todayRangePct >= 1.5) { smScore++; smFactors.push(`ATR ${todayRangePct.toFixed(1)}× normal`); }
+  // Factor 3: VWAP deviation — price significantly above/below intraday average price
+  if (Math.abs(vwapDevPct) >= 0.8)                   { smScore++; smFactors.push(`VWAP dev ${vwapDevPct > 0 ? '+' : ''}${vwapDevPct.toFixed(1)}%`); }
+
+  let suddenMove = null;
+  if (smScore >= 2 && Math.abs(changePct) >= 1.5) {
+    const smType = changePct > 0 ? 'surge' : 'dip';
+    const smConf = smScore === 3 ? 'High' : 'Medium';
+    suddenMove = { type: smType, confidence: smConf, factors: smFactors, pctMove: changePct, smScore };
+  }
+
   // ── Day Conviction composite ─────────────────────────────────────────────────────────
   // Answers: "if I take this trade today, how likely is the move to persist for 1 day?"
   // Score 0–5: each signal that confirms direction adds 1 point
@@ -2389,7 +2472,8 @@ async function fetchStock(ticker) {
     volumeRatio,
     openChangePct, gapAndFade,
     atrPct, atrRatio, todayRangePct, macdSlope,
-    dayConviction, dcScore, dcReasons
+    dayConviction, dcScore, dcReasons,
+    vwapDevPct, suddenMove
   };
 }
 
@@ -3578,6 +3662,14 @@ function buildCard(d, rank, pinned) {
         </div>
         <span class="badge ${sig.cls}">${sig.label}</span>
       </div>
+
+      ${d.suddenMove ? `
+      <div class="sudden-move-banner ${d.suddenMove.type}">
+        <span class="sm-icon">${d.suddenMove.type === 'surge' ? '&#9889;' : '&#128308;'}</span>
+        <span class="sm-label">Sudden ${d.suddenMove.type === 'surge' ? 'Surge' : 'Dip'} &nbsp;${d.suddenMove.pctMove > 0 ? '+' : ''}${d.suddenMove.pctMove.toFixed(2)}%</span>
+        <span class="sm-conf">${d.suddenMove.confidence} confidence</span>
+        <span class="sm-factors">${d.suddenMove.factors.join(' &middot; ')}</span>
+      </div>` : ''}
 
       <div class="indicators">
         <div class="ind-item">
