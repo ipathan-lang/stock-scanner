@@ -1770,7 +1770,7 @@ async function fetchStock(ticker) {
   const newsUrl     = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
   const nasdaqUrl   = `https://api.nasdaq.com/api/company/${ticker}/earnings-surprise`;
   const calendarUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents,defaultKeyStatistics,financialData&formatted=false`;
-  const insiderUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=insiderTransactions&formatted=false`;
+  const insiderUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=insiderHolders,netSharePurchaseActivity&formatted=false`;
   const [chart, news, nasdaqData, calendarData, insiderData] = await Promise.all([
     fetchJ(chartUrl, ps),
     fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
@@ -1805,44 +1805,48 @@ async function fetchStock(ticker) {
   };
 
   // ── Insider transactions ──────────────────────────────────────────────────────────
-  // Fetched as a dedicated request (separate from calendarUrl) so Yahoo doesn't drop it.
-  const _insRes = insiderData?.quoteSummary?.result?.[0] ?? {};
-  const _it     = _insRes.insiderTransactions?.transactions ?? [];
-  const _cutoff = Date.now() - 365 * 86400000;  // last 12 months
-  const _txText = tx => (tx.transactionText ?? '').toLowerCase();
+  // ── Insider activity ─────────────────────────────────────────────────────────────
+  // Uses insiderHolders (most recent tx per person) + netSharePurchaseActivity (6-month
+  // aggregate). These modules are reliably available without auth, unlike insiderTransactions.
+  const _insRes  = insiderData?.quoteSummary?.result?.[0] ?? {};
+  const _holders = _insRes.insiderHolders?.holders ?? [];
+  const _netAct  = _insRes.netSharePurchaseActivity ?? {};
+  const _cutoff  = Date.now() - 365 * 86400000;   // last 12 months
 
-  const insiderTx = _it
-    .filter(tx => ((tx.startDate?.raw ?? 0) * 1000) > _cutoff)
-    .map(tx => {
-      const txt    = _txText(tx);
-      const shares = tx.shares?.raw ?? 0;
-      const isSell = txt.includes('sale') || txt.includes('sell') || txt.includes('disposed') || txt.includes('automatic');
-      const isBuy  = !isSell && (txt.includes('purchase') || txt.includes('acquisition') ||
-                     txt.includes('option exercise') || txt.includes('award') ||
-                     txt.includes('grant') || shares > 0);
-      const type   = isSell ? 'SELL' : isBuy ? 'BUY' : 'OTHER';
+  const insiderTx = _holders
+    .filter(h => ((h.latestTransDate?.raw ?? 0) * 1000) > _cutoff)
+    .map(h => {
+      const desc = (h.transactionDescription ?? '').toLowerCase();
+      const isSell = desc.includes('sale') || desc.includes('sell') || desc.includes('disposed');
+      const isBuy  = desc.includes('purchase') || desc.includes('acquisition') ||
+                     desc.includes('exercise') || desc.includes('award') || desc.includes('grant');
+      if (!isBuy && !isSell) return null;
       return {
-        name:  tx.filerName      ?? 'Insider',
-        role:  tx.filerRelation  ?? '',
-        type,
-        shares,
-        value: tx.value?.raw     ?? 0,
-        date:  tx.startDate?.fmt ?? '',
-        text:  tx.transactionText ?? '',
+        name:   h.name             ?? 'Insider',
+        role:   h.relation         ?? '',
+        type:   isSell ? 'SELL' : 'BUY',
+        shares: h.positionDirect?.raw ?? 0,
+        value:  0,   // insiderHolders doesn't carry $ value; use netSharePurchaseActivity
+        date:   h.latestTransDate?.fmt ?? '',
+        text:   h.transactionDescription ?? '',
       };
     })
-    .filter(tx => tx.type !== 'OTHER');
+    .filter(Boolean);
 
-  const insiderBuyValue  = insiderTx.filter(t => t.type === 'BUY') .reduce((s, t) => s + t.value, 0);
-  const insiderSellValue = insiderTx.filter(t => t.type === 'SELL').reduce((s, t) => s + t.value, 0);
-  // Net: positive = insiders bought more than sold (bullish signal)
-  const insiderNetValue  = insiderBuyValue - insiderSellValue;
-  // Summary object stored on the data record
+  // Aggregate from netSharePurchaseActivity (6-month window)
+  const _buyShares  = _netAct.buyInfoShares?.raw  ?? 0;
+  const _sellShares = _netAct.sellInfoShares?.raw ?? 0;
+  const _buyCount   = _netAct.buyInfoCount?.raw   ?? 0;
+  const _sellCount  = _netAct.sellInfoCount?.raw  ?? 0;
+  const insiderNetShares = _buyShares - _sellShares;   // positive = net buying
+
   const insiderActivity = {
-    transactions: insiderTx.slice(0, 6),   // show last 6 (most recent first)
-    netValue:     insiderNetValue,
-    buyCount:     insiderTx.filter(t => t.type === 'BUY').length,
-    sellCount:    insiderTx.filter(t => t.type === 'SELL').length,
+    transactions: insiderTx.slice(0, 6),
+    netValue:     insiderNetShares,   // shares instead of $; sign is what matters for scoring
+    buyCount:     _buyCount  || insiderTx.filter(t => t.type === 'BUY').length,
+    sellCount:    _sellCount || insiderTx.filter(t => t.type === 'SELL').length,
+    buyShares:    _buyShares,
+    sellShares:   _sellShares,
   };
 
   // SOURCE 1 — Yahoo calendarEvents module (most accurate: actual scheduled date)
@@ -2178,27 +2182,23 @@ async function fetchStock(ticker) {
   // ── Insider activity scoring ──────────────────────────────────────────────────────
   // Insiders (CEOs, CFOs, Directors) must file Form 4 with the SEC within 2 days of trading.
   // They know the company better than any analyst. Net buying is one of the strongest
-  // non-technical signals for multi-day holds — they buy because they expect the price to rise.
+  // non-technical signals for multi-day holds.
   //
-  // Signal rules:
-  //  +3 catalyst : Net insider buying > $500K in 90 days (executives putting serious money in)
-  //  +2 catalyst : Net buying $100K–$500K OR 3+ insider buys with no sells
-  //  +1 catalyst : Any net buying or at least 1 buy transaction
-  //  +1 bearish  : Net selling > $1M (could be diversification, but still a weak warning)
-  //  No penalty  : Small net selling — insiders sell for tax/diversification all the time
+  // netValue here is NET SHARES (buy - sell) from netSharePurchaseActivity (6-month window).
+  // Positive = more shares bought than sold. We use share counts since $ value isn't in insiderHolders.
   const _ins = insiderActivity;
-  if (_ins.netValue > 500000) {
+  if (_ins.buyCount >= 3 && _ins.sellCount === 0) {
     catalystScore += 3;
-    catalystDrivers.push(`Insider net buying $${(_ins.netValue / 1000).toFixed(0)}K in 90d — executives bullish on own stock`);
-  } else if (_ins.netValue > 100000 || (_ins.buyCount >= 3 && _ins.sellCount === 0)) {
+    catalystDrivers.push(`${_ins.buyCount} insider buys, 0 sells (6mo) — executives bullish on own stock`);
+  } else if (_ins.buyCount >= 2 || (_ins.buyCount >= 1 && _ins.netValue > 0)) {
     catalystScore += 2;
-    catalystDrivers.push(`Insider buying ($${(_ins.netValue / 1000).toFixed(0)}K net, ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''}) — positive insider signal`);
-  } else if (_ins.netValue > 0 || _ins.buyCount >= 1) {
+    catalystDrivers.push(`Insider buying: ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''} vs ${_ins.sellCount} sell${_ins.sellCount > 1 ? 's' : ''} (6mo) — positive signal`);
+  } else if (_ins.buyCount >= 1) {
     catalystScore += 1;
-    catalystDrivers.push(`Insider activity: ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''} vs ${_ins.sellCount} sell${_ins.sellCount > 1 ? 's' : ''} (90d)`);
-  } else if (_ins.netValue < -1000000) {
+    catalystDrivers.push(`Insider activity: ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''} vs ${_ins.sellCount} sell${_ins.sellCount > 1 ? 's' : ''} (6mo)`);
+  } else if (_ins.sellCount >= 3 && _ins.buyCount === 0) {
     bearishScore += 1;
-    bearishDrivers.push(`Net insider selling $${(Math.abs(_ins.netValue) / 1000).toFixed(0)}K — may indicate caution at the top`);
+    bearishDrivers.push(`${_ins.sellCount} insider sells, 0 buys (6mo) — may indicate caution at current price`);
   }
 
   // ── Market regime overlay — macro context from SPY + QQQ ──────────────────────────────
@@ -2920,36 +2920,49 @@ function buildInsiderSection(d) {
   const ins = d.insiderActivity;
   if (!ins || (!ins.buyCount && !ins.sellCount)) return '';  // hide if no data
 
-  const fmtVal = v => {
-    if (!v) return '';
-    if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
-    if (v >= 1000)    return `$${(v / 1000).toFixed(0)}K`;
-    return `$${v.toFixed(0)}`;
+  const fmtShares = n => {
+    if (!n) return '';
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M shs`;
+    if (n >= 1000)    return `${(n / 1000).toFixed(0)}K shs`;
+    return `${n} shs`;
   };
-  const fmtShares = n => n >= 1000 ? `${(n / 1000).toFixed(1)}K shs` : `${n} shs`;
 
   const rows = ins.transactions.map(tx => {
     const isBuy = tx.type === 'BUY';
     const badge = isBuy
       ? `<span class="ins-badge ins-buy">BUY</span>`
       : `<span class="ins-badge ins-sell">SELL</span>`;
-    const val   = tx.value  ? ` &nbsp;${fmtVal(tx.value)}`   : '';
-    const shs   = tx.shares ? ` &nbsp;${fmtShares(tx.shares)}` : '';
-    const role  = tx.role   ? `<span class="ins-role">${tx.role}</span>` : '';
-    return `<div class="ins-row">${badge} <span class="ins-name">${tx.name}</span>${role}<span class="ins-detail">${shs}${val}</span><span class="ins-date">${tx.date}</span></div>`;
+    const role = tx.role ? `<span class="ins-role">${tx.role}</span>` : '';
+    const desc = tx.text ? `<span class="ins-detail">${tx.text}</span>` : '';
+    return `<div class="ins-row">${badge} <span class="ins-name">${tx.name}</span>${role}${desc}<span class="ins-date">${tx.date}</span></div>`;
   }).join('');
 
-  // Net sentiment headline
-  const net = ins.netValue;
+  // Net sentiment headline using buy/sell counts
+  const netBuys = ins.buyCount - ins.sellCount;
   let sentiment = '';
-  if (net > 500000)  sentiment = `<span class="ins-net ins-net-bull">&#9650; Net insider buying ${fmtVal(net)} — strongly bullish signal</span>`;
-  else if (net > 0)  sentiment = `<span class="ins-net ins-net-bull">&#9650; Net insider buying ${fmtVal(net)}</span>`;
-  else if (net < -1000000) sentiment = `<span class="ins-net ins-net-bear">&#9660; Net insider selling ${fmtVal(Math.abs(net))} — mild caution flag</span>`;
-  else if (net < 0)  sentiment = `<span class="ins-net ins-net-muted">Insiders net sold ${fmtVal(Math.abs(net))} (may be diversification)</span>`;
+  if (ins.buyCount >= 3 && ins.sellCount === 0)
+    sentiment = `<span class="ins-net ins-net-bull">&#9650; ${ins.buyCount} buys · 0 sells — strongly bullish</span>`;
+  else if (ins.buyCount > ins.sellCount)
+    sentiment = `<span class="ins-net ins-net-bull">&#9650; ${ins.buyCount} buy${ins.buyCount>1?'s':''} · ${ins.sellCount} sell${ins.sellCount!==1?'s':''}</span>`;
+  else if (ins.sellCount > ins.buyCount && ins.buyCount === 0)
+    sentiment = `<span class="ins-net ins-net-bear">&#9660; ${ins.sellCount} sell${ins.sellCount>1?'s':''} · 0 buys — caution</span>`;
+  else if (ins.sellCount > 0 || ins.buyCount > 0)
+    sentiment = `<span class="ins-net ins-net-muted">${ins.buyCount} buy${ins.buyCount!==1?'s':''} · ${ins.sellCount} sell${ins.sellCount!==1?'s':''}</span>`;
+
+  // Aggregate share line from netSharePurchaseActivity
+  const aggLine = (ins.buyShares || ins.sellShares)
+    ? `<div style="font-size:.68rem;color:var(--muted);margin-top:4px;padding-top:4px;border-top:1px dashed rgba(19,43,67,.08)">
+        6-month aggregate &nbsp;·&nbsp;
+        <span style="color:#15803d">▲ ${fmtShares(ins.buyShares)} bought</span>
+        &nbsp;·&nbsp;
+        <span style="color:#b91c1c">▼ ${fmtShares(ins.sellShares)} sold</span>
+       </div>`
+    : '';
 
   return `<div class="insider-wrap">
     <div class="insider-title">&#128203; Insider Activity <span class="insider-period">(12 months)</span>${sentiment}</div>
     ${rows}
+    ${aggLine}
   </div>`;
 }
 
