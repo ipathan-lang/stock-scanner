@@ -1120,7 +1120,7 @@ function sortStocks(list) {
     return [...list].sort((a, b) => {
       const da = daysTo(a), db = daysTo(b);
       // Both have upcoming earnings (within 90 days): nearest first, then bullish
-      if (da < 90 && db < 90) return da - db || (b.sortScore ?? -9999) - (a.sortScore ?? -9999);
+      if (da < 90 && db < 90) return da - db || (a.signalRank ?? 6) - (b.signalRank ?? 6) || (b.sortScore ?? -9999) - (a.sortScore ?? -9999);
       // Only one has upcoming earnings within 90 days: that one first
       if (da < 90) return -1;
       if (db < 90) return  1;
@@ -1129,6 +1129,7 @@ function sortStocks(list) {
     });
   }
   return [...list].sort((a, b) =>
+    (a.signalRank ?? 6)     - (b.signalRank ?? 6)     ||   // badge tier first
     (b.sortScore  ?? -9999) - (a.sortScore  ?? -9999) ||
     (b.netScore   ??  -999) - (a.netScore   ??  -999) ||
     (b.bullishScore ?? 0)   - (a.bullishScore ?? 0)   ||
@@ -1466,7 +1467,7 @@ function signal(d) {
     (d.fundamentalScore ?? 0) >= -2 &&
     !(d.changePct < -3 && (d.volumeRatio ?? 1) > 2.5);
 
-  if (strongBullish) return { label: `Strong Bullish · ${pct}`, cls: 'bg', conf };
+  if (strongBullish) return { label: `🟢 Buy Now · ${pct}`,        cls: 'bg', conf, rank: 1 };
 
   // ── BULLISH  ──────────────────────────────────────────────────────────────────────
   // Lower 50% of week range + real dip occurred + trend not broken + conf ≥ 65%
@@ -1480,23 +1481,23 @@ function signal(d) {
     (d.rsi ?? 50) < 72 &&
     !(d.gapAndFade);
 
-  if (bullish) return { label: `Bullish · ${pct}`, cls: 'bg', conf };
+  if (bullish) return { label: `🟢 Good Entry · ${pct}`,          cls: 'bg', conf, rank: 2 };
 
   // ── BALANCED  (conf ≥ 50%) ────────────────────────────────────────────────────────
   // Score is positive and context is neutral — neither a clear buy nor avoid.
-  if (conf >= 50 && s >= 2)  return { label: `Balanced · ${pct}`,        cls: 'by', conf };
+  if (conf >= 50 && s >= 2)  return { label: `🟡 Neutral · ${pct}`,           cls: 'by', conf, rank: 6 };
 
   // Score looks good but position is wrong (extended, near week high) — tell user WHY
-  if (s >= 7 && pos >= 0.80) return { label: `Wait · Near Week High · ${pct}`, cls: 'by', conf };
-  if (s >= 5 && pos >= 0.70) return { label: `Wait · Extended · ${pct}`,       cls: 'by', conf };
-  if (s >= 5 && pos >= 0.50) return { label: `Watch · Approaching · ${pct}`,   cls: 'by', conf };
-  if (s >= 4)                return { label: `Watch · Building · ${pct}`,      cls: 'by', conf };
-  if (s >= 2)                return { label: `Balanced · ${pct}`,              cls: 'by', conf };
+  if (s >= 7 && pos >= 0.80) return { label: `⏳ Wait · Near Top · ${pct}`,   cls: 'by', conf, rank: 5 };
+  if (s >= 5 && pos >= 0.70) return { label: `⏳ Wait · Overextended · ${pct}`,cls: 'by', conf, rank: 5 };
+  if (s >= 5 && pos >= 0.50) return { label: `👀 Watch · Pullback Soon · ${pct}`, cls: 'by', conf, rank: 4 };
+  if (s >= 4)                return { label: `👀 Watch · Building · ${pct}`,   cls: 'by', conf, rank: 3 };
+  if (s >= 2)                return { label: `🟡 Neutral · ${pct}`,            cls: 'by', conf, rank: 6 };
 
   // ── CAUTIOUS / WEAK / BEARISH  ───────────────────────────────────────────────────
-  if (s >= 0)  return { label: `Cautious · ${pct}`,  cls: 'by', conf };
-  if (s >= -3) return { label: `Weak · ${pct}`,      cls: 'br', conf };
-  return               { label: `Bearish · ${pct}`,  cls: 'br', conf };
+  if (s >= 0)  return { label: `🟠 Caution · ${pct}`,   cls: 'by', conf, rank: 7 };
+  if (s >= -3) return { label: `🔴 Avoid · ${pct}`,     cls: 'br', conf, rank: 8 };
+  return               { label: `🔴 Selling · ${pct}`,  cls: 'br', conf, rank: 9 };
 }
 
 function prediction(d) {
@@ -2321,6 +2322,13 @@ async function fetchStock(ticker) {
   const convictionFinal = clamp(Math.round(((netScoreFinal + 15) / 30) * 100), 0, 100);
   const sortScoreFinal  = netScoreFinal * 100 + ind.bullishScore * 10 - bearishScore;
 
+  // Compute signal rank early so it can be stored on the record for sorting
+  const _sigTmp = signal({ ...ind, bearishScore, netScore: netScoreFinal,
+    conviction: convictionFinal, fundamentalScore: fundScore,
+    rsi: ind.rsi, livePos: livePos, ret20: ret20, hasDip: ind.hasDip,
+    changePct, volumeRatio, gapAndFade });
+  const signalRank = _sigTmp.rank ?? 6;
+
   const headlines = [];
   if (news?.news) {
     news.news.slice(0, 3).forEach(n => {
@@ -2337,6 +2345,7 @@ async function fetchStock(ticker) {
     netScore: netScoreFinal,
     conviction: convictionFinal,
     sortScore: sortScoreFinal,
+    signalRank,
     headlines,
     nextEarnings,
     epsSurprise,
