@@ -1054,6 +1054,10 @@ const DEFAULT_WATCHLIST = [
 
   // ── Semiconductors
   'TSM','ASML','QCOM','TXN','MU',
+  'AMAT','KLAC','LRCX','ADI','MRVL',    // chip equipment + analog/networking
+
+  // ── AI & Infrastructure
+  'DELL','IBM','SNOW','SMCI',            // AI servers, data platforms, enterprise AI
 
   // ── Financials
   'JPM','V','MA','BAC','WFC','GS','MS','BRK-B',
@@ -1061,8 +1065,14 @@ const DEFAULT_WATCHLIST = [
   // ── Healthcare / Pharma
   'LLY','UNH','JNJ','ABBV','MRK','AMGN','REGN','VRTX','ISRG',
 
+  // ── Baby Food & Infant Nutrition
+  'ABT','KHC',                           // Abbott (Similac), Kraft Heinz (Heinz baby food)
+
   // ── Consumer / Retail
   'WMT','COST','HD','PG',
+
+  // ── E-Commerce
+  'SHOP','MELI','BABA','PDD','CPNG',    // Shopify, MercadoLibre, Alibaba, PinDuoDuo/Temu, Coupang
 
   // ── Energy
   'XOM','CVX','NEE',
@@ -3794,7 +3804,7 @@ async function searchStock() {
     // v2026-05-08: reset to curated top-50 if saved list has >60 entries (old large list)
     if (saved) {
       const parsed = JSON.parse(saved);
-      S.watchlist = parsed.length > 60 ? [...DEFAULT_WATCHLIST] : parsed;
+      S.watchlist = parsed.length > 100 ? [...DEFAULT_WATCHLIST] : parsed;
       if (parsed.length > 60) localStorage.setItem('sm_watch', JSON.stringify(S.watchlist));
     } else {
       S.watchlist = [...DEFAULT_WATCHLIST];
