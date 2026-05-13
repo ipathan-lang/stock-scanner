@@ -756,12 +756,14 @@
     }
     .sv-item .sv-sig { font-size: 1.1rem; }
     .sv-item .sv-range { font-size: 0.68rem; opacity: .75; }
-    .sv-sb { background: #0d6b4f; color: #fff; }
-    .sv-b  { background: #1a8f6b; color: #fff; }
-    .sv-ba { background: #e8f4ee; color: #2d6a4f; }
-    .sv-ca { background: #fff8e6; color: #92620a; }
-    .sv-w  { background: #fdecea; color: #a33328; }
-    .sv-br { background: #c4514b; color: #fff; }
+    .sv-sb  { background: #0d6b4f; color: #fff; }
+    .sv-b   { background: #1a8f6b; color: #fff; }
+    .sv-ba  { background: #e8f4ee; color: #2d6a4f; }
+    .sv-neu { background: #fef9c3; color: #854d0e; }
+    .sv-ora { background: #ffedd5; color: #9a3412; }
+    .sv-ca  { background: #fff8e6; color: #92620a; }
+    .sv-w   { background: #fdecea; color: #a33328; }
+    .sv-br  { background: #c4514b; color: #fff; }
     .ind-guide { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
     .ig-item {
       padding: 11px 13px;
@@ -885,15 +887,17 @@
     <div class="modal-body">
 
       <!-- Signal band -->
-      <div style="font-size:.73rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Signal Bands (Net Score)</div>
-      <div class="score-visual">
-        <div class="sv-item sv-sb"><span class="sv-sig">&#9650;&#9650;</span><span>Strong<br>Bullish</span><span class="sv-range">&#x2265; 7</span></div>
-        <div class="sv-item sv-b"><span class="sv-sig">&#9650;</span><span>Bullish</span><span class="sv-range">5 – 6</span></div>
-        <div class="sv-item sv-ba"><span class="sv-sig">&#8623;</span><span>Pulling<br>Back</span><span class="sv-range">&#x2265;5, below open</span></div>
-        <div class="sv-item sv-ba"><span class="sv-sig">&#9644;</span><span>Balanced</span><span class="sv-range">2 – 4</span></div>
-        <div class="sv-item sv-ca"><span class="sv-sig">&#9661;</span><span>Cautious</span><span class="sv-range">0 – 1</span></div>
-        <div class="sv-item sv-w"><span class="sv-sig">&#9660;</span><span>Weak</span><span class="sv-range">-3 – -1</span></div>
-        <div class="sv-item sv-br"><span class="sv-sig">&#9660;&#9660;</span><span>Bearish</span><span class="sv-range">&lt; -3</span></div>
+      <div style="font-size:.73rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Signal Badges — Best to Worst</div>
+      <div class="score-visual" style="flex-wrap:wrap;gap:4px">
+        <div class="sv-item sv-sb" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Buy Now</span><span class="sv-range">All gates: dip + conf ≥88% + score ≥6 + pos ≤35%</span></div>
+        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Good Entry</span><span class="sv-range">Dip confirmed · conf ≥65% · score ≥4 · pos ≤50%</span></div>
+        <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Building</span><span class="sv-range">Score ≥4 but dip / conf not yet met</span></div>
+        <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Pullback Soon</span><span class="sv-range">Score ≥4 · pos 50–70% — wait for dip</span></div>
+        <div class="sv-item sv-ca" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">⏳</span><span>Wait · Overextended</span><span class="sv-range">Score ≥5 · pos ≥70% — don't chase</span></div>
+        <div class="sv-item sv-neu" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟡</span><span>Neutral</span><span class="sv-range">Score 2–4 · no clear edge</span></div>
+        <div class="sv-item sv-ora" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟠</span><span>Caution</span><span class="sv-range">Score 0–2 · slightly negative</span></div>
+        <div class="sv-item sv-w"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🔴</span><span>Avoid</span><span class="sv-range">Score -3–0 · sellers in control</span></div>
+        <div class="sv-item sv-br" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🔴</span><span>Selling</span><span class="sv-range">Score &lt; -3 · heavy selling pressure</span></div>
       </div>
 
       <!-- Indicator guide -->
@@ -901,20 +905,20 @@
       <div class="ind-guide">
         <div class="ig-item">
           <h4>RSI (14)</h4>
-          <div class="ig-row"><span class="ig-chip ic-g">Bullish</span><span class="ig-txt">35 – 60: healthy recovery zone</span></div>
-          <div class="ig-row"><span class="ig-chip ic-y">Caution</span><span class="ig-txt">60 – 70: heating up, watch closely</span></div>
-          <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">&gt; 70: overbought; &lt; 30: panic</span></div>
+          <div class="ig-row"><span class="ig-chip ic-g">Best</span><span class="ig-txt">35–55: healthy dip zone</span></div>
+          <div class="ig-row"><span class="ig-chip ic-y">Caution</span><span class="ig-txt">55–70: heating up — watch closely</span></div>
+          <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">&gt; 70: overbought · &lt; 30: panic</span></div>
         </div>
         <div class="ig-item">
           <h4>MACD Diff</h4>
-          <div class="ig-row"><span class="ig-chip ic-g">Bullish</span><span class="ig-txt">&gt; 0 and rising — momentum up</span></div>
-          <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">&lt; 0 — momentum fading or negative</span></div>
+          <div class="ig-row"><span class="ig-chip ic-g">Bullish</span><span class="ig-txt">&gt; 0 and rising — momentum building</span></div>
+          <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">&lt; 0 or falling — momentum fading</span></div>
         </div>
         <div class="ig-item">
           <h4>Wk Position</h4>
-          <div class="ig-row"><span class="ig-chip ic-g">Bullish</span><span class="ig-txt">&lt; 35%: near week's low (support)</span></div>
-          <div class="ig-row"><span class="ig-chip ic-y">Neutral</span><span class="ig-txt">35 – 70%: mid-range</span></div>
-          <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">&gt; 70%: near week's high (resistance)</span></div>
+          <div class="ig-row"><span class="ig-chip ic-g">Buy zone</span><span class="ig-txt">&lt; 35%: near week low (support)</span></div>
+          <div class="ig-row"><span class="ig-chip ic-y">Wait</span><span class="ig-txt">35–70%: mid-range — watch for dip</span></div>
+          <div class="ig-row"><span class="ig-chip ic-r">Avoid</span><span class="ig-txt">&gt; 70%: near week high — don't chase</span></div>
         </div>
         <div class="ig-item">
           <h4>EMA 20</h4>
@@ -923,14 +927,25 @@
         </div>
         <div class="ig-item">
           <h4>Conviction %</h4>
-          <div class="ig-row"><span class="ig-chip ic-g">Strong</span><span class="ig-txt">&ge; 65%: high-confidence setup</span></div>
-          <div class="ig-row"><span class="ig-chip ic-y">Moderate</span><span class="ig-txt">40 – 64%: mixed signals</span></div>
-          <div class="ig-row"><span class="ig-chip ic-r">Weak</span><span class="ig-txt">&lt; 40%: low-confidence, avoid</span></div>
+          <div class="ig-row"><span class="ig-chip ic-g">≥ 65%</span><span class="ig-txt">High confidence — entry signals aligned</span></div>
+          <div class="ig-row"><span class="ig-chip ic-y">40–64%</span><span class="ig-txt">Mixed — wait for more confirmation</span></div>
+          <div class="ig-row"><span class="ig-chip ic-r">&lt; 40%</span><span class="ig-txt">Low confidence — skip this setup</span></div>
         </div>
         <div class="ig-item">
           <h4>Bull / Bear Score</h4>
-          <div class="ig-row"><span class="ig-chip ic-g">Bullish</span><span class="ig-txt">Bull &gt; Bear: more positive triggers</span></div>
+          <div class="ig-row"><span class="ig-chip ic-g">Bullish</span><span class="ig-txt">Bull &gt; Bear: more triggers firing</span></div>
           <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">Bear &gt; Bull: risk factors dominate</span></div>
+        </div>
+        <div class="ig-item">
+          <h4>Vs SPY (20d)</h4>
+          <div class="ig-row"><span class="ig-chip ic-g">Leader</span><span class="ig-txt">Outperforming SPY &gt; 4% — relative strength +1/+2</span></div>
+          <div class="ig-row"><span class="ig-chip ic-r">Laggard</span><span class="ig-txt">Underperforming SPY &gt; 4% — relative weakness -1/-2</span></div>
+        </div>
+        <div class="ig-item">
+          <h4>Insider Activity</h4>
+          <div class="ig-row"><span class="ig-chip ic-g">Bullish</span><span class="ig-txt">3+ buys · 0 sells → +3 catalyst</span></div>
+          <div class="ig-row"><span class="ig-chip ic-y">Mild</span><span class="ig-txt">1–2 buys or net positive → +1/+2</span></div>
+          <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">3+ sells · 0 buys → -1 bearish</span></div>
         </div>
       </div>
 
@@ -938,11 +953,13 @@
       <div class="formula-box">
         <strong>Scoring formula</strong><br>
         <code>Net Score = BullishScore + CatalystScore − BearishScore</code><br>
-        <code>Conviction = clamp( round( ((NetScore + 9) / 22) × 100 ), 0, 100 )</code><br>
-        <span style="color:var(--muted);font-size:.72rem">
-          BullishScore 0–10 &nbsp;|&nbsp; BearishScore 0–14 &nbsp;|&nbsp; CatalystScore 0–2 (day gain boost)<br>
-          Stocks are ranked by Net Score (highest = most bullish).
-        </span>
+        <code>Conviction % = 6-factor weighted score (0–99)</code><br>
+        <div style="color:var(--muted);font-size:.72rem;line-height:1.6;margin-top:6px">
+          <b>Bullish triggers:</b> RSI dip zone · MACD rising · price ≥ EMA20 · near week low · rel. strength vs SPY<br>
+          <b>Catalyst bonus:</b> insider buying · selling exhaustion · earnings proximity · volume breakout · market tailwind<br>
+          <b>Bearish triggers:</b> RSI overbought · below EMA20 · near week high · insider selling · market headwind · lagging SPY<br>
+          <b>Badge is shown first</b> — stocks sorted by badge tier (🟢 Buy Now first), then by net score.
+        </div>
       </div>
 
     </div>
