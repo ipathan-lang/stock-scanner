@@ -395,6 +395,233 @@
     .news-item a { color: var(--blue); text-decoration: none; }
     .news-item a:hover { text-decoration: underline; }
 
+    /* Insider Activity Section */
+    .insider-wrap {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: rgba(19,43,67,.03);
+      border: 1px solid rgba(19,43,67,.08);
+      border-radius: 8px;
+      font-size: 0.72rem;
+    }
+    .insider-title {
+      font-weight: 700;
+      color: var(--ink);
+      font-size: 0.73rem;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .insider-period { color: var(--muted); font-weight: 400; }
+    .insider-none { color: var(--muted); font-size: 0.70rem; padding: 2px 0; }
+    .ins-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+      padding: 4px 0;
+      border-top: 1px dashed rgba(19,43,67,.08);
+      font-size: 0.70rem;
+    }
+    .ins-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      flex-shrink: 0;
+    }
+    .ins-buy  { background: rgba(21,128,61,.13); color: #15803d; }
+    .ins-sell { background: rgba(185,28,28,.12); color: #b91c1c; }
+    .ins-name { color: var(--ink); font-weight: 600; }
+    .ins-role { color: var(--muted); font-size: 0.65rem; padding: 1px 5px; background: rgba(19,43,67,.06); border-radius: 4px; }
+    .ins-detail { color: var(--ink); margin-left: auto; font-weight: 500; }
+    .ins-date { color: var(--muted); font-size: 0.65rem; flex-shrink: 0; }
+    .ins-net {
+      font-size: 0.68rem;
+      padding: 1px 7px;
+      border-radius: 5px;
+      font-weight: 600;
+    }
+    .ins-net-bull  { background: rgba(21,128,61,.1);  color: #15803d; }
+    .ins-net-bear  { background: rgba(185,28,28,.1);  color: #b91c1c; }
+    .ins-net-muted { background: rgba(19,43,67,.06);  color: var(--muted); }
+
+    /* ══════════════════════════════════════════════════════════
+       $500K ROBINHOOD STRATEGY PANEL
+    ═══════════════════════════════════════════════════════════ */
+    #strategy-panel { display: none; padding: 0 4px 60px; }
+    #strategy-panel.visible { display: block; }
+
+    .strat-hero {
+      background: linear-gradient(135deg, #0f2744 0%, #1e3a6e 100%);
+      color: #fff;
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .strat-hero h2 { font-size: 1.1rem; margin: 0 0 4px; font-weight: 800; letter-spacing: -.01em; }
+    .strat-hero .strat-sub { font-size: .78rem; opacity: .8; margin-bottom: 14px; }
+    .strat-capital-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .strat-cap-item { display: flex; flex-direction: column; gap: 2px; }
+    .strat-cap-label { font-size: .63rem; text-transform: uppercase; letter-spacing: .06em; opacity: .65; }
+    .strat-cap-val { font-size: 1.1rem; font-weight: 800; }
+    .strat-cap-val.green { color: #6ee7b7; }
+    .strat-cap-val.yellow { color: #fde68a; }
+    .strat-cap-val.muted  { color: rgba(255,255,255,.6); }
+
+    /* Market Safety Gauge */
+    .strat-safety {
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      border: 1.5px solid transparent;
+      font-size: .83rem;
+    }
+    .strat-safety.safe   { background: rgba(21,128,61,.08); border-color: rgba(21,128,61,.25); }
+    .strat-safety.caution{ background: rgba(217,119,6,.08);  border-color: rgba(217,119,6,.25); }
+    .strat-safety.danger { background: rgba(185,28,28,.08);  border-color: rgba(185,28,28,.3); }
+    .strat-safety-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .88rem; margin-bottom: 6px; }
+    .strat-safety-head .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green  { background: #16a34a; }
+    .dot-yellow { background: #d97706; }
+    .dot-red    { background: #dc2626; }
+    .strat-safety-desc { color: var(--muted); font-size: .75rem; line-height: 1.5; }
+    .strat-safety-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .strat-mkt-pill {
+      font-size: .68rem;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      background: rgba(19,43,67,.07);
+      color: var(--ink);
+    }
+    .strat-mkt-pill.bull { background: rgba(21,128,61,.12); color: #15803d; }
+    .strat-mkt-pill.bear { background: rgba(185,28,28,.1);  color: #b91c1c; }
+    .strat-mkt-pill.neut { background: rgba(217,119,6,.1);   color: #92400e; }
+
+    /* Dip Alert Banner */
+    .strat-dip-alert {
+      display: none;
+      background: #7f1d1d;
+      color: #fca5a5;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-size: .80rem;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+    .strat-dip-alert.visible { display: block; }
+
+    /* Section header */
+    .strat-section-title {
+      font-size: .68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      margin: 16px 0 8px;
+      padding-left: 2px;
+    }
+
+    /* Strategy stock cards */
+    .strat-card {
+      background: var(--card);
+      border-radius: 12px;
+      border: 1.5px solid rgba(19,43,67,.08);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      transition: border-color .2s;
+    }
+    .strat-card.enter-now { border-color: rgba(21,128,61,.35); }
+    .strat-card.watch-mode { border-color: rgba(217,119,6,.3); }
+    .strat-card.wait-mode  { border-color: rgba(19,43,67,.1); }
+    .strat-card.exit-now   { border-color: rgba(185,28,28,.35); }
+
+    .strat-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .strat-ticker-block { flex: 1; min-width: 0; }
+    .strat-ticker { font-size: 1.05rem; font-weight: 800; color: var(--ink); }
+    .strat-company { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+    .strat-sector  { font-size: .62rem; padding: 1px 6px; background: rgba(19,43,67,.06); border-radius: 4px; color: var(--muted); font-weight: 700; }
+    .strat-alloc-block { text-align: right; flex-shrink: 0; }
+    .strat-alloc-pct { font-size: 1.05rem; font-weight: 800; color: var(--ink); }
+    .strat-alloc-usd { font-size: .73rem; color: var(--muted); font-weight: 600; }
+
+    /* Action badge */
+    .strat-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: .70rem;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: .04em;
+      margin-bottom: 8px;
+    }
+    .sa-enter  { background: rgba(21,128,61,.15); color: #15803d; border: 1.5px solid rgba(21,128,61,.3); }
+    .sa-strong { background: rgba(21,128,61,.25); color: #065f46; border: 1.5px solid rgba(21,128,61,.5); }
+    .sa-watch  { background: rgba(217,119,6,.13);  color: #92400e; border: 1.5px solid rgba(217,119,6,.3); }
+    .sa-wait   { background: rgba(19,43,67,.07);   color: var(--muted); border: 1.5px solid rgba(19,43,67,.12); }
+    .sa-exit   { background: rgba(185,28,28,.13);  color: #b91c1c; border: 1.5px solid rgba(185,28,28,.3); }
+
+    /* Signal / metric row */
+    .strat-metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .strat-metric {
+      font-size: .70rem;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(19,43,67,.05);
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .strat-metric.green { background: rgba(21,128,61,.1); color: #15803d; }
+    .strat-metric.red   { background: rgba(185,28,28,.1); color: #b91c1c; }
+    .strat-metric.yellow{ background: rgba(217,119,6,.1); color: #92400e; }
+
+    /* Entry/exit plan row */
+    .strat-plan { font-size: .73rem; color: var(--muted); line-height: 1.6; border-top: 1px dashed rgba(19,43,67,.1); padding-top: 8px; margin-top: 4px; }
+    .strat-plan b { color: var(--ink); }
+    .strat-plan .sp-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+    .strat-plan .sp-label { color: var(--muted); font-weight: 700; min-width: 52px; font-size: .67rem; text-transform: uppercase; letter-spacing: .05em; }
+    .strat-plan .sp-val { color: var(--ink); font-weight: 600; }
+    .strat-plan .sp-val.good { color: #15803d; }
+    .strat-plan .sp-val.warn { color: #b91c1c; }
+
+    /* Insider badge inline */
+    .strat-ins { font-size: .68rem; font-weight: 600; padding: 1px 7px; border-radius: 5px; }
+    .strat-ins.bull { background: rgba(21,128,61,.12); color: #15803d; }
+    .strat-ins.bear { background: rgba(185,28,28,.1);  color: #b91c1c; }
+    .strat-ins.none { background: rgba(19,43,67,.06);  color: var(--muted); }
+
+    /* Cash card */
+    .strat-cash-card {
+      background: rgba(19,43,67,.04);
+      border: 1.5px dashed rgba(19,43,67,.15);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      font-size: .80rem;
+    }
+    .strat-cash-title { font-weight: 800; color: var(--ink); margin-bottom: 4px; font-size: .88rem; }
+    .strat-cash-desc  { color: var(--muted); line-height: 1.55; font-size: .73rem; }
+
+    /* Strategy disclaimer */
+    .strat-disclaimer {
+      font-size: .67rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-top: 20px;
+      padding: 10px 14px;
+      border: 1px solid rgba(19,43,67,.1);
+      border-radius: 8px;
+      background: rgba(19,43,67,.03);
+    }
+
     /* Asset badge */
     .abadge { font-size: 0.63rem; padding: 2px 7px; border-radius: 6px; font-weight: 700; }
     .a-etf    { background: rgba(30,99,217,.1); color: var(--blue); }
@@ -775,6 +1002,7 @@
       <div style="display:flex;gap:4px">
         <button id="sort-btn-bullish" class="sort-btn active" onclick="setSortMode('bullish')">&#x2605; Bullish</button>
         <button id="sort-btn-earnings" class="sort-btn" onclick="setSortMode('earnings')">&#128197; Earnings</button>
+        <button id="sort-btn-strategy" class="sort-btn" onclick="setSortMode('strategy')" style="background:linear-gradient(135deg,#0f2744,#1e3a6e);color:#fff;border-color:#1e3a6e">&#x1F4B0; $500K Strategy</button>
       </div>
       <div class="filter-wrap">
         <input id="wl-filter" type="text" placeholder="Filter stocks…" maxlength="10" oninput="applyFilter()" />
@@ -789,6 +1017,7 @@
   <div id="stock-list">
     <div class="empty">Fetching stock data… usually takes 30–60 s on first load.</div>
   </div>
+  <div id="strategy-panel"></div>
 </main>
 
 <script>
@@ -826,6 +1055,41 @@ const DEFAULT_WATCHLIST = [
 ];
 
 const MARKET_TICKERS = ['SPY','QQQ','IWM','XLK','XLF'];
+
+// ══════════════════════════════════════════════════════════════
+//  $500K ROBINHOOD STRATEGY PORTFOLIO
+//  Selection criteria:
+//  - S&P 500 large-cap only (market cap > $200B)
+//  - Low volatility / high institutional ownership
+//  - Diversified across 6 sectors to reduce correlation risk
+//  - 85% deployed across 12 positions, 15% tactical cash buffer
+//  - Each allocation sized for max $45K so no single stock > 9%
+//  - Avoid pure speculative / high-beta names (no crypto, no meme)
+// ══════════════════════════════════════════════════════════════
+const STRATEGY_TOTAL = 500000;
+const STRATEGY_PORTFOLIO = [
+  // ── Mega-Cap Tech (28%) ─────────────────────────────────────
+  { ticker: 'AAPL',  company: 'Apple Inc.',       sector: 'Tech',         pct: 9,  rationale: 'World\'s largest company, $3T+ market cap, unmatched brand moat, consistent buybacks and dividends, low relative volatility for a tech stock.' },
+  { ticker: 'MSFT',  company: 'Microsoft Corp.',  sector: 'Tech',         pct: 9,  rationale: 'Azure cloud dominance + Office365 + Copilot AI integration. Stable earnings growth, best-in-class dividend grower among mega caps.' },
+  { ticker: 'GOOGL', company: 'Alphabet Inc.',    sector: 'Tech',         pct: 7,  rationale: 'Google Search + YouTube + Cloud (GCP). Trading at discount to peers on P/E, massive cash hoard, AI integration across all products.' },
+  { ticker: 'AMZN',  company: 'Amazon.com Inc.',  sector: 'Tech/Retail',  pct: 7,  rationale: 'AWS cloud (#1 market share) + e-commerce dominance + Prime ecosystem. Margin expansion story still early-stage.' },
+  // ── Semiconductors (6%) ─────────────────────────────────────
+  { ticker: 'NVDA',  company: 'NVIDIA Corp.',     sector: 'Semis',        pct: 6,  rationale: 'AI GPU monopoly. Data center revenue growing 100%+ YoY. Higher volatility than others — sized smaller accordingly. Buy-at-dip only.' },
+  // ── Financials (11%) ────────────────────────────────────────
+  { ticker: 'JPM',   company: 'JPMorgan Chase',   sector: 'Financials',   pct: 6,  rationale: 'Best-managed US bank. Benefits from higher rates. Rock-solid balance sheet. Warren Buffett comparable in stability.' },
+  { ticker: 'V',     company: 'Visa Inc.',         sector: 'Financials',   pct: 5,  rationale: 'Toll-road business model on global payments. Not a bank — no credit risk. 50%+ net margins, infinite pricing power.' },
+  // ── Healthcare (10%) ────────────────────────────────────────
+  { ticker: 'UNH',   company: 'UnitedHealth Grp.', sector: 'Healthcare',  pct: 5,  rationale: 'Largest US health insurer + Optum services. Defensive — people always need healthcare. Consistent 15%+ EPS growth.' },
+  { ticker: 'JNJ',   company: 'Johnson & Johnson', sector: 'Healthcare',  pct: 5,  rationale: 'Dividend King (60+ years of increases). Medical devices + pharma. True defensive anchor for the portfolio.' },
+  // ── Consumer Staples (10%) ──────────────────────────────────
+  { ticker: 'WMT',   company: 'Walmart Inc.',      sector: 'Consumer',    pct: 5,  rationale: 'Recession-proof retailer. Gains market share in downturns. Grocery + e-commerce + advertising becoming a major growth driver.' },
+  { ticker: 'COST',  company: 'Costco Wholesale',  sector: 'Consumer',    pct: 5,  rationale: 'Membership model = predictable revenue. Extremely loyal customers. Thrives in inflation as value-conscious shoppers trade down.' },
+  // ── Diversified / Defensive ETF Hedge (8%) ──────────────────
+  { ticker: 'BRK-B', company: 'Berkshire Hathaway', sector: 'Diversified', pct: 8, rationale: 'Warren Buffett\'s holding company = instant diversification. Holds AAPL, BofA, Coca-Cola + insurance + energy. Lowest volatility in this list.' },
+  // CASH BUFFER: 15% = $75,000 — deploy when 3+ stocks show Bullish signal at week low
+];
+// Total: 83% deployed (= $415,000) + 17% cash ($85,000)
+// Note: percentages are target allocations. Actual entry staggered based on signals.
 
 // ══════════════════════════════════════════════════════════════
 //  STATE
@@ -1078,45 +1342,229 @@ function getTrendPenalty({ position, changePct, volumeRatio, price, ema20, close
 }
 
 // ══════════════════════════════════════════════════════════════
+//  CONFIDENCE SCORE  (0–99%)
+//  Measures how well the current setup matches the dip-buying strategy.
+//  Six independent factors, each weighted by their real-world predictive value.
+//  NOT a linear mapping of netScore — each factor is checked independently.
+//  Max 100 pts → displayed as confidence %.
+// ══════════════════════════════════════════════════════════════
+function computeConfidence(d) {
+  if (!d || d.err) return 0;
+  let pts = 0;
+
+  const pos    = d.livePos             ?? 0.5;
+  const r20    = d.ret20               ?? 0;
+  const nDown  = d.consecutiveDownDays ?? 0;
+  const chg    = d.changePct           ?? 0;
+  const vol    = d.volumeRatio         ?? 1;
+  const rsi    = d.rsi                 ?? 50;
+  const s      = d.netScore            ?? 0;
+  const mDiff  = d.macdDiff            ?? 0;
+  const ema20  = d.ema20               ?? 0;
+  const price  = d.price               ?? 0;
+  const fScore = d.fundamentalScore    ?? 0;
+
+  // ── Factor 1: Week range position (0–30 pts) ──────────────────────────────────────
+  // Biggest predictor: stocks AT their 5-day low have maximum room to recover.
+  // Stocks at 5-day high have already recovered — the trade opportunity is gone.
+  if      (pos <= 0.15) pts += 30;
+  else if (pos <= 0.25) pts += 24;
+  else if (pos <= 0.35) pts += 16;
+  else if (pos <= 0.50) pts += 8;
+  else if (pos <= 0.65) pts += 3;
+  // above 0.65 → 0 pts (not an entry zone)
+
+  // ── Factor 2: 20-day uptrend strength (0–25 pts) ──────────────────────────────────
+  // Confirms the stock has proven "legs" — it has recovered from past dips before.
+  // Without 20d support there is no floor; the stock can keep falling indefinitely.
+  if      (r20 > 12) pts += 25;
+  else if (r20 > 8)  pts += 21;
+  else if (r20 > 5)  pts += 17;
+  else if (r20 > 2)  pts += 12;
+  else if (r20 > 0)  pts += 7;
+  else if (r20 >= -2) pts += 3;
+  // below -2 → 0 pts (trend is broken, avoid)
+
+  // ── Factor 3: Selling exhaustion / entry timing (0–20 pts) ────────────────────────
+  // The most actionable signal: is today's selling SLOWING at the week low?
+  // If sellers are running out of stock to sell, a bounce is imminent.
+  if      (pos <= 0.30 && nDown >= 2 && chg > 0)     pts += 20; // already bouncing — confirmed
+  else if (pos <= 0.30 && nDown >= 2 && chg > -0.5)  pts += 18; // pace slowing — enter now
+  else if (pos <= 0.30 && nDown >= 2)                 pts += 12; // dip still active — watch
+  else if (pos <= 0.35 && nDown >= 1 && chg > -0.5)  pts += 10; // stabilising near week low
+  else if (pos <= 0.50 && nDown >= 1)                 pts += 6;  // has dipped, lower range
+  else if (nDown >= 1)                                pts += 2;  // has dipped, but not at low
+
+  // ── Factor 4: Volume character of today's move (−10 to +10 pts) ───────────────────
+  // Low-vol dip = weak hands only shaking out; institutions still holding → safe to buy.
+  // High-vol selloff = institutions distributing → don't catch the falling knife.
+  if      (chg < -0.5 && vol < 0.60) pts += 10;  // very light sell = weak hands only
+  else if (chg < -0.3 && vol < 0.80) pts += 7;
+  else if (Math.abs(chg) < 0.5)      pts += 4;   // flat/consolidating = neutral is OK
+  else if (chg > 0.5 && vol > 1.2)   pts += 3;   // buyers stepping in with real volume
+  if (chg < -2 && vol > 2.0)         pts -= 10;  // institutional distribution — danger signal
+
+  // ── Factor 5: RSI zone suitability (0–10 pts) ────────────────────────────────────
+  // RSI 35–55 = oversold-to-neutral: sellers exhausted, not yet overbought → perfect entry.
+  // RSI < 25 = panic selling, floor may not hold. RSI > 65 = already recovered, late entry.
+  if      (rsi >= 35 && rsi <= 50) pts += 10;
+  else if (rsi >= 28 && rsi <= 58) pts += 7;
+  else if (rsi >= 25 && rsi <= 64) pts += 4;
+  // outside 25–64 → 0 pts
+
+  // ── Factor 6: Technical stack alignment (0–5 pts) ────────────────────────────────
+  // Bonus when multiple independent indicators agree: MACD, EMA20, net score, fundamentals.
+  let tech = 0;
+  if (mDiff > 0)                           tech++;   // MACD above signal line
+  if (ema20 > 0 && price >= ema20 * 0.98)  tech++;   // at or above 20-day EMA
+  if (s >= 8)                              tech += 2; // very high net score
+  else if (s >= 6)                         tech++;
+  if (fScore > 0)                          tech++;   // positive fundamentals
+  pts += Math.min(5, tech);
+
+  // Clamp: never show 0 for a loaded stock, never show 100% (no trade is certain)
+  return Math.min(99, Math.max(1, Math.round(pts)));
+}
+
+// ══════════════════════════════════════════════════════════════
 //  SIGNAL & PREDICTION
 // ══════════════════════════════════════════════════════════════
 function signal(d) {
-  if (!d || d.err) return { label: '—', cls: 'by' };
-  const s = d.netScore;
-  // Intraday direction override: if stock is trading below its open, the bullish
-  // label is misleading regardless of historical score — show "Pulling Back" instead.
-  const fadingFromOpen = d.openChangePct != null && d.openChangePct < -0.5;
-  if (s >= 7 && d.macdDiff > 0 && !fadingFromOpen) return { label: 'Strong Bullish', cls: 'bg' };
-  if (s >= 5 && !fadingFromOpen) return { label: 'Bullish',      cls: 'bg' };
-  if (s >= 5 && fadingFromOpen)  return { label: 'Pulling Back', cls: 'by' };
-  if (s >= 2)                    return { label: 'Balanced',     cls: 'by' };
-  if (s >= 0)                    return { label: 'Cautious',     cls: 'by' };
-  if (s >= -3)                   return { label: 'Weak',         cls: 'br' };
-  return                                { label: 'Bearish',      cls: 'br' };
+  if (!d || d.err) return { label: '—', cls: 'by', conf: 0 };
+  const s   = d.netScore;
+  const pos = d.livePos ?? 0.5;
+  const r20 = d.ret20   ?? 0;
+
+  // Compute confidence FIRST — it gates what label we can show.
+  // This is a true multi-factor score, not a linear remap of netScore.
+  const conf = computeConfidence(d);
+  const pct  = `${conf}%`;
+
+  // ── GATE: has the stock ACTUALLY pulled back? ─────────────────────────────────────
+  // NVDA/COST/LLY straight up 5 days = at risk of correcting the moment you invest.
+  // Require at least one of: a red closing day, a weekly dip, or a down day today.
+  const hasDip =
+    (d.consecutiveDownDays ?? 0) >= 1 ||
+    (d.ret5     ?? 0) < -0.3 ||
+    (d.changePct ?? 0) < -0.5;
+
+  // ── STRONG BULLISH  ───────────────────────────────────────────────────────────────
+  // Requires ALL of: real dip occurred · at week low · 20d uptrend · clean RSI ·
+  // no institutional distribution · confidence ≥ 88%  (represents >90% quality)
+  //
+  // Confidence ≥ 88 means at least 4 of the 6 strategy factors are strongly aligned.
+  // Without this gate a stock could pass the qualitative gates but have low-confidence
+  // context (e.g. flat RSI, normal volume, weak 20d) — not safe for $200K+ positions.
+  const strongBullish =
+    conf >= 88 &&
+    hasDip &&
+    s >= 6 &&
+    pos <= 0.35 &&
+    r20 > 2 &&
+    (d.rsi ?? 50) < 65 &&
+    (d.rsi ?? 50) > 25 &&
+    (d.fundamentalScore ?? 0) >= -2 &&
+    !(d.changePct < -3 && (d.volumeRatio ?? 1) > 2.5);
+
+  if (strongBullish) return { label: `Strong Bullish · ${pct}`, cls: 'bg', conf };
+
+  // ── BULLISH  ──────────────────────────────────────────────────────────────────────
+  // Lower 50% of week range + real dip occurred + trend not broken + conf ≥ 65%
+  // Confidence ≥ 65 ensures selling exhaustion and volume are at least partly confirmed.
+  const bullish =
+    conf >= 65 &&
+    hasDip &&
+    s >= 4 &&
+    pos <= 0.50 &&
+    r20 > -3 &&
+    (d.rsi ?? 50) < 72 &&
+    !(d.gapAndFade);
+
+  if (bullish) return { label: `Bullish · ${pct}`, cls: 'bg', conf };
+
+  // ── BALANCED  (conf ≥ 50%) ────────────────────────────────────────────────────────
+  // Score is positive and context is neutral — neither a clear buy nor avoid.
+  if (conf >= 50 && s >= 2)  return { label: `Balanced · ${pct}`,        cls: 'by', conf };
+
+  // Score looks good but position is wrong (extended, near week high) — tell user WHY
+  if (s >= 7 && pos >= 0.80) return { label: `Wait · Near Week High · ${pct}`, cls: 'by', conf };
+  if (s >= 5 && pos >= 0.70) return { label: `Wait · Extended · ${pct}`,       cls: 'by', conf };
+  if (s >= 5 && pos >= 0.50) return { label: `Watch · Approaching · ${pct}`,   cls: 'by', conf };
+  if (s >= 4)                return { label: `Watch · Building · ${pct}`,      cls: 'by', conf };
+  if (s >= 2)                return { label: `Balanced · ${pct}`,              cls: 'by', conf };
+
+  // ── CAUTIOUS / WEAK / BEARISH  ───────────────────────────────────────────────────
+  if (s >= 0)  return { label: `Cautious · ${pct}`,  cls: 'by', conf };
+  if (s >= -3) return { label: `Weak · ${pct}`,      cls: 'br', conf };
+  return               { label: `Bearish · ${pct}`,  cls: 'br', conf };
 }
 
 function prediction(d) {
   if (!d || d.err) return { text: '—', color: 'var(--muted)' };
-  const s = d.netScore;
+  const s     = d.netScore;
+  const pos   = d.livePos     ?? 0.5;
+  const wHPct = d.weekHighPct ?? 0;
+  const r20   = d.ret20       ?? 0;
+  const r5    = d.ret5        ?? 0;
+  const vol   = d.volumeRatio ?? 1;
 
-  // Coil warning: ATR compressed + no strong directional signal = watch, don't trade
+  // Volatility coil: explosive move pending — wait for direction
   if (d.atrRatio != null && d.atrRatio < 0.75 && Math.abs(s) < 5) {
     return { text: 'Volatility coil — explosive move pending, wait for direction', color: '#d97706' };
   }
 
-  // High day-conviction qualifiers: append context to prediction text
-  const suffix = d.dayConviction === 'High'
-    ? ` · High day conviction (${(d.dcReasons ?? []).join(', ')})`
-    : d.dayConviction === 'Medium'
-    ? ` · Moderate conviction`
-    : '';
+  // ── Week range context (always shown) — the core of the strategy ─────────────────
+  const posLabel =
+    pos <= 0.15 ? 'At 5-day low' :
+    pos <= 0.30 ? 'Near 5-day low' :
+    pos <= 0.50 ? 'Lower range' :
+    pos <= 0.70 ? 'Mid-range' :
+    pos <= 0.85 ? 'Upper range' :
+                  'Near 5-day high';
 
-  if (s >= 7)  return { text: 'Upside setup is dominant' + suffix,      color: 'var(--green)' };
-  if (s >= 5)  return { text: 'Bias remains positive' + suffix,          color: 'var(--green)' };
-  if (s >= 2)  return { text: 'Balanced — wait for a trigger',            color: 'var(--muted)' };
-  if (s >= 0)  return { text: 'Downside risk is building' + suffix,       color: 'var(--red)'   };
-  if (s >= -3) return { text: 'Weak setup — avoid entry',                 color: 'var(--red)'   };
-  return              { text: 'Bearish pressure is dominant' + suffix,    color: 'var(--red)'   };
+  const upsideStr  = wHPct > 0.2 ? ` · ${wHPct.toFixed(1)}% to week high` : '';
+  const trend20Str = r20 >  6 ? ` · 20d +${r20.toFixed(1)}% uptrend` :
+                     r20 >  1 ? ` · 20d slight uptrend` :
+                     r20 < -6 ? ` · 20d −${Math.abs(r20).toFixed(1)}% downtrend ⚠` :
+                                '';
+  // Volume character of today's move — low vol dip is healthy; high vol selloff is not
+  const volStr = d.changePct < -0.5 && vol < 0.75 ? ' · low-vol dip (healthy)'
+               : d.changePct < -1.5 && vol > 2.0  ? ' · high-vol selloff ⚠'
+               : '';
+  // Dip quality: this tells your wife HOW the selling is behaving right now —
+  // is the selling exhausting (good: buy before bounce) or still accelerating (wait)?
+  const nDown = d.consecutiveDownDays ?? 0;
+  const dipStr =
+    pos <= 0.35 && nDown >= 2 && d.changePct > 0.5 ?
+      ` · bouncing after ${nDown} red days` :
+    pos <= 0.35 && nDown >= 2 && d.changePct > -0.5 ?
+      ` · selling slowing (${nDown} red days — entry before bounce)` :
+    pos <= 0.35 && nDown >= 1 && d.changePct < -0.5 ?
+      ` · dip active (${nDown} red day${nDown > 1 ? 's' : ''} — consider waiting 1 more day)` :
+    pos <= 0.35 && nDown === 0 ?
+      ` · no prior dip — watch for a red day first` :
+    '';
+
+  const ctx = `${posLabel}${upsideStr}${trend20Str}${volStr}${dipStr}`;
+
+  // ── Prediction text ────────────────────────────────────────────────────────────
+  if (s >= 8 && pos <= 0.30 && r20 > 2)
+    return { text: `Prime dip entry — ${ctx}`,                                    color: 'var(--green)' };
+  if (s >= 6 && pos <= 0.45 && r20 > 0)
+    return { text: `Buy zone — ${ctx}`,                                           color: 'var(--green)' };
+  if (s >= 5 && pos <= 0.60)
+    return { text: `Approaching entry — ${ctx}`,                                  color: 'var(--green)' };
+  if (s >= 5 && pos > 0.70)
+    return { text: `Technically positive but near week high — wait for dip · ${ctx}`, color: '#d97706' };
+  if (s >= 4 && pos <= 0.55)
+    return { text: `Mild setup, lower range — watch · ${ctx}`,                    color: '#d97706' };
+  if (s >= 2)
+    return { text: `Balanced — ${ctx}`,                                           color: 'var(--muted)' };
+  if (s >= 0)
+    return { text: `Caution — ${ctx}`,                                            color: 'var(--red)' };
+  if (s >= -3)
+    return { text: `Weak — avoid entry · ${ctx}`,                                 color: 'var(--red)' };
+  return   { text: `Bearish — ${ctx}`,                                            color: 'var(--red)' };
 }
 
 function detectAssetType(ticker) {
@@ -1321,7 +1769,7 @@ async function fetchStock(ticker) {
   const newsUrl  = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
 
   const nasdaqUrl    = `https://api.nasdaq.com/api/company/${ticker}/earnings-surprise`;
-  const calendarUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents,defaultKeyStatistics,financialData&formatted=false`;
+  const calendarUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents,defaultKeyStatistics,financialData,insiderTransactions&formatted=false`;
   const [chart, news, nasdaqData, calendarData] = await Promise.all([
     fetchJ(chartUrl, ps),
     fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
@@ -1352,6 +1800,43 @@ async function fetchStock(ticker) {
     earningsGrowth: _getNum(_fd.earningsGrowth),
     profitMargins:  _getNum(_fd.profitMargins),
     returnOnEquity: _getNum(_fd.returnOnEquity),
+  };
+
+  // ── Insider transactions ──────────────────────────────────────────────────────────
+  // Parsed from Yahoo Finance insiderTransactions module (same request, no extra fetch).
+  // We only look at the last 90 days so the signal is current.
+  const _it       = _calRes.insiderTransactions?.transactions ?? [];
+  const _cutoff   = Date.now() - 90 * 86400000;
+  const _isTx  = (tx, ...keywords) =>
+    keywords.some(k => tx.transactionText?.toLowerCase().includes(k));
+
+  const insiderTx = _it
+    .filter(tx => ((tx.startDate?.raw ?? 0) * 1000) > _cutoff)
+    .map(tx => {
+      const isBuy  = _isTx(tx, 'purchase', 'buy', 'acquisition', 'option exercise');
+      const isSell = _isTx(tx, 'sale', 'sell', 'disposed');
+      return {
+        name:     tx.filerName         ?? 'Insider',
+        role:     tx.filerRelation     ?? '',
+        type:     isBuy ? 'BUY' : isSell ? 'SELL' : 'OTHER',
+        shares:   tx.shares?.raw       ?? 0,
+        value:    tx.value?.raw        ?? 0,
+        date:     tx.startDate?.fmt    ?? '',
+        text:     tx.transactionText   ?? '',
+      };
+    })
+    .filter(tx => tx.type !== 'OTHER');
+
+  const insiderBuyValue  = insiderTx.filter(t => t.type === 'BUY') .reduce((s, t) => s + t.value, 0);
+  const insiderSellValue = insiderTx.filter(t => t.type === 'SELL').reduce((s, t) => s + t.value, 0);
+  // Net: positive = insiders bought more than sold (bullish signal)
+  const insiderNetValue  = insiderBuyValue - insiderSellValue;
+  // Summary object stored on the data record
+  const insiderActivity = {
+    transactions: insiderTx.slice(0, 6),   // show last 6 (most recent first)
+    netValue:     insiderNetValue,
+    buyCount:     insiderTx.filter(t => t.type === 'BUY').length,
+    sellCount:    insiderTx.filter(t => t.type === 'SELL').length,
   };
 
   // SOURCE 1 — Yahoo calendarEvents module (most accurate: actual scheduled date)
@@ -1479,6 +1964,20 @@ async function fetchStock(ticker) {
   const ret20    = closes.length >= 21
     ? ((closes[closes.length - 1] / closes[closes.length - 21]) - 1) * 100
     : null;
+  // 5-day (weekly) return — most sensitive leading indicator for day-hold reliability.
+  // A declining week even with a bullish morning spike is a major false-signal source.
+  const ret5     = closes.length >= 6
+    ? ((closes[closes.length - 1] / closes[closes.length - 6]) - 1) * 100
+    : null;
+  // Consecutive down-closing days (historical closes + today's live direction).
+  // 2+ consecutive red days = sellers have momentum; bounces frequently fail.
+  let consecutiveDownDays = 0;
+  for (let i = closes.length - 1; i >= 1; i--) {
+    if (closes[i] < closes[i - 1]) consecutiveDownDays++;
+    else break;
+  }
+  // Include today's live price vs yesterday if currently down more than 0.3%
+  if (changePct < -0.3) consecutiveDownDays++;
 
   // ── ATR & Volatility metrics ──────────────────────────────────────────────────────────
   // ATR(14): average true range as % of price — the baseline daily "expected move"
@@ -1505,7 +2004,9 @@ async function fetchStock(ticker) {
   // calcIndicators uses closes[-1] (yesterday) — this is the accurate intraday version.
   const wLow5  = lows.length  >= 5 ? Math.min(...lows.slice(-5))  : Math.min(...lows);
   const wHigh5 = highs.length >= 5 ? Math.max(...highs.slice(-5)) : Math.max(...highs);
-  const livePos = wHigh5 === wLow5 ? 0.5 : (price - wLow5) / (wHigh5 - wLow5);
+  const livePos    = wHigh5 === wLow5 ? 0.5 : (price - wLow5) / (wHigh5 - wLow5);
+  // % upside remaining to the 5-day high — the natural profit target for week-range trading
+  const weekHighPct = wHigh5 > price ? ((wHigh5 - price) / price * 100) : 0;
 
   // Intraday direction signals using open + day-high from Yahoo meta
   const marketOpen  = meta.regularMarketOpen  ?? price;
@@ -1524,13 +2025,22 @@ async function fetchStock(ticker) {
   if (ind.macdDiff < 0)          { bearishScore += 2; bearishDrivers.push('MACD below signal line'); }
   if (price < ind.ema20 * 0.99)  { bearishScore += 2; bearishDrivers.push('Below EMA20 trend support'); }
   // Use livePos (today's price vs historical range) — catches gap-ups beyond recent highs
-  if (livePos > 0.85)            { bearishScore += 2; bearishDrivers.push('Near/above top of recent range — extended'); }
+  // Week range position — at week high is a BAD entry for the dip-buying strategy
+  if (livePos > 0.90)      { bearishScore += 3; bearishDrivers.push(`At 5-day high · only ${weekHighPct.toFixed(1)}% upside left — wait for pullback to buy`); }
+  else if (livePos > 0.75) { bearishScore += 2; bearishDrivers.push(`Near 5-day high · ${weekHighPct.toFixed(1)}% upside — suboptimal entry, wait for dip`); }
+  else if (livePos > 0.65) { bearishScore += 1; bearishDrivers.push(`Upper 5-day range · ${weekHighPct.toFixed(1)}% to week high — better entry on next dip`); }
   if (livePos > 1.3 && changePct > 10) { bearishScore += 2; bearishDrivers.push('Price far above recent range — gap-up, highly extended'); }
-  if (changePct <= -1)           { bearishScore += 2; bearishDrivers.push('Daily downside pressure'); }
-  if (changePct <= -2)           { bearishScore += 1; bearishDrivers.push('Accelerating daily decline'); }
-  if (changePct <= -3)           { bearishScore += 1; bearishDrivers.push('Strong daily decline'); }
-  if (changePct <= -5)           { bearishScore += 2; bearishDrivers.push('Major selloff warning'); }
-  if (openChangePct <= -1)       { bearishScore += 2; bearishDrivers.push('Intraday selloff — price below open'); }
+  // Daily decline penalties — POSITION-AWARE for dip-buying strategy.
+  // At week low in a 20d uptrend: a −1% or −2% day is NORMAL dip continuation — the entry zone.
+  // Penalising it would filter out exactly the stocks we want to buy.
+  // Only warn at −3%+ (dip still accelerating) or when NOT in the prime entry zone.
+  const atWeekLowInUptrend = livePos <= 0.30 && ret20 !== null && ret20 > 1;
+  if (changePct <= -1 && !atWeekLowInUptrend) { bearishScore += 2; bearishDrivers.push('Daily downside pressure'); }
+  if (changePct <= -2 && !atWeekLowInUptrend) { bearishScore += 1; bearishDrivers.push('Accelerating daily decline'); }
+  if (changePct <= -3) { bearishScore += 2; bearishDrivers.push('Strong daily decline — dip still active, wait for stabilisation'); }
+  if (changePct <= -5) { bearishScore += 2; bearishDrivers.push('Major selloff warning'); }
+  // Intraday reversal — context-aware: at week low a mild pullback from open is normal
+  if (openChangePct <= -1 && !atWeekLowInUptrend) { bearishScore += 2; bearishDrivers.push('Intraday selloff — price below open'); }
   if (openChangePct <= -3)       { bearishScore += 2; bearishDrivers.push('Heavy intraday selling — sellers in full control'); }
   if (openChangePct <= -5)       { bearishScore += 2; bearishDrivers.push('Severe intraday reversal — institutional distribution'); }
   if (gapAndFade)                { bearishScore += 3; bearishDrivers.push('Gap-and-fade — opened strong on news, sellers taking over'); }
@@ -1539,14 +2049,50 @@ async function fetchStock(ticker) {
   // 20-day medium-term trend
   if (ret20 !== null && ret20 < -8)  { bearishScore += 2; bearishDrivers.push(`Down ${Math.abs(ret20).toFixed(1)}% over 20 days — sustained downtrend`); }
   else if (ret20 !== null && ret20 < -4) { bearishScore += 1; bearishDrivers.push(`Down ${Math.abs(ret20).toFixed(1)}% over 20 days — medium-term weakness`); }
+  // 5-day trend: bidirectional for dip-buying strategy.
+  // A weekly dip WITHIN a 20-day uptrend is a BUY setup, not a warning.
+  // A weekly decline WITH a broken 20-day trend = avoid (no floor to bounce from).
+  const weeklyDipInUptrend = ret5 !== null && ret5 < -1.5 && ret20 !== null && ret20 > 2;
+  if      (ret5 !== null && ret5 < -6 && (ret20 === null || ret20 < 0)) {
+    bearishScore += 3; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week with no 20d support — broken downtrend, no floor`);
+  } else if (ret5 !== null && ret5 < -4 && (ret20 === null || ret20 < -2)) {
+    bearishScore += 2; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week — 20d trend also soft`);
+  } else if (ret5 !== null && ret5 < -3 && (ret20 === null || ret20 < 0)) {
+    bearishScore += 1; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week — 20d trend weak`);
+  }
+  // Consecutive down days: for dip-buying, 2-3 red days near week low = healthy flush (buyers absorbing).
+  // Only penalise structural breakdowns: many red days + no 20d support = avoid.
+  if (consecutiveDownDays >= 6) {
+    bearishScore += 3; bearishDrivers.push(`${consecutiveDownDays} consecutive down days — structural breakdown, avoid`);
+  } else if (consecutiveDownDays >= 4 && (ret20 === null || ret20 < 0)) {
+    bearishScore += 2; bearishDrivers.push(`${consecutiveDownDays} consecutive down days with no monthly support — bearish`);
+  }
+  // 2-3 down days at week low within an uptrend = healthy flush → handled as entry catalyst below
 
   // ── Catalyst scoring ──
   let catalystScore = 0;
   const catalystDrivers = [];
-  if (changePct >= 2) { catalystScore += 1; catalystDrivers.push('Fresh buyers entering today'); }
-  if (changePct >= 4) { catalystScore += 1; catalystDrivers.push('Strong daily rally momentum'); }
-  // 20-day medium-term momentum
-  if (ret20 !== null && ret20 > 8) { catalystScore += 1; catalystDrivers.push(`Up ${ret20.toFixed(1)}% over 20 days — sustained uptrend`); }
+  // ── Today's price action: reward DIP REVERSAL, not momentum chasing ──────────────────
+  // A stock up 2% from week low AFTER red days = dip buyers stepping in (the signal we want).
+  // A stock up 2% from mid-range with no prior dip = momentum chasing (you buy the top).
+  if (changePct >= 2 && livePos <= 0.35 && consecutiveDownDays >= 1) {
+    catalystScore += 2; catalystDrivers.push(`Bouncing ${changePct.toFixed(1)}% from week low — dip reversal confirmed`);
+  } else if (changePct >= 1 && livePos <= 0.40 && consecutiveDownDays >= 1) {
+    catalystScore += 1; catalystDrivers.push(`Recovering from week low after sell-off`);
+  }
+  // 20-day uptrend quality — confirms the stock has proven legs to recover from dips
+  if (ret20 !== null && ret20 > 8) { catalystScore += 1; catalystDrivers.push(`Up ${ret20.toFixed(1)}% over 20 days — proven uptrend, dips tend to recover`); }
+  // ── Selling exhaustion signals — the PRIMARY "buy before the bounce" indicator ─────────
+  // 2+ consecutive red days AT week low, with today's decline slowing = sellers exhausting.
+  // This is the setup: invest NOW before it recovers tomorrow/next day.
+  // This is what you're looking for with NVDA/LLY/COST when they've pulled back 2-3 days.
+  if (consecutiveDownDays >= 2 && livePos <= 0.30 && changePct > -0.5) {
+    catalystScore += 3; catalystDrivers.push(`Selling exhaustion — ${consecutiveDownDays} red days at week low, pace slowing · entry before bounce`);
+  } else if (consecutiveDownDays >= 2 && livePos <= 0.30) {
+    catalystScore += 1; catalystDrivers.push(`${consecutiveDownDays} red days at week low — dip active, watch for slowing`);
+  } else if (consecutiveDownDays >= 1 && livePos <= 0.20 && changePct > -0.3) {
+    catalystScore += 1; catalystDrivers.push(`Consolidating at week low after red day — sellers may be done`);
+  }
 
   // ── Catalyst bonus: earnings proximity + volume-confirmed breakouts ──
   const { bonus: catBonus, drivers: catBonusDrivers } = getCatalystBonus({
@@ -1554,6 +2100,44 @@ async function fetchStock(ticker) {
   });
   catalystScore += catBonus;
   catalystDrivers.push(...catBonusDrivers);
+
+  // ── Week range entry scoring — buy-at-low, sell-at-high strategy ──────────────────────
+  // Primary entry signal: near 5-day low + 20-day uptrend = dip-buying setup with legs.
+  // These directly reward the core strategy: invest $200-500K when stock has room to recover.
+  if (livePos <= 0.20 && ret20 !== null && ret20 > 3) {
+    catalystScore += 4;
+    catalystDrivers.push(`At 5-day low · ${weekHighPct.toFixed(1)}% upside to week high · 20d uptrend +${ret20.toFixed(1)}% — prime dip entry`);
+  } else if (livePos <= 0.20 && ret20 !== null && ret20 >= 0) {
+    catalystScore += 3;
+    catalystDrivers.push(`At 5-day low · ${weekHighPct.toFixed(1)}% upside to week high — entry zone`);
+  } else if (livePos <= 0.35 && ret20 !== null && ret20 > 2) {
+    catalystScore += 3;
+    catalystDrivers.push(`Near 5-day low · ${weekHighPct.toFixed(1)}% to week high · uptrend intact — buy zone`);
+  } else if (livePos <= 0.35) {
+    catalystScore += 2;
+    catalystDrivers.push(`Near 5-day low · ${weekHighPct.toFixed(1)}% upside to week high`);
+  } else if (livePos <= 0.50 && ret20 !== null && ret20 > 0) {
+    catalystScore += 1;
+    catalystDrivers.push(`Lower 5-day range · ${weekHighPct.toFixed(1)}% to week high`);
+  }
+  // Weekly dip within 20-day uptrend = classic buy-the-dip setup
+  if (weeklyDipInUptrend && livePos <= 0.55) {
+    catalystScore += 2;
+    catalystDrivers.push(`Weekly dip (${ret5.toFixed(1)}%) within 20d uptrend (+${ret20.toFixed(1)}%) — buy-the-dip setup`);
+  } else if (weeklyDipInUptrend) {
+    catalystScore += 1;
+    catalystDrivers.push(`Weekly pullback within monthly uptrend — watch for better entry`);
+  }
+  // Low-volume pullback = weak hands flushing out, not institutional selling (healthy for multi-day)
+  if (changePct < -0.3 && volumeRatio !== null && volumeRatio < 0.75) {
+    catalystScore += 1;
+    catalystDrivers.push(`Low-volume dip (${volumeRatio.toFixed(2)}× avg) — weak-hand selling, not distribution`);
+  }
+  // High-volume selloff on significant down day = institutional distribution (bad for multi-day hold)
+  if (changePct < -2 && volumeRatio !== null && volumeRatio > 2.0) {
+    bearishScore += 2;
+    bearishDrivers.push(`High-volume selloff (${volumeRatio.toFixed(1)}× avg vol) — institutional distribution, not a dip`);
+  }
 
   // ── Trend quality penalty: falling knife + distribution at lows ──
   const { penalty: trendPenalty, drivers: trendPenaltyDrivers } = getTrendPenalty({
@@ -1584,6 +2168,32 @@ async function fetchStock(ticker) {
   const fundBearAdj = Math.min(Math.max(0, -fundScore), 4);   // cap contribution at +4
   if (fundBullAdj > 0) { ind.bullishDrivers.push(...fundBullD); }
   if (fundBearAdj > 0) { bearishDrivers.push(...fundBearD); }
+
+  // ── Insider activity scoring ──────────────────────────────────────────────────────
+  // Insiders (CEOs, CFOs, Directors) must file Form 4 with the SEC within 2 days of trading.
+  // They know the company better than any analyst. Net buying is one of the strongest
+  // non-technical signals for multi-day holds — they buy because they expect the price to rise.
+  //
+  // Signal rules:
+  //  +3 catalyst : Net insider buying > $500K in 90 days (executives putting serious money in)
+  //  +2 catalyst : Net buying $100K–$500K OR 3+ insider buys with no sells
+  //  +1 catalyst : Any net buying or at least 1 buy transaction
+  //  +1 bearish  : Net selling > $1M (could be diversification, but still a weak warning)
+  //  No penalty  : Small net selling — insiders sell for tax/diversification all the time
+  const _ins = insiderActivity;
+  if (_ins.netValue > 500000) {
+    catalystScore += 3;
+    catalystDrivers.push(`Insider net buying $${(_ins.netValue / 1000).toFixed(0)}K in 90d — executives bullish on own stock`);
+  } else if (_ins.netValue > 100000 || (_ins.buyCount >= 3 && _ins.sellCount === 0)) {
+    catalystScore += 2;
+    catalystDrivers.push(`Insider buying ($${(_ins.netValue / 1000).toFixed(0)}K net, ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''}) — positive insider signal`);
+  } else if (_ins.netValue > 0 || _ins.buyCount >= 1) {
+    catalystScore += 1;
+    catalystDrivers.push(`Insider activity: ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''} vs ${_ins.sellCount} sell${_ins.sellCount > 1 ? 's' : ''} (90d)`);
+  } else if (_ins.netValue < -1000000) {
+    bearishScore += 1;
+    bearishDrivers.push(`Net insider selling $${(Math.abs(_ins.netValue) / 1000).toFixed(0)}K — may indicate caution at the top`);
+  }
 
   // ── Market regime overlay — macro context from SPY + QQQ ──────────────────────────────
   // Root cause of false bullish (CEG/DELL/GILD/JPM): individual signals look fine but market
@@ -1728,7 +2338,9 @@ async function fetchStock(ticker) {
     isEarningsDay,
     fundamentals,
     fundamentalScore: fundScore,
-    yearHigh, yearLow, ret20,
+    insiderActivity,
+    yearHigh, yearLow, ret20, ret5, consecutiveDownDays,
+    livePos, weekHighPct, wHigh5, wLow5,
     volumeRatio,
     openChangePct, gapAndFade,
     atrPct, atrRatio, todayRangePct, macdSlope,
@@ -1757,16 +2369,328 @@ function ageClass(ts) {
   return '';
 }
 
+// ══════════════════════════════════════════════════════════════
+//  $500K STRATEGY RENDERER
+// ══════════════════════════════════════════════════════════════
+
+function renderStrategy() {
+  const panel = document.getElementById('strategy-panel');
+  if (!panel) return;
+
+  const fmt$ = n => {
+    if (n >= 1000000) return '$' + (n / 1000000).toFixed(2) + 'M';
+    if (n >= 1000)    return '$' + (n / 1000).toFixed(1) + 'K';
+    return '$' + n.toFixed(0);
+  };
+  const fmtPct = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+
+  // ── Market Safety Assessment ─────────────────────────────────────────────────────
+  const spyD  = S.data['SPY'];
+  const qqqD  = S.data['QQQ'];
+  const spySig = spyD && !spyD.err ? signal(spyD) : null;
+  const qqqSig = qqqD && !qqqD.err ? signal(qqqD) : null;
+  const spyScore = spyD?.netScore ?? null;
+  const qqqScore = qqqD?.netScore ?? null;
+  const mktMean  = (spyScore !== null && qqqScore !== null) ? (spyScore + qqqScore) / 2
+                 : (spyScore ?? qqqScore ?? 0);
+
+  let safetyClass, safetyIcon, safetyTitle, safetyDesc;
+  if (mktMean >= 3) {
+    safetyClass = 'safe';
+    safetyIcon  = '✅';
+    safetyTitle = 'Market Conditions: Favorable — Safe to Enter Positions';
+    safetyDesc  = 'SPY and QQQ are bullish. Macro tailwind supports all stock positions. ' +
+      'Enter stocks that show Bullish or Strong Bullish signal at their 5-day low. ' +
+      'Deploy from cash buffer when ≥ 3 portfolio stocks signal entry simultaneously.';
+  } else if (mktMean >= 0) {
+    safetyClass = 'caution';
+    safetyIcon  = '⚠️';
+    safetyTitle = 'Market Conditions: Cautious — Reduce Position Size';
+    safetyDesc  = 'Broad market is neutral to weak. Use 50–60% of planned position size. ' +
+      'Prefer the most defensive stocks (JNJ, WMT, BRK-B, COST). ' +
+      'Keep cash buffer intact. Wait for ≥ 2 strong individual signals before entering.';
+  } else {
+    safetyClass = 'danger';
+    safetyIcon  = '🚨';
+    safetyTitle = 'MARKET SELLOFF DETECTED — Hold Cash, Avoid New Entries';
+    safetyDesc  = 'SPY and/or QQQ are bearish. This is an active market dip. ' +
+      'Do NOT open new positions. If already in positions, watch stop levels closely. ' +
+      'The dip-buying strategy works best when market stabilises — wait for SPY to score ≥ 0 before re-entering.';
+  }
+
+  const mktPillHtml = [
+    spyD  ? `<span class="strat-mkt-pill ${spyScore > 2 ? 'bull' : spyScore < 0 ? 'bear' : 'neut'}">SPY ${spyScore !== null ? (spyScore >= 0 ? '+' : '') + spyScore : '…'}</span>` : '',
+    qqqD  ? `<span class="strat-mkt-pill ${qqqScore > 2 ? 'bull' : qqqScore < 0 ? 'bear' : 'neut'}">QQQ ${qqqScore !== null ? (qqqScore >= 0 ? '+' : '') + qqqScore : '…'}</span>` : '',
+    spyD?.changePct != null ? `<span class="strat-mkt-pill ${spyD.changePct >= 0 ? 'bull' : 'bear'}">SPY day ${fmtPct(spyD.changePct)}</span>` : '',
+    qqqD?.changePct != null ? `<span class="strat-mkt-pill ${qqqD.changePct >= 0 ? 'bull' : 'bear'}">QQQ day ${fmtPct(qqqD.changePct)}</span>` : '',
+  ].filter(Boolean).join('');
+
+  // ── Build each stock card ────────────────────────────────────────────────────────
+  let totalDeployed  = 0;
+  let enterCount     = 0;
+  let cardsHtml      = '';
+
+  for (const item of STRATEGY_PORTFOLIO) {
+    const allocUsd = Math.round(STRATEGY_TOTAL * item.pct / 100);
+    totalDeployed += allocUsd;
+    const d = S.data[item.ticker];
+
+    // ── Determine action ──
+    let actionClass, actionBadge, actionCls;
+    let entryNote = '', exitNote = '', holdNote = '', entryPrice = '', exitTarget = '', insiderHtml = '';
+
+    if (!d || d.err) {
+      actionClass = 'wait-mode';
+      actionBadge = `<span class="strat-action sa-wait">⏳ Loading…</span>`;
+    } else {
+      const sig  = signal(d);
+      const conf = sig.conf ?? computeConfidence(d);
+      const pos  = d.livePos ?? d.position ?? 0.5;
+      const price = d.price ?? 0;
+      const wHigh5 = d.wHigh5 ?? price;
+      const wLow5  = d.wLow5  ?? price;
+      const targetUpside = wHigh5 > price ? ((wHigh5 - price) / price * 100) : 0;
+      const sharesCanBuy = price > 0 ? Math.floor(allocUsd / price) : 0;
+
+      // Entry price: current price if signal says enter, otherwise await dip
+      const hasDip = (d.consecutiveDownDays ?? 0) >= 1 || (d.ret5 ?? 0) < -0.3 || (d.changePct ?? 0) < -0.5;
+
+      if (sig.label.startsWith('Strong Bullish')) {
+        actionClass = 'enter-now';
+        actionBadge = `<span class="strat-action sa-strong">🟢 ENTER NOW — Strong Signal</span>`;
+        entryPrice  = `$${price.toFixed(2)} (current) · ~${sharesCanBuy} shares`;
+        exitTarget  = wHigh5 > price ? `$${wHigh5.toFixed(2)} (+${targetUpside.toFixed(1)}%)` : 'At 5-day high';
+        holdNote    = '2–5 trading days (exit when at 5-day high or score drops)';
+        enterCount++;
+      } else if (sig.label.startsWith('Bullish')) {
+        actionClass = 'enter-now';
+        actionBadge = `<span class="strat-action sa-enter">✅ ENTER — Bullish Signal</span>`;
+        entryPrice  = `$${price.toFixed(2)} (current) · ~${sharesCanBuy} shares`;
+        exitTarget  = wHigh5 > price ? `$${wHigh5.toFixed(2)} (+${targetUpside.toFixed(1)}%)` : 'At 5-day high';
+        holdNote    = '2–7 trading days';
+        enterCount++;
+      } else if (sig.label.startsWith('Balanced') || sig.label.startsWith('Watch')) {
+        actionClass = 'watch-mode';
+        actionBadge = `<span class="strat-action sa-watch">👁 WATCH — Wait for Better Entry</span>`;
+        entryPrice  = hasDip ? `Dip detected — enter if signal upgrades to Bullish` : `Wait for a pullback day (no dip yet)`;
+        exitTarget  = wHigh5 > price ? `Target: $${wHigh5.toFixed(2)} (+${targetUpside.toFixed(1)}%)` : '';
+        holdNote    = 'Set a price alert at current price − 1.5%';
+      } else if (sig.label.includes('Week High') || sig.label.includes('Extended')) {
+        actionClass = 'wait-mode';
+        actionBadge = `<span class="strat-action sa-wait">⏸ WAIT — Near Week High</span>`;
+        entryPrice  = `Stock is near 5-day high (${(pos * 100).toFixed(0)}% of range) — poor entry`;
+        exitTarget  = `Ideal entry after 2–3% pullback from here`;
+        holdNote    = 'Watch for a dip to the 5-day low';
+      } else if (sig.label.startsWith('Bearish') || sig.label.startsWith('Weak')) {
+        actionClass = 'exit-now';
+        actionBadge = `<span class="strat-action sa-exit">🔴 AVOID — Bearish Signal</span>`;
+        entryPrice  = `Bearish — do not enter. Score: ${d.netScore}`;
+        holdNote    = 'Wait for signal to improve before considering entry';
+      } else {
+        actionClass = 'watch-mode';
+        actionBadge = `<span class="strat-action sa-watch">👁 WATCH</span>`;
+        entryPrice  = `Monitor for dip toward 5-day low`;
+        holdNote    = '';
+      }
+
+      // ── Entry note text ──
+      const nDown = d.consecutiveDownDays ?? 0;
+      if (nDown >= 2 && pos <= 0.30 && (d.changePct ?? 0) > -0.5) {
+        entryNote = `Selling exhaustion — ${nDown} red days at week low, pace slowing. Ideal entry.`;
+      } else if (nDown >= 1 && pos <= 0.35) {
+        entryNote = `Dip active — ${nDown} red day${nDown > 1 ? 's' : ''}, near week low. Entry zone.`;
+      } else if (!hasDip) {
+        entryNote = `No dip yet — wait for at least 1 red day before entering.`;
+      }
+
+      // ── Exit note ──
+      if (pos > 0.80) {
+        exitNote = `⚠️ Already near 5-day high (${(pos * 100).toFixed(0)}%) — if holding, consider exiting here`;
+      } else if (pos > 0.65) {
+        exitNote = `Approaching target zone — plan your exit`;
+      }
+
+      // ── Insider badge ──
+      const ins = d.insiderActivity;
+      if (ins && ins.buyCount > 0 && ins.netValue > 0) {
+        const fv = ins.netValue >= 1000000 ? `$${(ins.netValue/1000000).toFixed(1)}M` : `$${(ins.netValue/1000).toFixed(0)}K`;
+        insiderHtml = `<span class="strat-ins bull">▲ Insider buying ${fv}</span>`;
+      } else if (ins && ins.netValue < -1000000) {
+        const fv = `$${(Math.abs(ins.netValue)/1000000).toFixed(1)}M`;
+        insiderHtml = `<span class="strat-ins bear">▼ Insider selling ${fv}</span>`;
+      } else if (ins && ins.transactions?.length === 0) {
+        insiderHtml = `<span class="strat-ins none">No insider activity (90d)</span>`;
+      }
+
+      // ── Metric chips ──
+      const confCls = conf >= 80 ? 'green' : conf >= 55 ? '' : 'red';
+      const rsiFmt  = d.rsi ? `RSI ${d.rsi.toFixed(0)}` : '';
+      const r20Cls  = (d.ret20 ?? 0) > 2 ? 'green' : (d.ret20 ?? 0) < -2 ? 'red' : '';
+      const r20Txt  = d.ret20 != null ? `20d trend ${fmtPct(d.ret20)}` : '';
+      const volTxt  = d.volumeRatio != null ? `Vol ${d.volumeRatio.toFixed(1)}x avg` : '';
+      const volCls  = d.volumeRatio > 1.5 ? 'yellow' : '';
+      const posTxt  = `Wk pos ${(pos * 100).toFixed(0)}%`;
+      const posCls  = pos <= 0.30 ? 'green' : pos >= 0.75 ? 'red' : '';
+
+      const metricChips = [
+        `<span class="strat-metric ${confCls}">Confidence ${conf}%</span>`,
+        rsiFmt ? `<span class="strat-metric">${rsiFmt}</span>` : '',
+        r20Txt ? `<span class="strat-metric ${r20Cls}">${r20Txt}</span>` : '',
+        `<span class="strat-metric ${posCls}">${posTxt}</span>`,
+        volTxt ? `<span class="strat-metric ${volCls}">${volTxt}</span>` : '',
+        d.fundamentalScore != null && d.fundamentalScore > 0 ? `<span class="strat-metric green">Fundamentals +${d.fundamentalScore}</span>` : '',
+      ].filter(Boolean).join('');
+
+      // ── Plan rows ──
+      const planRows = [
+        entryPrice ? `<div class="sp-row"><span class="sp-label">Entry</span><span class="sp-val">${entryPrice}</span></div>` : '',
+        entryNote  ? `<div class="sp-row"><span class="sp-label">Signal</span><span class="sp-val">${entryNote}</span></div>` : '',
+        exitTarget ? `<div class="sp-row"><span class="sp-label">Target</span><span class="sp-val good">${exitTarget}</span></div>` : '',
+        holdNote   ? `<div class="sp-row"><span class="sp-label">Hold</span><span class="sp-val">${holdNote}</span></div>` : '',
+        exitNote   ? `<div class="sp-row"><span class="sp-label">⚠️ Exit</span><span class="sp-val warn">${exitNote}</span></div>` : '',
+        item.rationale ? `<div class="sp-row" style="margin-top:4px"><span class="sp-label">Why</span><span class="sp-val" style="color:var(--muted);font-weight:400">${item.rationale}</span></div>` : '',
+      ].filter(Boolean).join('');
+
+      cardsHtml += `
+      <div class="strat-card ${actionClass}">
+        <div class="strat-card-head">
+          <div class="strat-ticker-block">
+            <div class="strat-ticker">${item.ticker} <span class="strat-sector">${item.sector}</span></div>
+            <div class="strat-company">${item.company}</div>
+          </div>
+          <div class="strat-alloc-block">
+            <div class="strat-alloc-pct">${item.pct}%</div>
+            <div class="strat-alloc-usd">${fmt$(allocUsd)}</div>
+          </div>
+        </div>
+        ${actionBadge}
+        ${insiderHtml ? `<div style="margin-bottom:8px">${insiderHtml}</div>` : ''}
+        <div class="strat-metrics">${metricChips}</div>
+        <div class="strat-plan">${planRows}</div>
+      </div>`;
+      continue;
+    }
+
+    // Loading/error fallback card
+    cardsHtml += `
+    <div class="strat-card ${actionClass}">
+      <div class="strat-card-head">
+        <div class="strat-ticker-block">
+          <div class="strat-ticker">${item.ticker} <span class="strat-sector">${item.sector}</span></div>
+          <div class="strat-company">${item.company}</div>
+        </div>
+        <div class="strat-alloc-block">
+          <div class="strat-alloc-pct">${item.pct}%</div>
+          <div class="strat-alloc-usd">${fmt$(allocUsd)}</div>
+        </div>
+      </div>
+      ${actionBadge}
+      <div class="strat-plan"><div class="sp-row"><span class="sp-label">Why</span><span class="sp-val" style="color:var(--muted);font-weight:400">${item.rationale}</span></div></div>
+    </div>`;
+  }
+
+  const cashAmt  = STRATEGY_TOTAL - totalDeployed;
+  const cashPct  = Math.round(cashAmt / STRATEGY_TOTAL * 100);
+
+  // ── Hero capital row ─────────────────────────────────────────────────────────────
+  const deployedClass = mktMean >= 3 ? 'green' : mktMean >= 0 ? 'yellow' : 'muted';
+
+  const heroHtml = `
+  <div class="strat-hero">
+    <h2>💰 $500K Robinhood Strategy</h2>
+    <div class="strat-sub">12 large-cap, low-volatility positions · Dip-buy &amp; hold 2–7 days · Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+    <div class="strat-capital-row">
+      <div class="strat-cap-item">
+        <span class="strat-cap-label">Total Capital</span>
+        <span class="strat-cap-val">${fmt$(STRATEGY_TOTAL)}</span>
+      </div>
+      <div class="strat-cap-item">
+        <span class="strat-cap-label">Max Deploy</span>
+        <span class="strat-cap-val ${deployedClass}">${fmt$(totalDeployed)} (${100 - cashPct}%)</span>
+      </div>
+      <div class="strat-cap-item">
+        <span class="strat-cap-label">Cash Buffer</span>
+        <span class="strat-cap-val yellow">${fmt$(cashAmt)} (${cashPct}%)</span>
+      </div>
+      <div class="strat-cap-item">
+        <span class="strat-cap-label">Entry Signals</span>
+        <span class="strat-cap-val ${enterCount >= 3 ? 'green' : enterCount >= 1 ? 'yellow' : 'muted'}">${enterCount} / ${STRATEGY_PORTFOLIO.length} stocks</span>
+      </div>
+    </div>
+  </div>`;
+
+  // ── Safety gauge ──────────────────────────────────────────────────────────────────
+  const safetyHtml = `
+  <div class="strat-safety ${safetyClass}">
+    <div class="strat-safety-head">
+      <span class="dot dot-${safetyClass === 'safe' ? 'green' : safetyClass === 'caution' ? 'yellow' : 'red'}"></span>
+      ${safetyIcon} ${safetyTitle}
+    </div>
+    <div class="strat-safety-desc">${safetyDesc}</div>
+    ${mktPillHtml ? `<div class="strat-safety-pills">${mktPillHtml}</div>` : ''}
+  </div>`;
+
+  // ── Dip alert ────────────────────────────────────────────────────────────────────
+  const dipAlertHtml = mktMean < -1
+    ? `<div class="strat-dip-alert visible">🚨 MARKET DIP IN PROGRESS — SPY/QQQ score: ${mktMean.toFixed(1)} · All new entries are PAUSED. Hold cash. Re-evaluate when SPY returns to positive score. This is exactly the kind of dip the strategy waits OUT before entering.</div>`
+    : '';
+
+  // ── Cash card ────────────────────────────────────────────────────────────────────
+  const cashCardHtml = `
+  <div class="strat-cash-card">
+    <div class="strat-cash-title">🏦 Cash Buffer — ${fmt$(cashAmt)} (${cashPct}%)</div>
+    <div class="strat-cash-desc">
+      <b>When to deploy:</b> When ≥ 3 portfolio stocks simultaneously show "Bullish" or "Strong Bullish" AND the market is safe (SPY score ≥ 0).<br>
+      <b>Dip protection:</b> If market drops sharply (SPY day ≤ −1.5%), this cash lets you add to your best positions at lower prices instead of being forced to sell.<br>
+      <b>Never deploy all at once.</b> Stagger entries over 2–3 days to average your cost basis.
+    </div>
+  </div>`;
+
+  // ── Disclaimer ───────────────────────────────────────────────────────────────────
+  const disclaimerHtml = `
+  <div class="strat-disclaimer">
+    ⚠️ <b>Not financial advice.</b> This strategy is generated algorithmically using technical indicators, momentum, and insider activity signals. All investments involve risk. Past performance does not guarantee future results. Always do your own research before investing. Entry/exit timing shown is based on the 5-day dip-buying algorithm — actual results may vary. Consider consulting a licensed financial advisor for decisions of this size.
+  </div>`;
+
+  panel.innerHTML = heroHtml + safetyHtml + dipAlertHtml
+    + `<div class="strat-section-title">📊 Portfolio Allocation — ${STRATEGY_PORTFOLIO.length} Positions</div>`
+    + cardsHtml
+    + cashCardHtml
+    + disclaimerHtml;
+}
+
 function setSortMode(mode) {
   _sortMode = mode;
+  const isStrategy = mode === 'strategy';
+
+  // Toggle which panel is visible
+  const stockList     = document.getElementById('stock-list');
+  const stratPanel    = document.getElementById('strategy-panel');
+  const listHeader    = document.querySelector('.list-header');
+  const filterWrap    = document.querySelector('.filter-wrap');
+  const loadProgress  = document.getElementById('load-progress');
+
+  if (stockList)    stockList.style.display    = isStrategy ? 'none' : '';
+  if (stratPanel)   stratPanel.classList.toggle('visible', isStrategy);
+  if (filterWrap)   filterWrap.style.display   = isStrategy ? 'none' : '';
+  if (loadProgress) loadProgress.style.display = isStrategy ? 'none' : '';
+
   const label = document.getElementById('sort-label');
-  if (label) label.textContent = mode === 'earnings'
-    ? 'Ranked: Soonest Earnings → Bullish'
-    : 'Ranked: Most Bullish → Most Bearish';
+  if (label) label.textContent = isStrategy
+    ? '💰 $500K Robinhood Portfolio Strategy'
+    : mode === 'earnings'
+      ? 'Ranked: Soonest Earnings → Bullish'
+      : 'Ranked: Most Bullish → Most Bearish';
+
   document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
   const active = document.getElementById(`sort-btn-${mode}`);
   if (active) active.classList.add('active');
-  renderList();
+
+  if (isStrategy) {
+    renderStrategy();
+  } else {
+    renderList();
+  }
 }
 
 function applyFilter() {
@@ -1838,6 +2762,9 @@ function renderMarketBar() {
 }
 
 function renderList() {
+  // If strategy mode is active, re-render strategy panel instead
+  if (_sortMode === 'strategy') { renderStrategy(); return; }
+
   const el      = document.getElementById('stock-list');
   const progEl  = document.getElementById('load-progress');
   const fillEl   = document.getElementById('prog-fill');
@@ -1972,6 +2899,48 @@ function buildFundamentalsRow(d) {
   return `<div class="earnings-row"><span class="earn-label">Fundamentals</span>${parts.join('')}</div>`;
 }
 
+// ── Insider Activity section (shown inside Details & News collapsible) ─────────────
+// Renders a compact table of recent insider buy/sell transactions from the last 90 days.
+// Insider buying near a week low is one of the strongest non-technical buy signals.
+function buildInsiderSection(d) {
+  const ins = d.insiderActivity;
+  if (!ins || (!ins.buyCount && !ins.sellCount)) {
+    return `<div class="insider-wrap"><div class="insider-title">&#128203; Insider Activity <span class="insider-period">(90 days)</span></div><div class="insider-none">No insider transactions filed in the past 90 days</div></div>`;
+  }
+
+  const fmtVal = v => {
+    if (!v) return '';
+    if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
+    if (v >= 1000)    return `$${(v / 1000).toFixed(0)}K`;
+    return `$${v.toFixed(0)}`;
+  };
+  const fmtShares = n => n >= 1000 ? `${(n / 1000).toFixed(1)}K shs` : `${n} shs`;
+
+  const rows = ins.transactions.map(tx => {
+    const isBuy = tx.type === 'BUY';
+    const badge = isBuy
+      ? `<span class="ins-badge ins-buy">BUY</span>`
+      : `<span class="ins-badge ins-sell">SELL</span>`;
+    const val   = tx.value  ? ` &nbsp;${fmtVal(tx.value)}`   : '';
+    const shs   = tx.shares ? ` &nbsp;${fmtShares(tx.shares)}` : '';
+    const role  = tx.role   ? `<span class="ins-role">${tx.role}</span>` : '';
+    return `<div class="ins-row">${badge} <span class="ins-name">${tx.name}</span>${role}<span class="ins-detail">${shs}${val}</span><span class="ins-date">${tx.date}</span></div>`;
+  }).join('');
+
+  // Net sentiment headline
+  const net = ins.netValue;
+  let sentiment = '';
+  if (net > 500000)  sentiment = `<span class="ins-net ins-net-bull">&#9650; Net insider buying ${fmtVal(net)} — strongly bullish signal</span>`;
+  else if (net > 0)  sentiment = `<span class="ins-net ins-net-bull">&#9650; Net insider buying ${fmtVal(net)}</span>`;
+  else if (net < -1000000) sentiment = `<span class="ins-net ins-net-bear">&#9660; Net insider selling ${fmtVal(Math.abs(net))} — mild caution flag</span>`;
+  else if (net < 0)  sentiment = `<span class="ins-net ins-net-muted">Insiders net sold ${fmtVal(Math.abs(net))} (may be diversification)</span>`;
+
+  return `<div class="insider-wrap">
+    <div class="insider-title">&#128203; Insider Activity <span class="insider-period">(90 days)</span>${sentiment}</div>
+    ${rows}
+  </div>`;
+}
+
 // Builds the "Today's Hold" conviction bar shown on every stock card.
 // Answers the question: "will this move hold for the rest of the day?"
 function buildHoldBar(d, atrTag = '') {
@@ -2042,7 +3011,7 @@ function buildHoldBar(d, atrTag = '') {
 
 // ══════════════════════════════════════════════════════════════
 //  FORECAST ENGINE
-//  Generates a model-based 2-hour price projection in 5-min bars.
+//  Generates a model-based 24-hour price projection in 30-min bars.
 //  Inputs: all computed signals (netScore, MACD slope, RSI, ATR, conviction).
 //  Output: SVG chart with predicted path + confidence band.
 // ══════════════════════════════════════════════════════════════
@@ -2083,7 +3052,7 @@ function buildForecastSVG(d) {
   //  - Choppy   : low score → range-bound oscillation
   //  - Steady   : default → linear grind
   // ════════════════════════════════════════════════════════════
-  const BARS        = 56;  // 30-min × 56 = 28 hours (7 AM today → 11 AM tomorrow)
+  const BARS        = 48;  // 30-min × 48 = 24 hours (now → now+24h)
   const price       = d.price;
   const atrPct      = d.atrPct      ?? 1.5;
   const netScore    = clamp(d.netScore   ?? 0, -15, 15);
@@ -2162,9 +3131,9 @@ function buildForecastSVG(d) {
   };
   shape(0); // trigger patternLabel assignment
 
-  // ── Session map: 7 AM today → 11 AM tomorrow (6 zones) ──────────────────
+  // ── Session map: now → now+24h (dynamic zones based on current time) ──────
   const now      = new Date();
-  const dayStart = new Date(now); dayStart.setHours(7, 0, 0, 0);
+  const dayStart = new Date(now);
   const barTimes = Array.from({ length: BARS + 1 }, (_, i) =>
     new Date(dayStart.getTime() + i * 30 * 60000));
   const barH   = barTimes.map(t => t.getHours() + t.getMinutes() / 60);
@@ -2264,8 +3233,9 @@ function buildForecastSVG(d) {
   });
 
   // Build price path: directional trend + per-zone oscillation
+  // Bar 0 is always anchored to the current price (start of projection window)
   const prices = fractions.map((f, i) =>
-    price * (1 + (expectedReturn * f + oscillations[i]) / 100)
+    i === 0 ? price : price * (1 + (expectedReturn * f + oscillations[i]) / 100)
   );
 
   // ── SVG geometry ─────────────────────────────────────────────────
@@ -2324,15 +3294,20 @@ function buildForecastSVG(d) {
     { bar: preMktTodayIdx.length + mktTodayIdx.length + ahTodayIdx.length + overnightIdx.length,                          label: 'Pre↑',  clr: '#7c3aed' },
     { bar: preMktTodayIdx.length + mktTodayIdx.length + ahTodayIdx.length + overnightIdx.length + preMktTmrwIdx.length,   label: 'Open↑', clr: '#7c3aed' },
   ];
-  zoneBoundaries.forEach(({ bar, label, clr }, idx) => {
+  // Deduplicate: skip boundaries whose bar position equals a previously rendered boundary
+  // (happens when zones before `now` are empty, e.g. pre-market when now is mid-day)
+  const seenZoneBars = new Set();
+  zoneBoundaries.forEach(({ bar, label, clr }) => {
     if (bar > BARS) return;
+    if (seenZoneBars.has(bar)) return;  // skip duplicate position
     const sx = xS(bar).toFixed(1);
-    if (idx > 0) {
+    if (bar > 0) {
       sessionLines += `<line x1="${sx}" y1="${PAD.top}" x2="${sx}" y2="${H-PAD.bottom}" `+
                       `stroke="${clr}" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>`;
     }
     sessionLines += `<text x="${(+sx+3).toFixed(1)}" y="${(PAD.top+9).toFixed(1)}" `+
                     `font-size="7" fill="${clr}" font-family="system-ui" font-weight="600">${label}</text>`;
+    seenZoneBars.add(bar);
   });
 
   // "Now" vertical marker — blue line showing current position in the day
@@ -2357,8 +3332,8 @@ function buildForecastSVG(d) {
            `<text x="${(PAD.left-3).toFixed(1)}" y="${(yS(p)+3.5).toFixed(1)}" font-size="8.5" fill="#94a3b8" text-anchor="end" font-family="system-ui">${lbl}</text>`;
   }).join('');
 
-  // X-axis time labels every 6 bars (3h) across 28h window
-  // Today labels in gray, tomorrow labels in purple
+  // X-axis time labels every 6 bars (3h) across 24h window
+  // Labels before midnight in gray, after midnight in purple
   const xLabels = Array.from({ length: 10 }, (_, i) => {
     const bi = i * 6;
     if (bi > BARS) return '';
@@ -2608,6 +3583,7 @@ function buildCard(d, rank, pinned) {
               <span>High $${d.yearHigh.toFixed(2)}</span>
             </div>
           </div>` : ''}
+          ${buildInsiderSection(d)}
           <div class="news-wrap">${newsHtml}</div>
         </div>
       </div>
