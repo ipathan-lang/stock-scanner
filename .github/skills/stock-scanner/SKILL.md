@@ -15,649 +15,362 @@ applyTo:
 ## Platform Overview
 
 **Live URL**: https://ipathan-lang.github.io/stock-scanner/
-**Architecture**: Single-page HTML/CSS/JavaScript application (docs/index.html, ~3500 lines)
-**Data Persistence**: localStorage with keys `ss_port`, `ss_sim`, `ss_watch`, `ss_config`, `ss_activeTab`
-**APIs**: Yahoo Finance (primary, CORS-blocked), Alpha Vantage (configured as backup)
+**Architecture**: Single-page HTML/CSS/JavaScript application (`docs/index.html`, ~4700 lines)
+**Data Persistence**: localStorage — keys: `ss_port`, `ss_sim`, `ss_watch`, `ss_config`, `ss_activeTab`
+
+### API Sources
+- Yahoo Finance v8 chart: `query1.finance.yahoo.com/v8/finance/chart/{ticker}` — price, OHLCV, 2yr history
+- Yahoo Finance v10 quoteSummary: `query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}` — fundamentals, earnings, insider data
+- Yahoo Finance v1 news: `query2.finance.yahoo.com/v1/finance/search` — headlines
+- Nasdaq earnings-surprise API: `api.nasdaq.com/api/company/{ticker}/earnings-surprise`
+
+### CORS Proxies (rotated per-ticker)
+```javascript
+const PROXIES = [
+  v => `https://api.allorigins.win/raw?url=${encodeURIComponent(v)}`,
+  v => `https://corsproxy.io/?${encodeURIComponent(v)}`,
+  v => `https://proxy.cors.sh/${v}`
+];
+```
+- `fetchJ(url, ps)` — tries direct first, then proxies
+- `fetchJProxy(url, ps)` — proxy-only (skips direct, avoids 401s)
+- `tickerProxyStart(ticker)` — deterministic proxy assignment per ticker
 
 ## When to Use This Skill
 
-- "Update the trading algorithm"
+- "Update the trading algorithm / scoring"
 - "Fix the Test Lab simulator"
-- "Add a new feature to the portfolio tracker"
-- "Analyze why predictions are failing"
+- "Add a new feature"
+- "Debug why signals are wrong"
 - "Validate stock predictions with test trades"
-- "Debug the scoring system"
-- "Improve the automated trading logic"
-- "Export simulation results for analysis"
+- "Explain what a badge/signal means"
+- "Update the $500K Strategy tab"
+- "Fix insider activity data"
 
-## Core Files Structure
+## Core Files
 
 ```
 docs/
-  index.html          # Main SPA (~3500 lines)
+  index.html            # Main SPA (~4700 lines) — ALL app code is here
   data/
-    portfolio.json    # Initial portfolio seed
-    watchlist.json    # Initial watchlist seed
-stock_scanner.py      # Python scanner (optional, not used by web app)
-analyze_trades.py     # Performance analyzer (450+ lines)
-trade_journal_coach.py # Trade coaching system (300+ lines)
+    portfolio.json
+    trackedStocks.json
+    watchlist.json
+.github/skills/stock-scanner/SKILL.md   # This file
+analyze_trades.py       # Python performance analyzer
+trade_journal_coach.py  # Trade coaching system
 ```
 
-## Architecture Deep Dive
+## Architecture
 
 ### Global State Object (`S`)
 
-Located around line 1095-1150 in docs/index.html:
-
 ```javascript
 const S = {
-  watchlist: [],           // Stock tickers to monitor
-  portfolio: [],           // Real positions: [{ticker, shares, buyPrice, note}]
-  data: {},               // Market data: {TICKER: {price, rsi, macd, netScore, ...}}
-  marketTrends: [],       // SPY, QQQ, IWM trend analysis
-  marketBull: null,       // Overall market bullish/bearish
-  testMode: false,        // Enable test features
-  autoRefresh: false,     // Auto-refresh timer
-  busy: false,            // Prevent concurrent refreshes
-  seeded: false,          // First-time data loaded
-  
-  sim: {                  // Test Lab simulator state
-    started: false,       // Simulation initialized
-    enabled: true,        // Trading enabled/paused
-    startCash: 50000,     // Initial capital
-    cash: 50000,          // Available cash
-    positions: [],        // Open positions: [{ticker, shares, buyPrice, openedAt, setupType, entryScore}]
-    log: [],             // Trade log: [{ts, side, ticker, price, reason, pnl}]
-    closed: [],          // Completed trades with full details
-    todayTrades: [],     // Today's completed trades
-    todayPnL: 0,         // Today's profit/loss
-    dayStartEquity: 0,   // Equity at start of day
-    lastRunDate: null,   // Last cycle date (YYYY-MM-DD)
-    lastRunTime: null,   // Last cycle timestamp
-    dailyHistory: [],    // 30 days of daily summaries
-    weeklyHistory: [],   // 20 weeks of weekly snapshots
-    learn: {             // Algorithm parameters (auto-adjusted)
-      buyMinScore: 4,    // Min net score to buy
-      sellMaxScore: -2,  // Exit if score drops to this
-      holdDays: 3,       // Max holding period
-      stopPct: -2,       // Stop loss %
-      targetPct: 3.5     // Target profit %
-    }
-  }
+  watchlist: [],     // tickers to monitor (DEFAULT_WATCHLIST ~50 stocks)
+  data: {},          // {TICKER: enriched stock object from fetchStock()}
+  config: {},        // user settings
+  sim: { ... },      // Test Lab simulator state
+  pinnedTicker: null // searched/pinned stock shown at top
 };
 ```
 
-### UI Structure (Tabbed Interface)
+### Sort Modes (replaces old tab system)
 
-6 main tabs around lines 755-1080:
-1. **Overview** (`tab-overview`): Market pulse, strategy cards, hero stats
-2. **Portfolio** (`tab-portfolio`): Real positions with insights
-3. **Test Lab** (`tab-testlab`): Automated simulator with KPIs and trade log
-4. **Analysis** (`tab-analysis`): Buy/sell guidance, deep metrics table
-5. **Intelligence** (`tab-intelligence`): Congressional trades, golden hour, news
-6. **Watchlist** (`tab-watchlist`): Ranked stocks by net score
+The UI has **3 modes**, switched via nav buttons:
 
-### Tab Switching
+| Button | Mode | What it shows |
+|--------|------|---------------|
+| ★ Bullish | `'bullish'` | Sorted stock card list by signal tier |
+| 📅 Earnings | `'earnings'` | Sorted by nearest upcoming earnings |
+| 💰 $500K Strategy | `'strategy'` | Full portfolio plan panel |
 
-Lines 2924-2970:
+**`setSortMode(mode)`** — switches between modes, controls visibility of `#stock-list` vs `#strategy-panel`.
+
+**`renderList()`** — renders all stock cards; has early-return guard: if `_sortMode === 'strategy'`, calls `renderStrategy()` instead. This ensures auto-refresh keeps the strategy panel live.
+
+**`sortStocks(list)`** — sorts by `signalRank` first (badge tier 1–9), then `sortScore` as tiebreaker.
+
+## Signal System (Badge Labels)
+
+**`signal(d)`** function (~line 1430) — returns `{ label, cls, conf, rank }`.
+
+Badge ordering (rank 1 = best, shown first in list):
+
+| Rank | Badge | cls | Meaning |
+|------|-------|-----|---------|
+| 1 | 🟢 Buy Now · X% | `bg` | All signals aligned: dip confirmed, near week low, trend up, conf ≥ 88% |
+| 2 | 🟢 Good Entry · X% | `bg` | Good buy zone: dip detected, lower 50% range, conf ≥ 65% |
+| 3 | 👀 Watch · Building · X% | `by` | Score ≥ 4 but confidence/dip not yet confirmed |
+| 4 | 👀 Watch · Pullback Soon · X% | `by` | Stock at 50–70% of week range — wait for dip |
+| 5 | ⏳ Wait · Overextended · X% | `by` | Stock at top 70%+ of range — don't chase |
+| 5 | ⏳ Wait · Near Top · X% | `by` | Score ≥ 7 but at 80%+ of range |
+| 6 | 🟡 Neutral · X% | `by` | No clear edge either way |
+| 7 | 🟠 Caution · X% | `by` | Slightly negative signals |
+| 8 | 🔴 Avoid · X% | `br` | Sellers in control |
+| 9 | 🔴 Selling · X% | `br` | Heavy selling pressure |
+
+The **X%** is `conf` — the **Confidence score** from `computeConfidence(d)` (0–99%).
+
+**`signalRank`** is stored on each stock object and used by `sortStocks()` to order the list.
+
+## Scoring Algorithm
+
+### Net Score: `-15` to `+15`
+
+```
+netScore = (bullishScore + fundBullAdj + catalystScore) − (bearishScore + fundBearAdj)
+```
+
+### Confidence Score — `computeConfidence(d)` (~line 1395)
+
+6-factor weighted score (0–99):
+1. Week position — stock near 5-day low (best entry zone)
+2. Selling exhaustion — 2+ consecutive red days slowing down
+3. Volume character — low-vol dip vs high-vol selloff
+4. 20-day trend direction (ret20)
+5. Fundamentals score
+6. RSI level (not overbought)
+
+### Entry Gates for Strong Signals
+
+**Strong Bullish / 🟢 Buy Now** requires ALL:
+- `conf >= 88`
+- `hasDip` (real selling exhaustion detected)
+- `netScore >= 6`
+- `livePos <= 0.35` (bottom 35% of week range)
+- `ret20 > 2` (20-day uptrend)
+- `rsi < 65 && rsi > 25`
+- `fundamentalScore >= -2`
+- Not a gap-and-fade
+
+**Bullish / 🟢 Good Entry** requires ALL:
+- `conf >= 65`
+- `hasDip`
+- `netScore >= 4`
+- `livePos <= 0.50`
+- `ret20 > -3`
+- `rsi < 72`
+
+### Catalyst Scoring (adds to `catalystScore`)
+
+- **Insider buying**: 3+ buys 0 sells → +3; 2 buys or net positive → +2; 1 buy → +1
+- **Selling exhaustion**: 2+ red days at week low, pace slowing → +3
+- **Relative strength vs SPY**: outperforming SPY >8% over 20d → +2
+- **Market tailwind**: SPY+QQQ mean score ≥ 6 → +1
+- **Earnings proximity**: within -1 to +5 days → +2
+- **Volume breakout**: position >80% + volume >1.5x + change >1.5% → +2
+
+### Bearish Scoring (adds to `bearishScore`)
+
+- **Market headwind**: SPY+QQQ mean < -1 → +2; < 2 → +1
+- **Relative weakness vs SPY**: underperforming >8% → +2; >4% → +1
+- **Insider selling**: 3+ sells 0 buys → +1
+- **Overbought**: RSI ≥ 65 → +2
+- **Below EMA20**: +2
+- **High-vol selloff**: changePct < -3% and volumeRatio > 2.5 → no catalyst allowed
+
+## Insider Activity Feature
+
+### Data Source
+
+Two dedicated Yahoo Finance modules in a **separate fetch** (`insiderUrl`):
+- `insiderHolders` — most recent transaction per insider (name, role, buy/sell type, date)
+- `netSharePurchaseActivity` — 6-month aggregate (total shares bought vs sold)
+
+**Why separate fetch**: Yahoo Finance silently drops `insiderHolders`/`netSharePurchaseActivity` when combined with `calendarEvents,defaultKeyStatistics,financialData` in a single request.
+
 ```javascript
-function switchTab(tabName) {
-  // Hide all panels
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  
-  // Show selected
-  document.getElementById('tab-' + tabName)?.classList.add('active');
-  document.querySelector(`[onclick="switchTab('${tabName}')"]`)?.classList.add('active');
-  
-  // Save preference
-  localStorage.setItem('ss_activeTab', tabName);
-  
-  // Lazy load tab-specific content
-  requestIdleCallback(() => {
-    if (tabName === 'portfolio') renderInsights(false);
-    else if (tabName === 'testlab') renderSim();
-    else if (tabName === 'analysis') renderCoachBoard(false);
-    else if (tabName === 'intelligence') {
-      calculateMarketSentiment();
-      renderMarketSentimentBar();
-      renderNewsImpact();
-      renderCongressionalTrades();
-      renderGoldenHour();
-    }
-  });
+const insiderUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=insiderHolders,netSharePurchaseActivity&formatted=false`;
+```
+
+### `insiderActivity` Object (stored on stock record)
+
+```javascript
+{
+  transactions: [...],  // up to 6 recent insiders with {name, role, type, shares, date, text}
+  netValue: N,          // NET shares (buyShares - sellShares) from netSharePurchaseActivity
+  buyCount: N,          // from netSharePurchaseActivity.buyInfoCount
+  sellCount: N,         // from netSharePurchaseActivity.sellInfoCount
+  buyShares: N,         // 6-month aggregate shares purchased
+  sellShares: N,        // 6-month aggregate shares sold
 }
 ```
 
-## Performance Optimizations
+### `buildInsiderSection(d)` (~line 2918)
 
-**Commit**: af39dcd (2025)
+Renders the 📋 Insider Activity block **always visible on every stock card** (not inside collapsible).
+Returns `''` if no buy/sell data (hidden for ETFs which have no Form 4 filers).
 
-The platform implements comprehensive performance optimizations to deliver fast initial load and smooth user experience:
+Shows:
+- Sentiment headline badge (e.g. "▲ 3 buys · 0 sells — strongly bullish")
+- Each insider row: `[BUY]/[SELL] Name · Role · Transaction description · Date`
+- 6-month aggregate line: `▲ 15K shs bought · ▼ 50K shs sold`
 
-### 1. Data Caching (5-minute TTL)
+**Note**: ETFs (XLF, SPY, QQQ, etc.) show nothing — they have no individual insider filers.
 
-**Location**: Lines 1087-1089 (state), 1353-1490 (fetchStock)
+## $500K Strategy Tab
+
+### Constants
 
 ```javascript
-S.dataCache = {};  // {ticker: {data, ts}}
+const STRATEGY_TOTAL = 500000;
 
-// In fetchStock():
-const cached = S.dataCache[ticker];
-if (cached && Date.now() - cached.ts < 300000) {
-  return cached.data;  // Return cached data if < 5 minutes old
-}
-// ... fetch from API ...
-S.dataCache[ticker] = { data: result, ts: Date.now() };
+const STRATEGY_PORTFOLIO = [
+  { ticker: 'AAPL',  company: 'Apple',           sector: 'Tech',         pct: 9  },
+  { ticker: 'MSFT',  company: 'Microsoft',        sector: 'Tech',         pct: 9  },
+  { ticker: 'GOOGL', company: 'Alphabet',         sector: 'Tech',         pct: 7  },
+  { ticker: 'AMZN',  company: 'Amazon',           sector: 'Tech/Retail',  pct: 7  },
+  { ticker: 'NVDA',  company: 'NVIDIA',           sector: 'Semis',        pct: 6  },
+  { ticker: 'JPM',   company: 'JPMorgan',         sector: 'Financials',   pct: 6  },
+  { ticker: 'V',     company: 'Visa',             sector: 'Financials',   pct: 5  },
+  { ticker: 'UNH',   company: 'UnitedHealth',     sector: 'Healthcare',   pct: 5  },
+  { ticker: 'JNJ',   company: 'Johnson & Johnson',sector: 'Healthcare',   pct: 5  },
+  { ticker: 'WMT',   company: 'Walmart',          sector: 'Consumer',     pct: 5  },
+  { ticker: 'COST',  company: 'Costco',           sector: 'Consumer',     pct: 5  },
+  { ticker: 'BRK-B', company: 'Berkshire',        sector: 'Diversified',  pct: 8  },
+  // + 17% cash buffer = $85,000
+];
 ```
 
-**Impact**: Eliminates redundant API calls during page refreshes, reducing network load by 50%+.
+### `renderStrategy()` (~line 2520)
 
-### 2. Progressive Loading
+Builds the entire strategy panel HTML:
+1. **Market Safety gauge** — reads `S.data['SPY']` + `S.data['QQQ']` scores:
+   - `mktMean >= 3` → 🟢 SAFE — deploy normally
+   - `mktMean >= 0` → 🟡 CAUTION — reduce size
+   - `mktMean < 0`  → 🔴 SELLOFF ALERT — hold cash
+2. **Dip alert banner** — shown when `mktMean < -1`
+3. **Per-stock cards** — reads `S.data[ticker]`, calls `signal(d)` + `computeConfidence(d)`:
+   - Action badge: `ENTER NOW` / `WATCH` / `WAIT` / `AVOID`
+   - Entry price, target exit (5-day high), hold note
+   - Insider badge from `insiderActivity`
+   - Metric chips: confidence %, RSI, 20d trend, week position, volume ratio
+4. **Cash buffer card** ($85K) with deploy rules
+5. **Disclaimer**
 
-**Location**: `refreshAll()` at lines 2862-2933
+All 12 strategy tickers are in `DEFAULT_WATCHLIST` — so their data is always available in `S.data`.
 
-**Strategy**:
-1. Show cached data immediately (instant feedback)
-2. Load critical stocks first (portfolio + market trends) with full data
-3. Render UI with critical data
-4. Load remaining watchlist in batches of 3 (progressive)
-5. Debounce renders to avoid layout thrashing
+The strategy panel auto-refreshes with every data cycle because `renderList()` redirects to `renderStrategy()` when `_sortMode === 'strategy'`.
+
+## fetchStock() Data Pipeline
+
+Each call makes **5 parallel fetches**:
 
 ```javascript
-// Show cached data immediately
-renderAll(false);
-
-// Load portfolio + market trends first
-await Promise.allSettled(criticalTickers.map(t => loadOne(t, false)));
-debouncedRender();
-
-// Load watchlist progressively in batches
-for (let i = 0; i < remainingTickers.length; i += 3) {
-  const batch = remainingTickers.slice(i, i + 3);
-  await Promise.allSettled(batch.map(t => loadOne(t, true)));
-  debouncedRender();
-}
+const [chart, news, nasdaqData, calendarData, insiderData] = await Promise.all([
+  fetchJ(chartUrl, ps),                              // v8 chart — price, OHLCV, 2yr history
+  fetchJ(newsUrl, ...).catch(() => null),             // v1 news — 3 headlines
+  fetchJProxy(nasdaqUrl, ...).catch(() => null),      // Nasdaq earnings-surprise
+  fetchJProxy(calendarUrl, ...).catch(() => null),    // v10: calendarEvents + keyStats + financialData
+  fetchJProxy(insiderUrl, ...).catch(() => null)      // v10: insiderHolders + netSharePurchaseActivity
+]);
 ```
 
-**Impact**: Portfolio data loads first (~2-3 sec), full page completes progressively instead of blocking.
-
-### 3. Lazy Tab Rendering
-
-**Location**: `renderAll()` at lines 2206-2254, `switchTab()` at lines 3186-3228
-
-**Strategy**:
-- Only render content for the active tab
-- Defer expensive operations (sentiment, news, congressional trades) to `requestIdleCallback()`
-- Load tab-specific content when user switches tabs
+### Return Object Schema (key fields)
 
 ```javascript
-// In renderAll():
-const activeTab = localStorage.getItem('ss_activeTab') || 'overview';
-
-if (activeTab === 'portfolio') {
-  renderInsights(loading);
-} else if (activeTab === 'testlab') {
-  renderSim();
-} // ... only active tab
-
-// Intelligence tab deferred
-if (activeTab === 'intelligence') {
-  requestIdleCallback(() => {
-    calculateMarketSentiment();
-    renderMarketSentimentBar();
-    // ... heavy operations
-  });
-}
-```
-
-**Impact**: Initial render skips 5 out of 6 tabs, reducing DOM operations by 80%+.
-
-### 4. Debounced Rendering
-
-**Location**: Lines 2853-2860
-
-```javascript
-function debouncedRender() {
-  if (S.renderQueue) clearTimeout(S.renderQueue);
-  S.renderQueue = setTimeout(() => {
-    renderAll(false);
-    S.renderQueue = null;
-  }, 100);
-}
-```
-
-**Impact**: Batches rapid state changes into single render, prevents layout thrashing during progressive load.
-
-### 5. Selective API Calls
-
-**Location**: `fetchStock()` with `skipExtras` flag at lines 1353-1375
-
-```javascript
-async function fetchStock(ticker, skipExtras = false) {
-  // Always fetch chart data
-  const chartUrl = ...;
-  
-  // Skip expensive summary/news for non-portfolio stocks
-  const summaryUrl = skipExtras ? null : ...;
-  const newsUrl = skipExtras ? null : ...;
-  
-  const [chart, summary, news] = await Promise.all([
-    fetchJ(chartUrl),
-    summaryUrl ? fetchJ(summaryUrl).catch(() => null) : Promise.resolve(null),
-    newsUrl ? fetchJ(newsUrl).catch(() => null) : Promise.resolve(null)
-  ]);
+{
+  ticker, price, change, changePct,
+  fetchedAt,
+  assetType,              // 'ETF' | 'stock' | etc. (from detectAssetType())
+  rsi, macdDiff,          // from calcIndicators()
+  ema20, position,        // EMA20 price, week position 0–1
+  bullishScore, bearishScore, catalystScore,
+  netScore,               // final: -15 to +15
+  conviction,             // 0–100 mapped from netScore
+  sortScore,              // netScore*100 + bullish*10 - bearish
+  signalRank,             // 1–9 from signal() for list ordering
+  livePos,                // current position in 5-day range (0=low, 1=high)
+  weekHighPct,            // % upside to 5-day high
+  ret20, ret5,            // 20-day and 5-day returns
+  volumeRatio,            // today's volume / 20-day avg
+  consecutiveDownDays,    // for selling exhaustion detection
+  hasDip,                 // true if real dip/exhaustion detected
+  fundamentals: { forwardPE, pegRatio, debtToEquity, revenueGrowth, earningsGrowth, ... },
+  fundamentalScore,       // -3 to +3
+  insiderActivity: { transactions, netValue, buyCount, sellCount, buyShares, sellShares },
+  nextEarnings,           // Date object or null
+  epsSurprise,            // { beat, pct, quarter } or null
+  isEarningsDay,          // boolean
+  headlines,              // [{title, link, publisher}]
+  yearHigh, yearLow,
+  wHigh5, wLow5,          // 5-day high/low prices
+  atrRatio,               // ATR/price — volatility vs baseline
+  dayConviction,          // 'High'|'Medium'|'Low'|'None' — will today's move hold?
 }
 ```
-
-**Usage**:
-- Portfolio stocks: `loadOne(ticker, false)` - full data
-- Watchlist stocks: `loadOne(ticker, true)` - chart only
-
-**Impact**: Reduces API calls from 3 per stock to 1 for watchlist, 66% fewer requests.
-
-### 6. Browser Compatibility
-
-**Location**: Lines 1033-1041 (polyfill)
-
-```javascript
-// Polyfill for requestIdleCallback (older browsers)
-window.requestIdleCallback = window.requestIdleCallback || function(cb) {
-  const start = Date.now();
-  return setTimeout(() => {
-    cb({ didTimeout: false, timeRemaining: () => Math.max(0, 50 - (Date.now() - start)) });
-  }, 1);
-};
-```
-
-**Impact**: Ensures lazy loading works on Safari and older browsers without native `requestIdleCallback`.
-
-### Performance Metrics
-
-**Before optimizations**:
-- Initial load: 8-12 seconds (waiting for all API calls)
-- Page freeze during refresh
-- 50+ failed API calls from CORS blocks
-- All tabs rendered upfront
-
-**After optimizations**:
-- Initial load: < 1 second (cached data)
-- Fresh load: 2-3 seconds (critical data), 5-7 seconds (complete)
-- No blocking - UI responsive during refresh
-- 50% fewer API calls (caching + selective fetch)
-- Progressive updates - important content first
-
-### Debugging Performance
-
-**Console commands**:
-```javascript
-// Check cache status
-Object.keys(S.dataCache).length  // How many tickers cached
-S.dataCache['AAPL']  // Check specific ticker cache
-
-// Force cache clear
-S.dataCache = {}; refreshAll();
-
-// Check render queue
-S.renderQueue  // Pending debounced render (null if idle)
-
-// Measure refresh time
-console.time('refresh'); await refreshAll(); console.timeEnd('refresh');
-```
-
-## Scoring Algorithm (Net Score System)
-
-**Location**: `fetchStock()` + `calcIndicators()` + `getCatalystBonus()` + `getTrendPenalty()`
-
-`netScore = bullishScore (calcIndicators) + catalystScore (base + getCatalystBonus) − bearishScore (base + getTrendPenalty)`
-
-### Bullish Indicators — `calcIndicators()` (+points)
-- Price in lower 50% of weekly range: +2
-- RSI 35-60: +2
-- MACD above signal with momentum: +2
-- Price >= 99% of EMA20: +2
-- Price in lower 30% of range (bonus): +1
-- RSI 40-55 (bonus): +1
-
-### Bearish Indicators — base in `fetchStock()` (-points)
-- Price in upper 70% of weekly range: -2
-- RSI >= 65 (overheated): -2
-- MACD below signal: -2
-- Price < 99% of EMA20: -2
-- Daily change <= -1%: -1
-- Daily change <= -3%: -2
-- Daily change <= -5%: -2
-
-### Catalyst Bonus — `getCatalystBonus()` (additive modifier, does NOT change base)
-- Earnings within -1 to +5 days: **+2**
-- Position > 80% of week range AND volume > 1.5x AND change > 1.5%: **+2** (volume breakout)
-- Price >= 99% of 52-week high AND volume > 1.3x AND change > 1%: **+2** (52-week breakout)
-
-### Trend Quality Penalty — `getTrendPenalty()` (additive to bearishScore, does NOT change base)
-- Below EMA20 AND change < -0.5% today: **+2 bearish** (falling knife)
-- Position < 25% of week range AND change < 0 AND volume > 1.3x: **+2 bearish** (distribution)
-- Today's close below 5-day prior low by >0.5%: **+2 bearish** (fresh breakdown)
-
-**Signal Labels** (from `netScore`):
-- Strong Bullish: >= 7 with MACD positive
-- Bullish: >= 5
-- Balanced: >= 2
-- Cautious: >= 0
-- Weak: >= -3
-- Bearish: < -3
-
-## Test Lab Automated Simulator
-
-### Trading Cycle Logic
-
-**Function**: `simRunCycle(force)` at lines 2480-2620
-
-**Execution Trigger**: Every refresh OR "Run Cycle Now" button (throttled to 15-minute minimum)
-
-**Flow**:
-1. **Pre-checks**: Verify started, enabled, and 15+ min since last run (unless forced)
-2. **Day detection**: If new day, reset `todayTrades`, `todayPnL`, set `dayStartEquity`
-3. **Sell Pass** (exits first):
-   - Loop through all open positions
-   - Check exit conditions for each
-   - Execute sells and log with detailed reason
-   - Update cash, P&L, trade history
-4. **Buy Pass** (look for entries):
-   - Get watchlist stocks with data
-   - Filter: netScore >= buyMinScore AND marketBull !== false
-   - Sort by netScore descending
-   - Take top 5 candidates
-   - Buy up to 5 positions max, using 15% capital each
-   - Detect setup type and log entry
-5. **Daily/Weekly Summaries**:
-   - At market close (4 PM+): Create daily summary
-   - On Sundays: Create weekly snapshot
-   - Keep 30-day and 20-week rolling windows
-6. **Machine Learning**: Call `simApplyLearning()` to adjust parameters
-7. **Save**: Persist to localStorage `ss_sim`
-
-### Entry Conditions (BUY)
-
-Must satisfy ALL:
-- Stock on watchlist with valid data
-- netScore >= `S.sim.learn.buyMinScore` (default 4)
-- Market not bearish (`S.marketBull !== false`)
-- < 5 open positions
-- Sufficient cash (15% of available per trade)
-
-**Setup Type Detection**:
-```javascript
-if (netScore >= 8) setupType = 'Momentum';
-else if (rsi < 40 && changePct > 0) setupType = 'Range Break';
-else if (position > 0.7 && macdDiff > 0) setupType = 'Trending';
-else if (position < 0.3 && changePct > 0) setupType = 'VWAP Bounce';
-else if (changePct > 2) setupType = 'News';
-else setupType = 'Auto Trade';
-```
-
-### Exit Conditions (SELL)
-
-ANY of these triggers a sell:
-1. **Target hit**: pnlPct >= `targetPct` (default 3.5%)
-2. **Stop loss**: pnlPct <= `stopPct` (default -2%)
-3. **Score dropped**: netScore <= `sellMaxScore` (default -2)
-4. **Time expired**: hoursHeld >= `holdDays * 6.5` (default 19.5 hours = 3 trading days)
-5. **Overbought exit**: pnlPct > 1.5% AND rsi > 70
-
-### Performance Tracking
-
-**Real-time KPIs** (8 cards):
-- Total equity (cash + positions value)
-- Available cash
-- Open positions count
-- Total P/L (lifetime)
-- Win rate (overall)
-- Today's P/L
-- Today's trades (W/L breakdown)
-- Strategy parameters
-
-**Daily Performance Table** (last 7 days):
-- Date, Trades, W/L, Win Rate, Day P/L, Return %, End Equity
-
-**Trade Log** (last 50 trades, reversed):
-- Date/time with hour:minute:second
-- Ticker, BUY/SELL action (color-coded)
-- Price, Detailed reason, Individual P/L
-
-### Machine Learning Adjustments
-
-**Function**: `simApplyLearning()` at lines 2471-2480
-
-Analyzes last 10 closed trades:
-- If win rate < 40%: Increase `buyMinScore` (more selective)
-- If win rate > 65%: Decrease `buyMinScore` (more aggressive)
-- Adjusts `targetPct` and `stopPct` based on avg win/loss sizes
 
 ## Key Functions Reference
 
-### Data & Refresh
+| Function | ~Line | Purpose |
+|----------|-------|---------|
+| `fetchStock(ticker)` | 1760 | Full data pipeline — 5 fetches, all scoring |
+| `signal(d)` | 1430 | Returns badge label, css class, confidence %, rank 1–9 |
+| `computeConfidence(d)` | 1395 | 6-factor weighted confidence 0–99 |
+| `sortStocks(list)` | 1116 | Sort by signalRank then sortScore |
+| `setSortMode(mode)` | 2667 | Switch between 'bullish'/'earnings'/'strategy' views |
+| `renderList()` | 2769 | Render stock cards; redirects to renderStrategy() in strategy mode |
+| `renderStrategy()` | 2520 | Build entire $500K strategy panel |
+| `buildInsiderSection(d)` | 2918 | Render insider activity block on stock card |
+| `buildHoldBar(d)` | 2960 | "Today's Hold" conviction bar |
+| `buildFundamentalsRow(d)` | ~2880 | Fundamentals row (PE, PEG, D/E, growth) |
+| `buildEarningsRow(d)` | ~2850 | Earnings date + EPS surprise row |
+| `buildCard(d, rank, pinned)` | ~3480 | Full stock card HTML |
+| `renderAll()` | ~3700 | Re-render the list/strategy panel |
+| `loadOne(ticker)` | ~3610 | Load + store a single ticker in S.data |
+| `rotateNext()` | ~3620 | Background rolling refresh (5 stocks every 15min) |
+| `prediction(d)` | 1505 | Plain-text prediction sentence for the card |
 
-| Function | Location | Purpose |
-|----------|----------|---------|
-| `fetchStock(ticker)` | ~1400 | Fetch from Yahoo, compute netScore via calcIndicators + modifiers |
-| `calcIndicators(closes,highs,lows)` | ~752 | Base bullish scoring (RSI, MACD, EMA20, range position) |
-| `getCatalystBonus({...})` | ~775 | Additive catalyst score: earnings proximity, volume breakout, 52w high |
-| `getTrendPenalty({...})` | ~810 | Additive bearish penalty: falling knife, distribution, fresh breakdown |
-| `refreshAll()` | ~2660 | Main refresh: fetch all data, run simulator, render UI |
-| `loadOne(ticker)` | ~2655 | Load single stock data |
-| `save()` | ~1150 | Persist all data to localStorage |
-| `load()` | ~1120 | Load from localStorage or seed from JSON files |
+## Test Lab Simulator
 
-### Simulator Core
+### Trading Cycle Logic
 
-| Function | Location | Purpose |
-|----------|----------|---------|
-| `simRunCycle(force)` | 2480 | Main trading loop: sell pass → buy pass → summaries |
-| `simStart()` | 2596 | Initialize simulator with starting capital |
-| `simToggle()` | 2608 | Pause/resume automated trading |
-| `simRunNow()` | 2612 | Force immediate cycle execution |
-| `simReset()` | 2616 | Clear all positions and history |
-| `simLog(side, ticker, price, reason, pnl)` | 2471 | Add entry to trade log |
-| `simApplyLearning()` | 2476 | Adjust algorithm parameters based on recent performance |
-| `simPortfolioValue()` | ~2450 | Calculate total equity (cash + positions) |
-| `renderSim()` | 2620 | Render simulator UI: KPIs, daily table, trade log |
+**`simRunCycle(force)`** — throttled to 15-min minimum unless forced.
 
-### Portfolio & Insights
+**Flow**:
+1. Day detection → reset todayTrades/todayPnL if new day
+2. **Sell pass** — check all open positions for exits
+3. **Buy pass** — find stocks with signalRank ≤ 2 (Buy Now / Good Entry), buy up to 5 positions at 15% capital each
+4. Daily/weekly summaries
+5. `simApplyLearning()` — auto-adjust parameters based on last 10 trades
 
-| Function | Location | Purpose |
-|----------|----------|---------|
-| `insightForPosition(pos, data)` | ~2200 | Generate buy/hold/sell recommendation for position |
-| `renderInsights()` | ~2280 | Render portfolio insights cards |
-| `addPosition()` | ~2910 | Add new position to real portfolio |
-| `rmPosition(ticker)` | ~2920 | Remove position from portfolio |
+### Exit Conditions
 
-### Analysis & Coaching
+- Target hit: `pnlPct >= targetPct` (default 3.5%)
+- Stop loss: `pnlPct <= stopPct` (default -2%)
+- Score dropped: `netScore <= sellMaxScore` (default -2)
+- Time expired: `hoursHeld >= holdDays * 6.5`
+- Overbought: `pnlPct > 1.5% && rsi > 70`
 
-| Function | Location | Purpose |
-|----------|----------|---------|
-| `renderCoach()` | ~2100 | Generate plain-language guidance for watchlist stocks |
-| `renderBoard()` | ~1900 | Render ranked watchlist table with all metrics |
+### Tuning Parameters (browser console)
 
-### Export
-
-| Function | Location | Purpose |
-|----------|----------|---------|
-| `exportSimLog()` | ~3010 | Export full simulator state as JSON |
-| `exportTradeHistory()` | ~2946 | Export closed trades as CSV for Python analyzers |
-
-## Data Persistence (localStorage)
-
-| Key | Content | Structure |
-|-----|---------|-----------|
-| `ss_watch` | Watchlist tickers | `["AAPL", "MSFT", ...]` |
-| `ss_port` | Real portfolio | `[{ticker, shares, buyPrice, note}, ...]` |
-| `ss_sim` | Simulator state | Full `S.sim` object with all trades |
-| `ss_config` | User settings | API keys, preferences |
-| `ss_activeTab` | Last active tab | `"overview"` / `"portfolio"` / etc. |
-
-**Save trigger**: Any modification to `S.watchlist`, `S.portfolio`, or `S.sim` calls `save()`
-
-## Validating Predictions
-
-### Process
-
-1. **Make Prediction**: Use netScore system to identify high-scoring stocks (score >= 4)
-2. **Run Test Lab**: Start simulator, let it run for 5-7 days
-3. **Export Results**: Click "Export CSV" to get trade history
-4. **Analyze Performance**: Run Python analyzers:
-   ```bash
-   python analyze_trades.py sim_trades_YYYY-MM-DD.csv
-   ```
-5. **Review Metrics**:
-   - Win rate (target: 50-60%)
-   - Profit factor (avg win / avg loss, target: > 1.5)
-   - Best setup types
-   - Time-of-day patterns
-   - Daily P/L trends
-6. **Adjust Algorithm**: Based on results, tune in browser console:
-   ```javascript
-   S.sim.learn.buyMinScore = 5;  // More selective
-   S.sim.learn.targetPct = 4;    // Higher profit target
-   save();
-   ```
-7. **Re-test**: Reset simulator and run again with new parameters
-
-### Key Validation Metrics
-
-**Good Performance Indicators**:
-- Win rate 50-65%
-- Profit factor > 1.5
-- Average win > average loss
-- Momentum/Trending setups perform best
-- Most losses hit stop loss (not score deterioration)
-
-**Red Flags**:
-- Win rate < 40% → Algorithm too aggressive
-- Profit factor < 1.0 → Wins too small or losses too large
-- Most exits due to "time expired" → Not enough movement
-- High score stocks immediately drop → Lagging indicators
-
-## Common Modifications
-
-### Add New Indicator to Scoring
-
-1. Find `fetchStock()` function (~line 1400)
-2. Locate scoring logic section
-3. Add new condition:
-   ```javascript
-   // Example: Add volume surge indicator
-   if (data.volume > data.avgVolume * 2) {
-     bullish += 2;
-     reasons.push('Volume surge 2x avg');
-   }
-   ```
-4. Recalculate `netScore = bullish - bearish`
-5. Test in browser console: Refresh and check scores
-
-### Modify Exit Rules
-
-1. Find `simRunCycle()` function (line 2480)
-2. Locate "Sell pass first" section
-3. Add new exit condition:
-   ```javascript
-   } else if (d.rsi > 75 && pnlPct > 2) {
-     shouldSell = true;
-     exitReason = `Extreme overbought exit +${pnlPct.toFixed(2)}%`;
-   ```
-4. Save file, refresh browser, test with "Run Cycle Now"
-
-### Change Capital Allocation
-
-In `simRunCycle()` buy pass section (line ~2540):
 ```javascript
-const budgetPerTrade = Math.max(0, S.sim.cash * 0.20); // Change 0.15 to 0.20 for 20%
-const maxPositions = 8; // Change 5 to 8 for more positions
-```
-
-### Add New Tab
-
-1. **HTML**: Add tab button (~line 770):
-   ```html
-   <button class="tab-btn" onclick="switchTab('newtab')">🔬 New Feature</button>
-   ```
-2. **HTML**: Add tab panel (~line 1080):
-   ```html
-   <div id="tab-newtab" class="tab-panel">
-     <section><h2>New Feature</h2><div id="new-content"></div></section>
-   </div>
-   ```
-3. **JavaScript**: Add render function:
-   ```javascript
-   function renderNewTab() {
-     document.getElementById('new-content').innerHTML = '...';
-   }
-   ```
-4. **JavaScript**: Call in `renderAll()` (~line 3100):
-   ```javascript
-   if (document.getElementById('tab-newtab')?.classList.contains('active')) {
-     renderNewTab();
-   }
-   ```
-
-## Python Analyzer Tools
-
-### analyze_trades.py
-
-**Purpose**: Comprehensive performance analysis
-**Input**: CSV with columns: Symbol, Entry Date, Entry Time, Entry Price, Exit Date, Exit Time, Exit Price, Shares, P&L, Setup Type
-**Output**: 7-section report with recommendations
-
-**Usage**:
-```bash
-python analyze_trades.py sim_trades_2024-01-15.csv
-```
-
-**Analyses**:
-1. Overall statistics (win rate, expectancy, profit factor)
-2. Performance by setup type
-3. Performance by time block (6 hourly blocks)
-4. Performance by day of week
-5. Best/worst patterns detection
-6. Recommendations based on data
-7. Summary with action items
-
-### trade_journal_coach.py
-
-**Purpose**: Trade-by-trade behavioral coaching
-**Input**: Individual trade dict OR CSV
-**Output**: Rule adherence check, pattern detection, coaching feedback
-
-**Usage**:
-```python
-from trade_journal_coach import TradeJournalCoach
-
-coach = TradeJournalCoach()
-analysis = coach.analyze_trade({
-    'ticker': 'AAPL',
-    'entry_price': 150.00,
-    'exit_price': 153.50,
-    'entry_rules': ['Score >= 4', 'RSI < 65', 'Market bullish'],
-    'entry_rules_met': [True, True, False],
-    # ... more fields
-})
-print(analysis['coaching'])
+S.sim.learn.buyMinScore = 5;   // higher = more selective
+S.sim.learn.targetPct   = 4;   // higher profit target
+S.sim.learn.stopPct     = -1.5; // tighter stop
+save();
 ```
 
 ## Debugging Guide
 
+### Insider Activity Not Showing
+
+1. Check DevTools Network tab — look for the `insiderHolders` quoteSummary request
+2. If response is `{}` or 401 → proxy is blocking it; try a different proxy order
+3. ETFs (XLF, SPY, etc.) will never show insider data — that is expected
+4. Check `S.data['AAPL'].insiderActivity` in console — if `buyCount: 0 && sellCount: 0`, the data came back empty
+5. The section is hidden when empty (returns `''`) — only visible when there are actual transactions
+
+### Signal Badges Not Showing / Wrong Order
+
+1. Check `S.data['AAPL'].signalRank` in console — should be 1–9
+2. If `signalRank` is `undefined`, the `_sigTmp` pre-computation in fetchStock() failed
+3. Verify `signal()` function returns a `rank` property — all return statements must have `rank`
+
 ### Simulator Not Trading
 
-**Check**:
-1. Status indicator: Should show "● Running" not "⏸ Paused"
-2. Last run time: Should update after refresh
-3. Browser console for errors
-4. Watchlist has stocks with data
-5. At least one stock has netScore >= 4
-6. Cash available > $500
-
-**Fix**:
 ```javascript
-// In browser console
 S.sim.enabled = true;
 S.sim.started = true;
 save();
@@ -666,147 +379,60 @@ location.reload();
 
 ### Scores All Zero
 
-**Cause**: API blocked by CORS or no data loaded
+Check `S.data['AAPL']` in console. If `{err: true}` → all proxies failed. Try refreshing.
 
-**Check**:
-1. Network tab: Look for 401/403 errors
-2. `S.data` in console: Should have stock objects, not `{err: true}`
+### localStorage Full
 
-**Fix**: Switch to Alpha Vantage:
-1. Get API key from https://www.alphavantage.co/support/#api-key
-2. Settings gear → Enter API key → Save
-3. Modify `fetchStock()` to use Alpha Vantage as primary
-
-### Trades Not Persisting
-
-**Check**:
-1. localStorage quota (browser may limit to 5-10MB)
-2. Browser console for "QuotaExceededError"
-3. `localStorage.getItem('ss_sim')` returns data
-
-**Fix**:
 ```javascript
-// Trim old logs
-S.sim.log = S.sim.log.slice(0, 100);
+S.sim.log    = S.sim.log.slice(0, 100);
 S.sim.closed = S.sim.closed.slice(-100);
-S.sim.dailyHistory = S.sim.dailyHistory.slice(-30);
 save();
 ```
 
-### Win Rate Too Low
+## Python Analyzer Tools
 
-**Adjust Algorithm**:
-```javascript
-S.sim.learn.buyMinScore = 6;      // More selective (was 4)
-S.sim.learn.targetPct = 5;        // Higher profit target (was 3.5)
-S.sim.learn.stopPct = -1.5;       // Tighter stop (was -2)
-S.sim.learn.holdDays = 2;         // Shorter holding period (was 3)
-save();
+```bash
+python analyze_trades.py sim_trades_YYYY-MM-DD.csv   # 7-section performance report
 ```
 
-Then reset simulator and re-test.
-
-## Skill Update Protocol
-
-**When making changes to the platform, update this skill file with**:
-
-### 1. New Algorithm Logic
-Document any new scoring indicators, entry/exit conditions, or calculation methods
-
-### 2. New Functions
-Add to the "Key Functions Reference" table with location and purpose
-
-### 3. New Data Fields
-Update the "Global State Object" section and localStorage table
-
-### 4. Validation Results
-After running simulations, document what worked/didn't work:
-```markdown
-## Validation Results (YYYY-MM-DD)
-
-**Test**: 7-day simulation with buyMinScore=6, targetPct=4%
-**Results**: 58% win rate, 1.8 profit factor, $2,340 profit on $50k
-**Conclusion**: Higher score threshold improves quality of entries
-**Action**: Update default buyMinScore from 4 to 5
-```
-
-### 5. Common Issues & Solutions
-Add to "Debugging Guide" section any new bugs encountered and their fixes
-
----
-
-## Daily Learning Log — Post-Mortems & Fixes
-
-### 2026-05-08 — False Bullish on CEG/DELL/GILD/JPM + False Balanced on AAPL/GOOGL/AMZN
-
-**What Happened:**
-- CEG, DELL, GILD, JPM showed "Bullish" but fell 5-6% the next session
-- AAPL, GOOGL, AMAZON showed "Balanced" but rallied strongly the next session
-
-**Root Cause Analysis:**
-
-**False Bullish (CEG/DELL/GILD/JPM):**
-`calcIndicators()` awards up to +7 bullish points purely from isolated technical reads:
-RSI in healthy range (+2+1) + holding EMA20 (+2) + in lower weekly range (+2+1) = 7 points.
-The system had ZERO awareness that SPY/QQQ were in a downtrend that session.
-In a bearish macro tape, individual stocks get dragged down regardless of their technicals.
-
-**False Balanced (AAPL/GOOGL/AMZN):**
-These stocks were stuck in "correction accounting" — being penalized for MACD negative (+2 bearish),
-below EMA20 (+2 bearish), negative ret20 (+1-2 bearish). These were macro-driven corrections
-(tariffs/rates), not stock-specific weakness. When the macro reversed (recovery day), these
-stocks led the bounce, but the system had no signal to reward that relative outperformance.
-
-**Fixes Applied (commit 7cbde63 + follow-on commit):**
-
-1. **Market Regime Overlay** added in `fetchStock()` after all other scoring:
-   - Uses `S.data['SPY']?.netScore` + `S.data['QQQ']?.netScore` (already computed from MARKET_TICKERS)
-   - Market mean < -1: +2 bearish headwind penalty → "Broad market bearish — macro headwind"
-   - Market mean < 2: +1 bearish → "Market showing weakness — reduces conviction"
-   - Market mean >= 6: +1 catalyst → "Broad market bullish — macro tailwind"
-   - Skipped for SPY, QQQ, IWM themselves
-
-2. **Relative Strength vs SPY** added in `fetchStock()`:
-   - Uses `S.data['SPY']?.ret20` vs individual `ret20`
-   - Outperforming SPY >8% (20d): +2 catalyst "market leader"
-   - Outperforming >4%: +1 catalyst "relative strength"
-   - Underperforming <-8%: +2 bearish "sector laggard, avoid"
-   - Underperforming <-4%: +1 bearish "relative weakness"
-   - CEG/GILD/DELL were underperforming SPY → caught by this
-   - AAPL/GOOGL/AMZN outperforming SPY on recovery → rewarded by this
-
-**Prevention Rule:** Never rely only on isolated technical reads. ALWAYS check:
-1. What is SPY's netScore right now? (proxy for macro tape)
-2. Is this stock outperforming or underperforming SPY over 20 days?
-If market is weak AND stock is lagging SPY → Never go Bullish regardless of RSI/MACD.
-
-**Code Locations:**
-- Market regime overlay: in `fetchStock()`, after `getFundamentalScore()` block
-- RS vs SPY: immediately after market regime block, before `netScoreFinal`
-- Both blocks skip SPY/QQQ/IWM so they don't self-reference
+**Targets**: Win rate 50–65%, Profit factor > 1.5
 
 ## Deployment Checklist
 
-Before pushing changes:
+- [ ] Test in browser — stock cards load, badges appear
+- [ ] Check $500K Strategy tab opens and shows market safety gauge
+- [ ] Check insider activity on AAPL/MSFT (not ETFs)
+- [ ] `git commit` + `git push origin main`
+- [ ] GitHub Pages deploys in ~2 min → verify live at https://ipathan-lang.github.io/stock-scanner/
+- [ ] Update this skill file if architecture changed
 
-- [ ] Test in browser: All tabs load without errors
-- [ ] Test simulator: Start, run cycle, verify trades execute
-- [ ] Test exports: CSV and JSON downloads work
-- [ ] Check localStorage: Data persists across page reload
-- [ ] Validate HTML: No syntax errors (missing closing tags, etc.)
-- [ ] Git commit with clear message
-- [ ] Git push to GitHub
-- [ ] Verify GitHub Pages deploys (~2-3 minutes)
-- [ ] Test live site at ipathan-lang.github.io/stock-scanner
-- [ ] Update this skill file if needed
+## Daily Learning Log
 
-## Remember
+### 2026-05-13 — Major Architecture Refactor
 
-1. **Always validate predictions through simulation** before live trading
-2. **Export and analyze CSV results** after every 5-7 day test period
-3. **Document performance metrics** in this skill file for future reference
-4. **Adjust algorithm based on data**, not gut feel
-5. **Test changes in browser console** before committing code
-6. **Keep simulator data** for historical analysis (30-day window is automatic)
-7. **Win rate 50-60% is excellent** for algorithmic trading
-8. **Profit factor > 1.5 is the real goal**, not just win rate
+**Changes made this session:**
+
+1. **Badge labels simplified** — replaced `Strong Bullish/Bullish/Balanced/Cautious/Weak/Bearish` with plain-English emoji badges (🟢 Buy Now, 🟢 Good Entry, 👀 Watch, ⏳ Wait, 🟡 Neutral, 🟠 Caution, 🔴 Avoid, 🔴 Selling)
+2. **Signal rank sorting** — list now sorted by badge tier first (`signalRank` 1–9), then `sortScore`. Best opportunities always at top.
+3. **Insider Activity feature**:
+   - Uses `insiderHolders` + `netSharePurchaseActivity` Yahoo Finance modules
+   - Fetched in **dedicated 5th parallel request** — Yahoo drops these when combined with other modules
+   - Shows on every stock card **always visible** (moved outside the "Details & News" collapsible)
+   - Hidden entirely for ETFs and stocks with no filing data
+4. **$500K Strategy tab** — new view with 12-stock portfolio plan, market safety gauge, dip-alert banner, per-stock action badges and entry/exit plans
+5. **`setSortMode('strategy')`** — added third mode to the nav toggle; shows `#strategy-panel`, hides `#stock-list`
+6. **`renderList()` guard** — early return redirects to `renderStrategy()` when in strategy mode, keeping it live on auto-refresh
+
+### 2026-05-08 — Market Regime Overlay + Relative Strength
+
+**Problem**: False Bullish on CEG/DELL/GILD/JPM (fell 5-6%) + False Balanced on AAPL/GOOGL/AMZN (rallied)
+
+**Fix**: Added Market Regime Overlay and Relative Strength vs SPY scoring in `fetchStock()`:
+- SPY+QQQ mean < -1 → +2 bearish headwind
+- Outperforming SPY >8% over 20d → +2 catalyst "market leader"
+- Underperforming SPY >8% → +2 bearish "sector laggard"
+
+**Rule**: Never go Bullish on an individual stock when SPY+QQQ are both negative AND the stock is underperforming SPY.
+
+
+# IntelliMarket Analyst — Trading Platform Skill
