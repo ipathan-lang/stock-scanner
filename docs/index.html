@@ -3568,6 +3568,7 @@ function buildCard(d, rank, pinned) {
 
       ${buildEarningsRow(d)}
       ${buildFundamentalsRow(d)}
+      ${buildInsiderSection(d)}
 
       <div>
         <button class="detail-btn" onclick="toggleDetail('${detailId}')">&#9660; Details &amp; News</button>
@@ -3583,7 +3584,6 @@ function buildCard(d, rank, pinned) {
               <span>High $${d.yearHigh.toFixed(2)}</span>
             </div>
           </div>` : ''}
-          ${buildInsiderSection(d)}
           <div class="news-wrap">${newsHtml}</div>
         </div>
       </div>
