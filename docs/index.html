@@ -1804,28 +1804,33 @@ async function fetchStock(ticker) {
 
   // ── Insider transactions ──────────────────────────────────────────────────────────
   // Parsed from Yahoo Finance insiderTransactions module (same request, no extra fetch).
-  // We only look at the last 90 days so the signal is current.
-  const _it       = _calRes.insiderTransactions?.transactions ?? [];
-  const _cutoff   = Date.now() - 90 * 86400000;
-  const _isTx  = (tx, ...keywords) =>
-    keywords.some(k => tx.transactionText?.toLowerCase().includes(k));
+  const _it     = _calRes.insiderTransactions?.transactions ?? [];
+  const _cutoff = Date.now() - 365 * 86400000;  // last 12 months
+  const _txText = tx => (tx.transactionText ?? '').toLowerCase();
 
   const insiderTx = _it
     .filter(tx => ((tx.startDate?.raw ?? 0) * 1000) > _cutoff)
     .map(tx => {
-      const isBuy  = _isTx(tx, 'purchase', 'buy', 'acquisition', 'option exercise');
-      const isSell = _isTx(tx, 'sale', 'sell', 'disposed');
+      const txt    = _txText(tx);
+      const shares = tx.shares?.raw ?? 0;
+      const isBuy  = txt.includes('purchase') || txt.includes('acquisition') ||
+                     txt.includes('option exercise') || txt.includes('award') ||
+                     txt.includes('grant') || (txt === '' && shares > 0 && !txt.includes('sale'));
+      const isSell = txt.includes('sale') || txt.includes('sell') || txt.includes('disposed') ||
+                     txt.includes('automatic');
+      const type   = isSell ? 'SELL' : isBuy ? 'BUY' : 'OTHER';
       return {
-        name:     tx.filerName         ?? 'Insider',
-        role:     tx.filerRelation     ?? '',
-        type:     isBuy ? 'BUY' : isSell ? 'SELL' : 'OTHER',
-        shares:   tx.shares?.raw       ?? 0,
-        value:    tx.value?.raw        ?? 0,
-        date:     tx.startDate?.fmt    ?? '',
-        text:     tx.transactionText   ?? '',
+        name:  tx.filerName      ?? 'Insider',
+        role:  tx.filerRelation  ?? '',
+        type,
+        shares,
+        value: tx.value?.raw     ?? 0,
+        date:  tx.startDate?.fmt ?? '',
+        text:  tx.transactionText ?? '',
       };
     })
     .filter(tx => tx.type !== 'OTHER');
+  console.log('[insider]', ticker, 'raw:', _it.length, 'matched:', insiderTx.length, _it.slice(0,3).map(t => t.transactionText));
 
   const insiderBuyValue  = insiderTx.filter(t => t.type === 'BUY') .reduce((s, t) => s + t.value, 0);
   const insiderSellValue = insiderTx.filter(t => t.type === 'SELL').reduce((s, t) => s + t.value, 0);
@@ -2904,9 +2909,7 @@ function buildFundamentalsRow(d) {
 // Insider buying near a week low is one of the strongest non-technical buy signals.
 function buildInsiderSection(d) {
   const ins = d.insiderActivity;
-  if (!ins || (!ins.buyCount && !ins.sellCount)) {
-    return `<div class="insider-wrap"><div class="insider-title">&#128203; Insider Activity <span class="insider-period">(90 days)</span></div><div class="insider-none">No insider transactions filed in the past 90 days</div></div>`;
-  }
+  if (!ins || (!ins.buyCount && !ins.sellCount)) return '';  // hide if no data
 
   const fmtVal = v => {
     if (!v) return '';
@@ -2936,7 +2939,7 @@ function buildInsiderSection(d) {
   else if (net < 0)  sentiment = `<span class="ins-net ins-net-muted">Insiders net sold ${fmtVal(Math.abs(net))} (may be diversification)</span>`;
 
   return `<div class="insider-wrap">
-    <div class="insider-title">&#128203; Insider Activity <span class="insider-period">(90 days)</span>${sentiment}</div>
+    <div class="insider-title">&#128203; Insider Activity <span class="insider-period">(12 months)</span>${sentiment}</div>
     ${rows}
   </div>`;
 }
