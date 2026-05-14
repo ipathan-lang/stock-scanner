@@ -311,6 +311,11 @@
       color: #5b21b6;
       flex-wrap: wrap;
     }
+    .pre-move-banner.pm-low {
+      border-color: #c4b5fd;
+      background: rgba(139,92,246,0.04);
+      opacity: 0.85;
+    }
     .pre-move-banner .pm-icon  { font-size: 1.05rem; }
     .pre-move-banner .pm-label { font-size: 0.84rem; }
     .pre-move-banner .pm-conf {
@@ -2541,19 +2546,31 @@ async function fetchStock(ticker) {
   if (ind.rsi > 73) {
     pmScore += 2; pmDip += 2;
     pmReasons.push(`RSI ${ind.rsi.toFixed(1)} — overbought, snap-reversal dip risk`);
+  } else if (ind.rsi > 65) {
+    pmScore += 1; pmDip += 1;
+    pmReasons.push(`RSI ${ind.rsi.toFixed(1)} — elevated, pullback risk growing`);
   } else if (ind.rsi < 27) {
     pmScore += 2; pmSurge += 2;
     pmReasons.push(`RSI ${ind.rsi.toFixed(1)} — oversold, snap-reversal surge risk`);
+  } else if (ind.rsi < 35) {
+    pmScore += 1; pmSurge += 1;
+    pmReasons.push(`RSI ${ind.rsi.toFixed(1)} — near oversold, bounce setup forming`);
   }
 
   // 6. Multi-day selling exhaustion at week low = bounce setup
   if (consecutiveDownDays >= 3 && livePos <= 0.25) {
     pmScore += 1; pmSurge += 2;
     pmReasons.push(`${consecutiveDownDays} consecutive down days at week low — sellers exhausting`);
+  } else if (consecutiveDownDays >= 2 && livePos <= 0.35) {
+    pmScore += 1; pmSurge += 1;
+    pmReasons.push(`${consecutiveDownDays} down days near week low — watching for bounce`);
   }
 
   // 7. Multi-day run-up at week high = profit-taking risk
-  if (ret5 !== null && ret5 > 5 && livePos >= 0.80) {
+  if (ret5 !== null && ret5 > 8 && livePos >= 0.85) {
+    pmScore += 2; pmDip += 2;
+    pmReasons.push(`Up ${ret5.toFixed(1)}% this week at 5-day high — strong profit-taking risk`);
+  } else if (ret5 !== null && ret5 > 5 && livePos >= 0.80) {
     pmScore += 1; pmDip += 2;
     pmReasons.push(`Up ${ret5.toFixed(1)}% this week at 5-day high — profit-taking pullback risk`);
   }
@@ -2564,12 +2581,24 @@ async function fetchStock(ticker) {
     pmReasons.push('Extremely tight today range — energy coiling for next session');
   }
 
+  // 9. MACD decelerating while price at high = momentum fading
+  if (macdSlope < 0 && livePos >= 0.75 && (ind.macdDiff ?? 0) > 0) {
+    pmScore += 1; pmDip += 1;
+    pmReasons.push('MACD momentum decelerating at week high — move may be fading');
+  }
+
+  // 10. Stock down >3% on elevated volume = selling pressure building
+  if (changePct < -3 && volumeRatio !== null && volumeRatio >= 1.5) {
+    pmScore += 1; pmDip += 1;
+    pmReasons.push(`Down ${Math.abs(changePct).toFixed(1)}% on ${volumeRatio.toFixed(1)}× volume — selling pressure accelerating`);
+  }
+
   let preMoveWatch = null;
-  if (pmScore >= 3) {
+  if (pmScore >= 2) {
     const pmDir  = pmSurge > pmDip + 1 ? 'surge'
                  : pmDip > pmSurge + 1 ? 'dip'
                  : 'either';
-    const pmConf = pmScore >= 5 ? 'High' : 'Medium';
+    const pmConf = pmScore >= 5 ? 'High' : pmScore >= 3 ? 'Medium' : 'Low';
     preMoveWatch = { direction: pmDir, confidence: pmConf, score: pmScore, reasons: pmReasons };
   }
 
@@ -3832,7 +3861,7 @@ function buildCard(d, rank, pinned) {
       </div>
 
       ${d.preMoveWatch ? `
-      <div class="pre-move-banner">
+      <div class="pre-move-banner${d.preMoveWatch.confidence === 'Low' ? ' pm-low' : ''}">
         <span class="pm-icon">&#128302;</span>
         <span class="pm-label">Pre-Move Watch &nbsp;&middot;&nbsp;
           <span class="pm-dir-${d.preMoveWatch.direction}">${
