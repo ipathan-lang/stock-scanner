@@ -1099,15 +1099,17 @@
     .ec-timing.bmo { background: rgba(234,179,8,.12); color: #92400e; border: 1px solid rgba(234,179,8,.3); }
     .ec-timing.amc { background: rgba(139,92,246,.1); color: #5b21b6; border: 1px solid rgba(139,92,246,.25); }
     .ec-timing.tns { background: rgba(19,43,67,.07);  color: var(--muted); border: 1px solid var(--border); }
-    .ec-row-arrow { color: var(--muted); font-size: 1.15rem; flex-shrink: 0; }
-    .ec-stock-view { padding: 4px 0; }
-    .ec-back-btn {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 8px 14px; border-radius: 10px; margin-bottom: 14px;
-      background: rgba(19,43,67,.06); border: 1px solid var(--border);
-      font-size: 0.8rem; font-weight: 700; color: var(--ink); cursor: pointer;
+    .ec-row-arrow {
+      color: var(--muted); font-size: 1.15rem; flex-shrink: 0;
+      transition: transform .2s; display: inline-block;
     }
-    .ec-back-btn:hover { background: rgba(30,99,217,.08); color: var(--blue); }
+    .ec-row.expanded .ec-row-arrow { transform: rotate(90deg); color: var(--blue); }
+    .ec-row-detail {
+      display: none; margin: -4px 0 6px;
+      border: 1px solid rgba(30,99,217,.2); border-top: none;
+      border-radius: 0 0 12px 12px;
+      background: var(--surface); padding: 12px 14px;
+    }
     .ec-ticker-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .ec-meta-chip {
       font-size: 0.62rem; font-weight: 700; padding: 1px 7px; border-radius: 20px;
@@ -3347,28 +3349,17 @@ function _renderEcList() {
     return;
   }
 
-  const bmoRows = _ecData.filter(r => r.startdatetimetype === 'BMO');
-  const amcRows = _ecData.filter(r => r.startdatetimetype === 'AMC');
-  const tnsRows = _ecData.filter(r => r.startdatetimetype !== 'BMO' && r.startdatetimetype !== 'AMC');
+  const bmoCount = _ecData.filter(r => r.startdatetimetype === 'BMO').length;
+  const amcCount = _ecData.filter(r => r.startdatetimetype === 'AMC').length;
 
   let html = `<div class="ec-summary">
-    <span class="ec-sum-pill bmo">&#x1F305; ${bmoRows.length} Before Open</span>
-    <span class="ec-sum-pill amc">&#x1F319; ${amcRows.length} After Close</span>
+    <span class="ec-sum-pill bmo">&#x1F305; ${bmoCount} Before Open</span>
+    <span class="ec-sum-pill amc">&#x1F319; ${amcCount} After Close</span>
     <span class="ec-sum-pill total">${_ecData.length} total</span>
   </div>`;
 
-  if (bmoRows.length) {
-    html += `<div class="ec-section-label">&#x1F305; Before Market Open</div>`;
-    html += bmoRows.map(_buildEcRow).join('');
-  }
-  if (amcRows.length) {
-    html += `<div class="ec-section-label">&#x1F319; After Market Close</div>`;
-    html += amcRows.map(_buildEcRow).join('');
-  }
-  if (tnsRows.length) {
-    html += `<div class="ec-section-label">&#x1F4CA; During Market / Time N/A</div>`;
-    html += tnsRows.map(_buildEcRow).join('');
-  }
+  // Flat list — sorted by market cap. BMO/AMC shown as badges on each row.
+  html += _ecData.map(_buildEcRow).join('');
 
   body.innerHTML = html;
 }
@@ -3411,54 +3402,90 @@ function _buildEcRow(row) {
     ? `<span class="ec-ly">LY: <b>${row.lastYearEps < 0 ? '-' : ''}$${Math.abs(row.lastYearEps).toFixed(2)}</b></span>`
     : '';
 
-  return `<div class="ec-row" onclick="showEarningsStock('${ticker}')">
-    <div class="ec-row-main">
-      <div class="ec-row-left" style="flex:1;min-width:0">
-        <div class="ec-ticker-line">
-          <span class="ec-ticker">${ticker}</span>
-          ${mcapHtml}${fqHtml}
-          <span class="ec-timing ${timing}" style="margin-left:auto">${timingLabel}</span>
-        </div>
-        <div class="ec-company">${name}</div>
-        <div class="ec-meta-row">
-          <span class="ec-eps-label">EPS Est:</span>
-          <span class="ec-eps-val">${epsEst}</span>
-          ${epsActHtml}
-          ${lyHtml}
-        </div>
+  return `
+<div class="ec-row" id="ec-row-${ticker}" onclick="toggleEarningsRow('${ticker}')">
+  <div class="ec-row-main">
+    <div class="ec-row-left" style="flex:1;min-width:0">
+      <div class="ec-ticker-line">
+        <span class="ec-ticker">${ticker}</span>
+        ${mcapHtml}${fqHtml}
+        <span class="ec-timing ${timing}" style="margin-left:auto">${timingLabel}</span>
+      </div>
+      <div class="ec-company">${name}</div>
+      <div class="ec-meta-row">
+        <span class="ec-eps-label">EPS Est:</span>
+        <span class="ec-eps-val">${epsEst}</span>
+        ${epsActHtml}
+        ${lyHtml}
       </div>
     </div>
-    <div class="ec-row-arrow">&#x203A;</div>
-  </div>`;
+  </div>
+  <div class="ec-row-arrow" id="ec-arrow-${ticker}">&#x203A;</div>
+</div>
+<div class="ec-row-detail" id="ec-detail-${ticker}"></div>`;
 }
 
-async function showEarningsStock(ticker) {
-  _ecViewStock = ticker;
-  const body = document.getElementById('ec-body');
-  if (body) body.innerHTML = `<div class="ec-stock-view">
-    <button class="ec-back-btn" onclick="backToEarningsCal()">&#x2039; Back to Earnings</button>
-    <div id="ec-stock-card">
-      <div class="empty" style="padding:28px 0">Loading ${esc(ticker)}…</div>
-    </div>
-  </div>`;
+function toggleEarningsRow(ticker) {
+  const row    = document.getElementById(`ec-row-${ticker}`);
+  const detail = document.getElementById(`ec-detail-${ticker}`);
+  if (!row || !detail) return;
 
-  try {
-    if (!S.data[ticker] || S.data[ticker].err) await loadOne(ticker);
-    const d  = S.data[ticker];
-    if (!d || d.err) throw new Error('no data');
-    const el = document.getElementById('ec-stock-card');
-    if (el && _ecViewStock === ticker) el.innerHTML = buildCard(d, 1, true);
-  } catch (_) {
-    const el = document.getElementById('ec-stock-card');
-    if (el) el.innerHTML = `<div class="empty" style="color:var(--red);padding:24px 0">
-      Could not load ${esc(ticker)}.<br>
-      <small>Check the ticker or try a different stock.</small></div>`;
+  const isOpen = row.classList.contains('expanded');
+
+  // Collapse any previously open row
+  if (_ecViewStock && _ecViewStock !== ticker) {
+    const pr = document.getElementById(`ec-row-${_ecViewStock}`);
+    const pd = document.getElementById(`ec-detail-${_ecViewStock}`);
+    if (pr) pr.classList.remove('expanded');
+    if (pd) pd.style.display = 'none';
   }
+
+  if (isOpen) {
+    row.classList.remove('expanded');
+    detail.style.display = 'none';
+    _ecViewStock = null;
+  } else {
+    row.classList.add('expanded');
+    row.style.borderRadius = '12px 12px 0 0';
+    detail.style.display = '';
+    _ecViewStock = ticker;
+    if (!detail.dataset.loaded) {
+      detail.innerHTML = `<div class="empty" style="padding:16px 0">Loading ${esc(ticker)}…</div>`;
+      _loadEcStockDetail(ticker, detail, 0);
+    }
+  }
+
+  // Reset border-radius on previously expanded row
+  if (isOpen) row.style.borderRadius = '';
 }
 
-function backToEarningsCal() {
-  _ecViewStock = null;
-  _renderEcList();
+async function _loadEcStockDetail(ticker, el, attempt) {
+  // Only proceed if this row is still expanded
+  if (_ecViewStock !== ticker) return;
+  try {
+    // Clear cached error so loadOne will retry the network call
+    if (!S.data[ticker] || S.data[ticker].err) {
+      delete S.data[ticker];
+      await loadOne(ticker);
+    }
+    const d = S.data[ticker];
+    if (!d || d.err) throw new Error('no data');
+    if (_ecViewStock !== ticker) return; // row was closed while loading
+    el.innerHTML = buildCard(d, 1, true);
+    el.dataset.loaded = '1';
+  } catch (_) {
+    if (_ecViewStock !== ticker) return;
+    const next = attempt + 1;
+    if (next <= 8) {
+      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(attempt ${next})</small></div>`;
+      setTimeout(() => _loadEcStockDetail(ticker, el, next), 2000);
+    } else {
+      el.innerHTML = `<div class="empty" style="color:var(--red);padding:14px 0">Could not load ${esc(ticker)}.
+        <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+          onclick="delete document.getElementById('ec-detail-${ticker}').dataset.loaded;_loadEcStockDetail('${ticker}',document.getElementById('ec-detail-${ticker}'),0)">
+          Retry</button></div>`;
+    }
+  }
 }
 
 function setSortMode(mode) {
