@@ -1,0 +1,27 @@
+name: Fetch Earnings Calendar
+
+on:
+  schedule:
+    # Runs every 2 hours Mon–Fri during US market hours (12:00–22:00 UTC = 8am–6pm ET)
+    - cron: '0 12,14,16,18,20,22 * * 1-5'
+  workflow_dispatch: # allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch earnings data
+        run: python .github/scripts/fetch_earnings.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data/earnings/
+          git diff --cached --quiet || git commit -m "chore: update earnings calendar cache [skip ci]"
+          git push

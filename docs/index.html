@@ -3318,10 +3318,20 @@ async function loadEarningsCal(dateStr) {
 
   try {
     const ds  = _ecDateISO(_ecDate);
-    // Nasdaq earnings calendar — public API, no auth required
-    // Returns rows with symbol, name, time (time-before-open / time-after-hours), eps_forecast, eps_actual, surprise_pct
-    const url  = `https://api.nasdaq.com/api/calendar/earnings?date=${ds}`;
-    const json = await fetchJProxy(url, 0);
+    // Try static pre-cached file first (same-origin, no CORS, updated every 2h by GitHub Actions).
+    // Fall back to live Nasdaq API via proxy if cache miss (e.g. date beyond cache window).
+    const staticUrl = `./data/earnings/${ds}.json`;
+    const liveUrl   = `https://api.nasdaq.com/api/calendar/earnings?date=${ds}`;
+    let json = null;
+    try {
+      const r = await fetch(staticUrl, { cache: 'no-store' });
+      if (r.ok) {
+        const text = await r.text();
+        const parsed = JSON.parse(text);
+        if (parsed?.data?.rows) json = parsed;
+      }
+    } catch {}
+    if (!json) json = await fetchJProxy(liveUrl, 0);
     const rows = json?.data?.rows ?? [];
     _ecData = rows.map(r => {
       const mcNum = _parseMarketCap(r.marketCap);
