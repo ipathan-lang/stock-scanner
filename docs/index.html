@@ -245,12 +245,44 @@
 
     /* Prediction */
     .pred-row {
-      margin-top: 10px;
-      font-size: 0.8rem;
-      padding-top: 9px;
-      border-top: 1px solid rgba(19,43,67,.06);
+      margin: 8px 0 4px;
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      background: rgba(19,43,67,.04);
+      border-radius: 7px;
       font-weight: 600;
     }
+
+    /* ── Inline 24h Forecast ── */
+    .forecast-inline {
+      margin: 8px 0 6px;
+      padding: 10px 14px;
+      background: rgba(59,130,246,.07);
+      border-left: 3px solid #3b82f6;
+      border-radius: 0 8px 8px 0;
+    }
+    .fi-title { font-size: 0.62rem; font-weight: 800; color: #3b82f6; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
+    .fi-main  { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 3px; }
+    .fi-pct   { font-size: 1.05rem; font-weight: 900; }
+    .fi-range { font-size: 0.71rem; color: var(--muted); }
+    .fi-target{ font-size: 0.78rem; font-weight: 700; color: var(--ink); }
+    .fi-sub   { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Card section divider ── */
+    .card-divider { height: 1px; background: rgba(19,43,67,.07); margin: 8px 0; }
+    .card-sec-title {
+      font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .07em; color: var(--muted); margin-bottom: 5px; margin-top: 10px;
+    }
+
+    /* ── Always-visible news ── */
+    .card-news { margin-top: 6px; }
+
+    /* ── 52-week range ── */
+    .yr-range-inline { margin: 4px 0 8px; }
+
+    /* ── Subtle hold bar wrapper ── */
+    .hold-wrap { margin: 6px 0; }
 
     /* ── Sudden Move Banner ── */
     .sudden-move-banner {
@@ -3822,6 +3854,74 @@ function buildForecastDrivers(d, stats) {
     </div>`;
 }
 
+// ── Inline 24h plain-English forecast (same math as buildForecastSVG, no chart) ──
+function buildInlineForecast(d) {
+  const atrPct      = d.atrPct        ?? 1.5;
+  const netScore    = clamp(d.netScore ?? 0, -15, 15);
+  const rsi         = d.rsi           ?? 50;
+  const macdDiff    = d.macdDiff      ?? 0;
+  const macdSlope   = d.macdSlope     ?? 0;
+  const ema20       = d.ema20         ?? d.price;
+  const price       = d.price;
+  const volumeRatio = d.volumeRatio   ?? 1.0;
+  const todayRangePct = d.todayRangePct ?? 0;
+  const changePct   = d.changePct     ?? 0;
+  const dcScore     = d.dcScore       ?? 0;
+  const gapAndFade  = d.gapAndFade    ?? false;
+
+  const scoreReturn  = (netScore / 15) * atrPct * 0.6;
+  const rsiAdj       = rsi > 70 ? -(rsi - 70) / 30 * atrPct * 0.35
+                     : rsi < 30 ?  (30 - rsi) / 30 * atrPct * 0.35 : 0;
+  const scoreDir     = Math.sign(netScore) || 1;
+  const macdAligned  = Math.sign(macdDiff) === scoreDir;
+  const macdAdj      = macdAligned
+    ?  Math.min(Math.abs(macdSlope) * 15 * (atrPct / 3),  atrPct * 0.3)
+    : -Math.min(Math.abs(macdSlope) * 10 * (atrPct / 3),  atrPct * 0.2);
+  const emaGapPct    = (price - ema20) / Math.max(price, 1) * 100;
+  const emaAdj       = -emaGapPct * 0.07;
+  const volAdj       = volumeRatio > 1.5 ?  scoreReturn * 0.12
+                     : volumeRatio < 0.6 ? -Math.abs(scoreReturn) * 0.15 : 0;
+  const atrBudgetAdj = todayRangePct > 1.5 ? -Math.abs(scoreReturn) * 0.40
+                     : todayRangePct > 1.0  ? -Math.abs(scoreReturn) * 0.20 : 0;
+  const rawReturn    = scoreReturn + rsiAdj + macdAdj + emaAdj + volAdj + atrBudgetAdj;
+  const exp          = clamp(rawReturn, -atrPct * 1.8, atrPct * 1.8);
+
+  const bandHalf  = atrPct * 0.6;
+  const lo        = exp - bandHalf;
+  const hi        = exp + bandHalf;
+  const target    = price * (1 + exp / 100);
+  const isUp      = exp >= 0;
+  const color     = isUp ? 'var(--green)' : 'var(--red)';
+  const arrow     = isUp ? '▲' : '▼';
+  const sign      = exp >= 0 ? '+' : '';
+
+  const isReversal = (rsi > 72 && changePct > 0 && macdSlope < 0)
+                  || (rsi < 28 && changePct < 0 && macdSlope > 0);
+  const isMomentum = Math.abs(netScore) >= 5 && macdAligned && dcScore >= 3;
+  const isChoppy   = Math.abs(netScore) <= 2;
+  const pattern    = isReversal ? 'Reversal snap' : gapAndFade ? 'Gap fade'
+                   : isMomentum ? 'Momentum' : isChoppy ? 'Choppy range' : 'Steady';
+
+  // Plain-English drivers (top 3 most impactful)
+  const drivers = [];
+  if (Math.abs(rsiAdj) > 0.1)    drivers.push(rsi > 65 ? 'RSI overbought ↓' : rsi < 35 ? 'RSI oversold ↑' : 'RSI neutral');
+  if (macdAligned && Math.abs(macdAdj) > 0.05) drivers.push(`MACD ${macdDiff >= 0 ? 'bullish ↑' : 'bearish ↓'}`);
+  if (Math.abs(emaAdj) > 0.05)   drivers.push(price >= ema20 ? 'Above EMA20 ↑' : 'Below EMA20 ↓');
+  if (volumeRatio > 1.4)          drivers.push(`Vol ${volumeRatio.toFixed(1)}× confirms`);
+  if (drivers.length === 0)       drivers.push('Signals mixed');
+
+  return `
+    <div class="forecast-inline">
+      <div class="fi-title">📈 24H Outlook &nbsp;·&nbsp; ${pattern}</div>
+      <div class="fi-main">
+        <span class="fi-pct" style="color:${color}">${arrow} ${sign}${exp.toFixed(1)}%</span>
+        <span class="fi-range">range ${lo >= 0 ? '+' : ''}${lo.toFixed(1)}% to ${hi >= 0 ? '+' : ''}${hi.toFixed(1)}%</span>
+        <span class="fi-target">&nbsp;· target ~$${target.toFixed(2)}</span>
+      </div>
+      <div class="fi-sub">${drivers.join(' &nbsp;·&nbsp; ')}</div>
+    </div>`;
+}
+
 // ══════════════════════════════════════════════════════════════
 function buildCard(d, rank, pinned) {
   const sig  = signal(d);
@@ -3887,7 +3987,6 @@ function buildCard(d, rank, pinned) {
         `</div>`).join('')
     : `<div class="news-item">No recent headlines</div>`;
 
-  const detailId = `d-${d.ticker}`;
   const rankHtml = pinned
     ? `<span style="font-size:1.1rem">&#128204;</span>`
     : `<div class="rank-no">#${rank}</div>`;
@@ -3983,26 +4082,27 @@ function buildCard(d, rank, pinned) {
 
       ${buildHoldBar(d, atrTag)}
 
+      ${buildInlineForecast(d)}
+
       ${buildEarningsRow(d)}
       ${buildFundamentalsRow(d)}
       ${buildInsiderSection(d)}
 
-      <div>
-        <button class="detail-btn" onclick="toggleDetail('${detailId}')">&#9660; Details &amp; News</button>
-        <button class="forecast-btn" onclick="openForecast('${esc(d.ticker)}')">&#128200; Forecast</button>
-        <div class="detail-body" id="${detailId}">
-          ${bullPills || bearPills ? `<div class="drivers">${bullPills}${bearPills}</div>` : ''}
-          ${d.yearHigh && d.yearLow ? `<div class="yr-range">
-            <div style="font-size:.67rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">52-Week Range</div>
-            <div class="yr-bar-wrap"><div class="yr-bar-fill" style="width:${yrPct ?? 50}%"></div></div>
-            <div class="yr-labels">
-              <span>Low $${d.yearLow.toFixed(2)}</span>
-              ${yrPct != null ? `<span style="color:var(--ink);font-weight:700">${yrPct}% of range</span>` : ''}
-              <span>High $${d.yearHigh.toFixed(2)}</span>
-            </div>
-          </div>` : ''}
-          <div class="news-wrap">${newsHtml}</div>
+      ${bullPills || bearPills ? `<div class="drivers" style="margin-top:8px">${bullPills}${bearPills}</div>` : ''}
+
+      ${d.yearHigh && d.yearLow ? `<div class="yr-range" style="margin-top:6px">
+        <div style="font-size:.67rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">52-Week Range</div>
+        <div class="yr-bar-wrap"><div class="yr-bar-fill" style="width:${yrPct ?? 50}%"></div></div>
+        <div class="yr-labels">
+          <span>Low $${d.yearLow.toFixed(2)}</span>
+          ${yrPct != null ? `<span style="color:var(--ink);font-weight:700">${yrPct}% of range</span>` : ''}
+          <span>High $${d.yearHigh.toFixed(2)}</span>
         </div>
+      </div>` : ''}
+
+      <div class="card-news">
+        <div class="card-sec-title">&#128240; Latest News</div>
+        ${newsHtml}
       </div>
     </div>`;
 }
