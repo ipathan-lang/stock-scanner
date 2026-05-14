@@ -1976,8 +1976,6 @@ const PROXIES = [
   v => `https://api.allorigins.win/raw?url=${encodeURIComponent(v)}`,
   // allorigins /get — JSON-wrapped {contents:"..."}; _proxyParse unwraps it
   v => `https://api.allorigins.win/get?url=${encodeURIComponent(v)}`,
-  // thingproxy — raw body passthrough
-  v => `https://thingproxy.freeboard.io/fetch/${v}`,
 ];
 
 // Unwrap proxy responses: allorigins /get returns {contents:"json-string"};
@@ -3476,7 +3474,7 @@ function toggleEarningsRow(ticker) {
   } else {
     row.classList.add('expanded');
     row.style.borderRadius = '12px 12px 0 0';
-    detail.style.display = '';
+    detail.style.display = 'block';
     _ecViewStock = ticker;
     if (!detail.dataset.loaded) {
       detail.innerHTML = `<div class="empty" style="padding:16px 0">Loading ${esc(ticker)}…</div>`;
