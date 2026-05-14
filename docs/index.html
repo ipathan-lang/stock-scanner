@@ -2220,31 +2220,48 @@ async function fetchStock(ticker) {
   const comboUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents,defaultKeyStatistics,financialData,insiderHolders,netSharePurchaseActivity&formatted=false`;
   const nasdaqUrl = `https://api.nasdaq.com/api/company/${ticker}/earnings-surprise`;
 
-  // Use cached chart if fresh — avoids re-fetching 2yr OHLCV every rotation
-  let chart;
-  try {
-    const _cc = JSON.parse(localStorage.getItem(_cKey) || 'null');
-    if (_cc && Date.now() - _cc.ts < CHART_TTL) {
-      chart = _cc.data;
-    } else {
-      chart = await fetchJ(chartUrl, ps);
-      try { localStorage.setItem(_cKey, JSON.stringify({ ts: Date.now(), data: chart })); } catch {}
-    }
-  } catch { chart = await fetchJ(chartUrl, ps); }
+  let chart, news, nasdaqData, comboData;
 
-  // ETFs: skip quoteSummary & nasdaq — they have no insider/fundamentals/earnings-surprise data
-  // Regular stocks: one combined quoteSummary call (was two) + nasdaq = 3 total proxy calls
-  let news, nasdaqData, comboData;
-  if (isETF) {
-    news = await fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null);
-    nasdaqData = null;
-    comboData  = null;
-  } else {
-    [news, nasdaqData, comboData] = await Promise.all([
-      fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null),
-      fetchJProxy(nasdaqUrl, ps).catch(() => null),
-      fetchJProxy(comboUrl, (ps + 2) % PROXIES.length).catch(() => null)
-    ]);
+  // ── Try same-origin static cache first (GitHub Actions fetches server-side, no CORS) ──
+  let _usedStatic = false;
+  try {
+    const _sr = await fetch(`./data/stocks/${ticker}.json`);
+    if (_sr.ok) {
+      const _sf = await _sr.json();
+      if (_sf._fetched && (Date.now() - _sf._fetched) < 8 * 3600000) { // < 8 hours old
+        chart      = _sf.chart;
+        comboData  = _sf.combo ?? null;
+        news       = _sf.news  ?? null;
+        nasdaqData = null;
+        _usedStatic = true;
+        try { localStorage.setItem(_cKey, JSON.stringify({ ts: _sf._fetched, data: chart })); } catch {}
+      }
+    }
+  } catch {}
+
+  if (!_usedStatic) {
+    // Fallback: proxy-based fetch (may fail due to CORS/rate limits)
+    try {
+      const _cc = JSON.parse(localStorage.getItem(_cKey) || 'null');
+      if (_cc && Date.now() - _cc.ts < CHART_TTL) {
+        chart = _cc.data;
+      } else {
+        chart = await fetchJ(chartUrl, ps);
+        try { localStorage.setItem(_cKey, JSON.stringify({ ts: Date.now(), data: chart })); } catch {}
+      }
+    } catch { chart = await fetchJ(chartUrl, ps); }
+
+    if (isETF) {
+      news = await fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null);
+      nasdaqData = null;
+      comboData  = null;
+    } else {
+      [news, nasdaqData, comboData] = await Promise.all([
+        fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null),
+        fetchJProxy(nasdaqUrl, ps).catch(() => null),
+        fetchJProxy(comboUrl, (ps + 2) % PROXIES.length).catch(() => null)
+      ]);
+    }
   }
 
   // Aliases — rest of function unchanged

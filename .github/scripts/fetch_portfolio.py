@@ -1,0 +1,88 @@
+"""
+Fetches Yahoo Finance chart + summary + news for each portfolio stock.
+Saves raw data to docs/data/stocks/TICKER.json (same-origin, no CORS).
+Run by GitHub Actions every 2h on weekdays.
+"""
+import os, json, time, sys
+import urllib.request, urllib.error
+
+PORTFOLIO = [
+    'AMAT','MSFT','AMZN','QCOM','BOOT','FIG','KHC','GLD','VXUS','CEG',
+    'AAPL','ZETA','TSLA','NOW','GFS','MA','PANW','META','GS','SPY',
+    'CVS','UNH','PBR','ELV','TSM','NEE','KLAC','XLF','XLV','ORCL',
+    'VTI','AMD','CRM','NBIS','MU','DELL','ON','PLTR','BN',
+]
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://finance.yahoo.com/',
+    'Origin': 'https://finance.yahoo.com',
+}
+
+def fetch_json(url, timeout=20):
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode('utf-8'))
+
+def fetch_ticker(ticker):
+    chart_url = (
+        f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}'
+        f'?interval=1d&range=2y&includePrePost=false&events=earnings'
+    )
+    combo_url = (
+        f'https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}'
+        f'?modules=calendarEvents,defaultKeyStatistics,financialData,'
+        f'insiderHolders,netSharePurchaseActivity&formatted=false'
+    )
+    news_url = f'https://query2.finance.yahoo.com/v1/finance/search?q={ticker}&newsCount=3'
+
+    chart = fetch_json(chart_url)
+    time.sleep(0.6)
+
+    combo = None
+    try:
+        combo = fetch_json(combo_url)
+        time.sleep(0.6)
+    except Exception as e:
+        print(f'  combo WARN: {e}')
+
+    news = None
+    try:
+        news = fetch_json(news_url)
+        time.sleep(0.3)
+    except Exception as e:
+        print(f'  news WARN: {e}')
+
+    return {
+        'chart': chart,
+        'combo': combo,
+        'news':  news,
+        '_fetched': int(time.time() * 1000),
+    }
+
+def main():
+    out_dir = os.path.join('docs', 'data', 'stocks')
+    os.makedirs(out_dir, exist_ok=True)
+
+    errors = []
+    for ticker in PORTFOLIO:
+        print(f'Fetching {ticker}...', end=' ', flush=True)
+        try:
+            data = fetch_ticker(ticker)
+            path = os.path.join(out_dir, f'{ticker}.json')
+            with open(path, 'w') as f:
+                json.dump(data, f, separators=(',', ':'))
+            print('OK')
+        except Exception as e:
+            print(f'ERROR: {e}')
+            errors.append(ticker)
+        time.sleep(1.2)  # be polite to Yahoo
+
+    if errors:
+        print(f'\nFailed: {errors}', file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()
