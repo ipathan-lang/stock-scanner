@@ -4764,6 +4764,7 @@ async function refreshAll() {
     : shuffle(allTickers);
 
   for (let i = 0; i < tickers.length; i += 2) {
+    if (_sortMode === 'earnings') break;  // user switched to earnings tab — stop hammering proxies
     await Promise.all(tickers.slice(i, i + 2).map(t => loadOne(t)));
     renderList();
     renderMarketBar();
