@@ -3703,16 +3703,11 @@ async function _loadPortfolioDetail(ticker, el, attempt) {
     el.dataset.loaded = '1';
   } catch (_) {
     if (_portViewStock !== ticker) return;
-    const next = attempt + 1;
-    if (next <= 5) {
-      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(retry ${next}/5)</small></div>`;
-      setTimeout(() => _loadPortfolioDetail(ticker, el, next), 6000);
-    } else {
-      el.innerHTML = `<div class="empty" style="color:var(--red);padding:14px 0">Could not load ${esc(ticker)}.
-        <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
-          onclick="delete document.getElementById('port-detail-${ticker}').dataset.loaded;_loadPortfolioDetail('${ticker}',document.getElementById('port-detail-${ticker}'),0)">
-          Retry</button></div>`;
-    }
+    // No auto-retry — static files should load instantly; cache refreshes every 2h.
+    el.innerHTML = `<div class="empty" style="color:var(--muted);padding:14px 0">Data for ${esc(ticker)} unavailable — cache updates every 2h.
+      <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+        onclick="delete S.data['${ticker}'];delete document.getElementById('port-detail-${ticker}').dataset.loaded;_loadPortfolioDetail('${ticker}',document.getElementById('port-detail-${ticker}'),0)">
+        Retry</button></div>`;
   }
 }
 
@@ -3724,14 +3719,16 @@ async function loadTrends() {
   const body = document.getElementById('trends-body');
   if (body) body.innerHTML = '<div class="empty">Fetching trending stocks…</div>';
   try {
-    const url  = 'https://query1.finance.yahoo.com/v1/finance/trending/US?count=25';
-    const json = await fetchJProxy(url, 0);
-    const quotes = json?.finance?.result?.[0]?.quotes ?? [];
-    if (!quotes.length) throw new Error('empty');
-    _trendsData = quotes.map(q => q.symbol).filter(Boolean);
+    // Load from static file (GitHub Actions fetches server-side, no CORS)
+    const resp = await fetch('./data/trending.json');
+    if (!resp.ok) throw new Error('static 404');
+    const json = await resp.json();
+    const symbols = json?.symbols ?? [];
+    if (!symbols.length) throw new Error('empty');
+    _trendsData = symbols;
     renderTrends();
   } catch (_) {
-    if (body) body.innerHTML = `<div class="empty" style="color:var(--red)">Could not load trending stocks.
+    if (body) body.innerHTML = `<div class="empty" style="color:var(--red)">Trending data unavailable — updates every 2h on weekdays.
       <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
         onclick="_trendsData=null;loadTrends()">Retry</button></div>`;
   }
@@ -3796,16 +3793,12 @@ async function _loadTrendsDetail(ticker, el, attempt) {
     el.dataset.loaded = '1';
   } catch (_) {
     if (_trendsViewStock !== ticker) return;
-    const next = attempt + 1;
-    if (next <= 5) {
-      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(retry ${next}/5)</small></div>`;
-      setTimeout(() => _loadTrendsDetail(ticker, el, next), 6000);
-    } else {
-      el.innerHTML = `<div class="empty" style="color:var(--red);padding:14px 0">Could not load ${esc(ticker)}.
-        <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
-          onclick="delete document.getElementById('trend-detail-${ticker}').dataset.loaded;_loadTrendsDetail('${ticker}',document.getElementById('trend-detail-${ticker}'),0)">
-          Retry</button></div>`;
-    }
+    // No auto-retry — static files should load instantly or not at all.
+    // Data refreshes every 2h via GitHub Actions.
+    el.innerHTML = `<div class="empty" style="color:var(--muted);padding:14px 0">Data for ${esc(ticker)} unavailable — cache updates every 2h.
+      <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+        onclick="delete S.data['${ticker}'];delete document.getElementById('trend-detail-${ticker}').dataset.loaded;_loadTrendsDetail('${ticker}',document.getElementById('trend-detail-${ticker}'),0)">
+        Retry</button></div>`;
   }
 }
 
