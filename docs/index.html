@@ -1108,6 +1108,20 @@
       font-size: 0.8rem; font-weight: 700; color: var(--ink); cursor: pointer;
     }
     .ec-back-btn:hover { background: rgba(30,99,217,.08); color: var(--blue); }
+    .ec-ticker-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .ec-meta-chip {
+      font-size: 0.62rem; font-weight: 700; padding: 1px 7px; border-radius: 20px;
+      background: rgba(19,43,67,.07); color: var(--muted); border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .ec-meta-chip.mcap  { background: rgba(30,99,217,.08); color: var(--blue); border-color: rgba(30,99,217,.2); }
+    .ec-meta-chip.fq    { background: rgba(139,92,246,.08); color: #5b21b6; border-color: rgba(139,92,246,.2); }
+    .ec-meta-row {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin-top: 4px; font-size: 0.73rem;
+    }
+    .ec-ly { font-size: 0.68rem; color: var(--muted); }
+    .ec-ly b { color: var(--ink); }
   </style>
 </head>
 <body>
@@ -3234,6 +3248,18 @@ function _renderEcWeekRow() {
   }).join('');
 }
 
+function _parseMarketCap(str) {
+  if (!str || str === '--') return 0;
+  const s = str.replace(/,/g, '').trim();
+  const n = parseFloat(s);
+  if (isNaN(n)) return 0;
+  if (s.includes('T')) return n * 1e12;
+  if (s.includes('B')) return n * 1e9;
+  if (s.includes('M')) return n * 1e6;
+  if (s.includes('K')) return n * 1e3;
+  return n;
+}
+
 async function loadEarningsCal(dateStr) {
   if (dateStr) _ecDate = new Date(dateStr + 'T12:00:00');
   if (_ecLoading) return;
@@ -3257,21 +3283,28 @@ async function loadEarningsCal(dateStr) {
     const url  = `https://api.nasdaq.com/api/calendar/earnings?date=${ds}`;
     const json = await fetchJProxy(url, 0);
     const rows = json?.data?.rows ?? [];
-    _ecData = rows.map(r => ({
-      ticker:            r.symbol,
-      companyshortName:  r.name,
-      startdatetimetype: r.time === 'time-before-open' ? 'BMO'
-                       : r.time === 'time-after-hours'  ? 'AMC' : 'TBD',
-      epsestimate:    (r.eps_forecast && r.eps_forecast !== '--') ? parseFloat(r.eps_forecast)  : null,
-      epsactual:      (r.eps_actual   && r.eps_actual   !== '--') ? parseFloat(r.eps_actual)    : null,
-      epssurprisepct: (r.surprise_pct && r.surprise_pct !== '--') ? parseFloat(r.surprise_pct) : null,
-    }));
+    _ecData = rows.map(r => {
+      const mcNum = _parseMarketCap(r.market_cap);
+      return {
+        ticker:            r.symbol,
+        companyshortName:  r.name,
+        startdatetimetype: r.time === 'time-before-open' ? 'BMO'
+                         : r.time === 'time-after-hours'  ? 'AMC' : 'TBD',
+        epsestimate:    (r.eps_forecast         && r.eps_forecast         !== '--') ? parseFloat(r.eps_forecast)  : null,
+        epsactual:      (r.eps_actual           && r.eps_actual           !== '--') ? parseFloat(r.eps_actual)    : null,
+        epssurprisepct: (r.surprise_pct         && r.surprise_pct         !== '--') ? parseFloat(r.surprise_pct) : null,
+        marketCap:      (r.market_cap           && r.market_cap           !== '--') ? r.market_cap               : null,
+        lastYearEps:    (r.last_year_eps        && r.last_year_eps        !== '--') ? r.last_year_eps            : null,
+        fiscalQuarter:  (r.fiscal_quarter_ending && r.fiscal_quarter_ending !== '--') ? r.fiscal_quarter_ending : null,
+        _mcNum:         mcNum,
+      };
+    });
 
-    // Sort by EPS estimate descending; null estimates go last
+    // Sort by market cap desc (business value), then EPS estimate desc as tiebreak
     _ecData.sort((a, b) => {
-      const ea = a.epsestimate ?? -9999;
-      const eb = b.epsestimate ?? -9999;
-      return eb - ea;
+      const mcDiff = (b._mcNum ?? 0) - (a._mcNum ?? 0);
+      if (mcDiff !== 0) return mcDiff;
+      return (b.epsestimate ?? -9999) - (a.epsestimate ?? -9999);
     });
     _renderEcList();
   } catch (_) {
@@ -3330,6 +3363,17 @@ function _buildEcRow(row) {
   const timingLabel = timing === 'bmo' ? 'BMO' : timing === 'amc' ? 'AMC'
                     : (row.startdatetimetype || 'TBD');
 
+  // Market cap chip
+  const mcapHtml = row.marketCap
+    ? `<span class="ec-meta-chip mcap">&#x1F4B0; ${esc(row.marketCap)}</span>`
+    : '';
+
+  // Fiscal quarter chip
+  const fqHtml = row.fiscalQuarter
+    ? `<span class="ec-meta-chip fq">Q: ${esc(row.fiscalQuarter)}</span>`
+    : '';
+
+  // EPS actual + surprise
   let epsActHtml = '';
   if (row.epsactual != null) {
     const actStr  = `$${(+row.epsactual).toFixed(2)}`;
@@ -3341,15 +3385,26 @@ function _buildEcRow(row) {
     epsActHtml = `&nbsp;<span class="ec-eps-label">Act:</span> <span class="ec-eps-val ${surpCls}">${actStr}</span> ${surpTag}`;
   }
 
+  // Last year EPS
+  const lyHtml = row.lastYearEps
+    ? `<span class="ec-ly">LY: <b>$${esc(row.lastYearEps)}</b></span>`
+    : '';
+
   return `<div class="ec-row" onclick="showEarningsStock('${ticker}')">
     <div class="ec-row-main">
-      <div class="ec-row-left">
-        <div class="ec-ticker">${ticker}</div>
+      <div class="ec-row-left" style="flex:1;min-width:0">
+        <div class="ec-ticker-line">
+          <span class="ec-ticker">${ticker}</span>
+          ${mcapHtml}${fqHtml}
+          <span class="ec-timing ${timing}" style="margin-left:auto">${timingLabel}</span>
+        </div>
         <div class="ec-company">${name}</div>
-      </div>
-      <div class="ec-row-right">
-        <div class="ec-eps"><span class="ec-eps-label">EPS Est:</span> <span class="ec-eps-val">${epsEst}</span>${epsActHtml}</div>
-        <span class="ec-timing ${timing}">${timingLabel}</span>
+        <div class="ec-meta-row">
+          <span class="ec-eps-label">EPS Est:</span>
+          <span class="ec-eps-val">${epsEst}</span>
+          ${epsActHtml}
+          ${lyHtml}
+        </div>
       </div>
     </div>
     <div class="ec-row-arrow">&#x203A;</div>
