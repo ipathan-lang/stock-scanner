@@ -776,6 +776,33 @@
     }
     .info-btn:hover { background: rgba(30,99,217,.15); border-color: var(--blue); }
 
+    /* ── LIVE / CLOSED badge ── */
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 20px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .live-badge.open  { background: rgba(22,163,74,.15); color: #15803d; border: 1px solid rgba(22,163,74,.35); }
+    .live-badge.closed{ background: rgba(100,116,139,.1); color: #64748b; border: 1px solid rgba(100,116,139,.25); }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #16a34a;
+      animation: pulse-dot 1.4s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: .5; transform: scale(.75); }
+    }
+
     /* ── MODAL ── */
     .modal-bg {
       display: none;
@@ -2664,7 +2691,7 @@ async function fetchStock(ticker) {
     insiderActivity,
     yearHigh, yearLow, ret20, ret5, consecutiveDownDays,
     livePos, weekHighPct, wHigh5, wLow5,
-    volumeRatio,
+    volumeRatio, avgVol20: avgVol,
     openChangePct, gapAndFade,
     atrPct, atrRatio, todayRangePct, macdSlope,
     dayConviction, dcScore, dcReasons,
@@ -3971,6 +3998,102 @@ async function loadOne(ticker) {
 }
 
 // Called by rolling timer — silently refreshes next batch of 5 stocks (randomised order)
+// ── Market Hours (US Eastern) ──────────────────────────────────────────────────
+function isMarketHours() {
+  const now = new Date();
+  const day = now.getDay();          // 0=Sun, 6=Sat
+  if (day === 0 || day === 6) return false;
+  const et  = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const tot = et.getHours() * 60 + et.getMinutes();
+  return tot >= 570 && tot < 960;   // 9:30 AM – 4:00 PM ET
+}
+
+function updateLiveBadge() {
+  const el = document.getElementById('live-badge');
+  if (!el) return;
+  if (isMarketHours()) {
+    el.style.display = '';
+    el.innerHTML = '<span class="live-dot"></span>LIVE';
+    el.className = 'live-badge open';
+  } else {
+    el.style.display = '';
+    el.innerHTML = 'Market Closed';
+    el.className = 'live-badge closed';
+  }
+}
+
+// ── Live Price Refresh (every 60 s during market hours) ─────────────────────
+// Fetches current price/vol/change for ALL stocks at once via Yahoo Finance
+// v7 quote API (batched 20 at a time). Updates price-sensitive display fields
+// without recomputing heavy indicators. Full indicator refresh still happens
+// every 20 s via rotateNext().
+async function refreshLivePrices() {
+  if (!isMarketHours()) { updateLiveBadge(); return; }
+  updateLiveBadge();
+
+  const allTickers = [...new Set([...S.watchlist, ...(S.pinnedTicker ? [S.pinnedTicker] : [])])];
+  const loaded = allTickers.filter(t => S.data[t] && !S.data[t].err);
+  if (!loaded.length) return;
+
+  const BATCH = 20;
+  const fields = 'regularMarketPrice,regularMarketChangePercent,regularMarketVolume,' +
+                 'regularMarketDayHigh,regularMarketDayLow,regularMarketOpen,' +
+                 'regularMarketPreviousClose';
+
+  for (let i = 0; i < loaded.length; i += BATCH) {
+    const batch   = loaded.slice(i, i + BATCH);
+    const symbols = batch.join(',');
+    const url     = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=${fields}&formatted=false`;
+    try {
+      const json   = await fetchJProxy(url, PROXIES);
+      const quotes = json?.quoteResponse?.result ?? [];
+
+      for (const q of quotes) {
+        const d = S.data[q.symbol];
+        if (!d || d.err) continue;
+
+        const price   = q.regularMarketPrice;
+        const prevClose = q.regularMarketPreviousClose || d.price;
+        if (!price || price <= 0) continue;
+
+        d.price     = price;
+        d.changePct = q.regularMarketChangePercent ?? d.changePct;
+        d.change    = price - prevClose;
+        d.dayHigh   = q.regularMarketDayHigh  ?? d.dayHigh;
+        d.dayLow    = q.regularMarketDayLow   ?? d.dayLow;
+        d.marketOpen= q.regularMarketOpen     ?? d.marketOpen;
+        d.fetchedAt = Date.now();
+
+        // Recompute volume ratio against stored 20d avg
+        if (q.regularMarketVolume && d.avgVol20 && d.avgVol20 > 0)
+          d.volumeRatio = q.regularMarketVolume / d.avgVol20;
+
+        // Recompute intraday VWAP approximation
+        const o = d.marketOpen || price;
+        const h = d.dayHigh   || price;
+        const l = d.dayLow    || price;
+        const vwap = (o + h + l + price) / 4;
+        d.vwapDevPct = vwap > 0 ? ((price - vwap) / vwap) * 100 : 0;
+
+        // Recompute week position from stored week high/low
+        const wH = d.wHigh5, wL = d.wLow5;
+        if (wH && wL && wH !== wL)
+          d.livePos = Math.min(Math.max((price - wL) / (wH - wL), 0), 1);
+
+        // Refresh signal badge based on updated price/position
+        const sig = signal(d);
+        d.signalLabel = sig.label;
+        d.signalCls   = sig.cls;
+        d.conf        = sig.conf;
+        d.signalRank  = sig.rank ?? 6;
+      }
+    } catch (_) { /* silent — stale data is fine, full refresh will catch up */ }
+  }
+  renderAll();
+}
+
+let _liveTimer = null;
+
 async function rotateNext() {
   if (S.busy) return;
   if (!_rotList.length) buildRotList();
@@ -3994,7 +4117,12 @@ async function rotateNext() {
 
 function startRolling() {
   if (_rotTimer) clearInterval(_rotTimer);
-  _rotTimer = setInterval(rotateNext, 20000); // every 20 seconds
+  _rotTimer = setInterval(rotateNext, 20000); // every 20 seconds — full indicator refresh
+
+  // Live price refresh: every 60 s during market hours
+  if (_liveTimer) clearInterval(_liveTimer);
+  updateLiveBadge();
+  _liveTimer = setInterval(refreshLivePrices, 60000);
 }
 
 // Full load — fetches everything once then starts the rolling timer
@@ -4117,11 +4245,13 @@ async function searchStock() {
   }
 
   await refreshAll(); // starts rolling timer automatically
+  updateLiveBadge();  // show LIVE / Market Closed badge immediately
 
   // When tab becomes visible again, immediately catch up then ensure timer is running
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       rotateNext();
+      refreshLivePrices();  // immediate live price catch-up on tab focus
       if (!_rotTimer) startRolling();
     }
   });
