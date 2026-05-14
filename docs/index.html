@@ -1038,8 +1038,10 @@
     /* ── EARNINGS CALENDAR PANEL ── */
     #earnings-cal-panel { padding: 0 0 60px; }
     .ec-date-nav {
-      display: flex; align-items: center; gap: 8px;
       padding: 14px 0 12px; border-bottom: 1px solid var(--border); margin-bottom: 14px;
+    }
+    .ec-nav-top {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
     }
     .ec-nav-arrow {
       width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
@@ -1049,8 +1051,8 @@
     }
     .ec-nav-arrow:hover { background: rgba(30,99,217,.08); border-color: rgba(30,99,217,.25); }
     .ec-date-center { flex: 1; text-align: center; }
-    .ec-date-label  { font-size: 0.88rem; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
-    .ec-week-row    { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+    .ec-date-label  { flex: 1; text-align: center; font-size: 0.88rem; font-weight: 800; color: var(--ink); }
+    .ec-week-row    { display: flex; gap: 5px; justify-content: center; flex-wrap: nowrap; }
     .ec-day-btn {
       display: flex; flex-direction: column; align-items: center;
       padding: 6px 9px; border-radius: 10px; gap: 2px; cursor: pointer;
@@ -1342,14 +1344,14 @@
   <!-- EARNINGS CALENDAR PANEL -->
   <div id="earnings-cal-panel" style="display:none">
     <div class="ec-date-nav">
-      <button class="ec-nav-arrow" onclick="ecMoveDate(-7)" title="Previous week">&#x00AB;</button>
-      <button class="ec-nav-arrow" onclick="ecMoveDate(-1)" title="Previous day">&#x2039;</button>
-      <div class="ec-date-center">
+      <div class="ec-nav-top">
+        <button class="ec-nav-arrow" onclick="ecMoveDate(-7)" title="Previous week">&#x00AB;</button>
+        <button class="ec-nav-arrow" onclick="ecMoveDate(-1)" title="Previous day">&#x2039;</button>
         <div id="ec-date-label" class="ec-date-label">Loading…</div>
-        <div id="ec-week-row" class="ec-week-row"></div>
+        <button class="ec-nav-arrow" onclick="ecMoveDate(1)"  title="Next day">&#x203A;</button>
+        <button class="ec-nav-arrow" onclick="ecMoveDate(7)"  title="Next week">&#x00BB;</button>
       </div>
-      <button class="ec-nav-arrow" onclick="ecMoveDate(1)"  title="Next day">&#x203A;</button>
-      <button class="ec-nav-arrow" onclick="ecMoveDate(7)"  title="Next week">&#x00BB;</button>
+      <div id="ec-week-row" class="ec-week-row"></div>
     </div>
     <div id="ec-body"></div>
   </div>
