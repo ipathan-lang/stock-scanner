@@ -2000,7 +2000,7 @@ function tickerProxyStart(ticker) {
 
 async function fetchJ(url, proxyStart = 0) {
   const u  = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
-  const TO = AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined;
+  const TO = AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined;
 
   try {
     const r = await fetch(u, { cache: 'no-store', mode: 'cors', signal: TO });
@@ -2011,7 +2011,7 @@ async function fetchJ(url, proxyStart = 0) {
     if (i > 0) await new Promise(r => setTimeout(r, 400)); // pace requests
     const p = PROXIES[(proxyStart + i) % PROXIES.length];
     try {
-      const sig = AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined;
+      const sig = AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined;
       const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
       if (!r.ok) continue;
       const data = _proxyParse(await r.text());
@@ -2028,7 +2028,7 @@ async function fetchJProxy(url, proxyStart = 0) {
     if (i > 0) await new Promise(r => setTimeout(r, 400)); // pace requests
     const p = PROXIES[(proxyStart + i) % PROXIES.length];
     try {
-      const sig = AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined;
+      const sig = AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined;
       const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
       if (!r.ok) continue;
       const data = _proxyParse(await r.text());
@@ -3503,9 +3503,9 @@ async function _loadEcStockDetail(ticker, el, attempt) {
   } catch (_) {
     if (_ecViewStock !== ticker) return;
     const next = attempt + 1;
-    if (next <= 8) {
-      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(attempt ${next})</small></div>`;
-      setTimeout(() => _loadEcStockDetail(ticker, el, next), 2000);
+    if (next <= 5) {
+      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(retry ${next}/5)</small></div>`;
+      setTimeout(() => _loadEcStockDetail(ticker, el, next), 6000);
     } else {
       el.innerHTML = `<div class="empty" style="color:var(--red);padding:14px 0">Could not load ${esc(ticker)}.
         <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
