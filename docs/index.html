@@ -3252,10 +3252,20 @@ async function loadEarningsCal(dateStr) {
 
   try {
     const ds  = _ecDateISO(_ecDate);
-    // Yahoo Finance calendar earnings API — returns up to 100 stocks for the date
-    const url = `https://query2.finance.yahoo.com/v1/finance/calendar/earnings?from=${ds}&to=${ds}&day=${ds}&start=0&count=100`;
+    // Nasdaq earnings calendar — public API, no auth required
+    // Returns rows with symbol, name, time (time-before-open / time-after-hours), eps_forecast, eps_actual, surprise_pct
+    const url  = `https://api.nasdaq.com/api/calendar/earnings?date=${ds}`;
     const json = await fetchJProxy(url, 0);
-    _ecData = json?.finance?.result ?? [];
+    const rows = json?.data?.rows ?? [];
+    _ecData = rows.map(r => ({
+      ticker:            r.symbol,
+      companyshortName:  r.name,
+      startdatetimetype: r.time === 'time-before-open' ? 'BMO'
+                       : r.time === 'time-after-hours'  ? 'AMC' : 'TBD',
+      epsestimate:    (r.eps_forecast && r.eps_forecast !== '--') ? parseFloat(r.eps_forecast)  : null,
+      epsactual:      (r.eps_actual   && r.eps_actual   !== '--') ? parseFloat(r.eps_actual)    : null,
+      epssurprisepct: (r.surprise_pct && r.surprise_pct !== '--') ? parseFloat(r.surprise_pct) : null,
+    }));
 
     // Sort by EPS estimate descending; null estimates go last
     _ecData.sort((a, b) => {
