@@ -1186,7 +1186,7 @@
   <button class="info-btn" onclick="openInfo()" title="How scoring works">i</button>
   <div class="search-wrap">
     <input id="q" type="text" placeholder="Search ticker e.g. NVDA" maxlength="12"
-           onkeypress="if(event.key==='Enter') searchStock()" />
+           onkeydown="if(event.key==='Enter') searchStock()" />
     <button class="btn-p" onclick="searchStock()">Search</button>
     <button onclick="manualRefresh()" id="refresh-btn">&#x21BB; Refresh</button>
   </div>
@@ -1234,48 +1234,29 @@ const DEFAULT_WATCHLIST = [
   // ── Market-context ETFs (required for macro regime overlay)
   'SPY','QQQ','IWM','XLK','XLF',
 
-  // ── Mega-cap Tech (top by market cap)
+  // ── Mega-cap Tech
   'NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AVGO','ORCL','NFLX',
-  'NOW','UBER',                          // ServiceNow (~$200B), Uber (~$170B)
 
-  // ── Enterprise Software / Cloud
-  'ADBE','CRM','AMD',
-  'INTU','WDAY','NET','CRWD','DDOG',     // Intuit (~$180B), Workday (~$65B), Cloudflare (~$40B), CrowdStrike (~$80B), Datadog (~$40B)
+  // ── Enterprise Software / Cloud / AI
+  'ADBE','CRM','AMD','CRWD','NOW','PLTR','ARM','PANW','DDOG',
 
   // ── Semiconductors
-  'TSM','ASML','QCOM','TXN','MU',
-  'AMAT','KLAC','LRCX','ADI','MRVL',    // chip equipment + analog/networking
-  'INTC','ON',                           // Intel (~$90B), ON Semiconductor (~$25B)
-
-  // ── AI & Infrastructure
-  'DELL','IBM','SNOW','SMCI',            // AI servers, data platforms, enterprise AI
-  'APP','COIN',                          // AppLovin (~$100B+), Coinbase (~$50B+)
+  'TSM','ASML','QCOM','MU',
 
   // ── Financials
-  'JPM','V','MA','BAC','WFC','GS','MS','BRK-B',
-  'AXP','BLK','C','SCHW','SPGI',         // Amex (~$200B), BlackRock (~$130B), Citi (~$130B), Schwab (~$130B), S&P Global (~$150B)
+  'JPM','V','MA','BAC','BRK-B','GS',
 
   // ── Healthcare / Pharma
-  'LLY','UNH','JNJ','ABBV','MRK','AMGN','REGN','VRTX','ISRG',
-  'PFE','TMO','GILD','BSX',              // Pfizer (~$180B), Thermo Fisher (~$190B), Gilead (~$100B), Boston Scientific (~$140B)
+  'LLY','UNH','JNJ','ABBV','MRK',
 
   // ── Baby Food & Infant Nutrition
-  'ABT','KHC',                           // Abbott (Similac), Kraft Heinz (Heinz baby food)
+  'ABT','KHC',
 
   // ── Consumer / Retail
-  'WMT','COST','HD','PG',
-  'MCD','DIS','NKE','SBUX','LOW',        // McDonald's (~$220B), Disney (~$180B), Nike (~$70B), Starbucks (~$100B), Lowe's (~$140B)
-
-  // ── E-Commerce
-  'SHOP','MELI','BABA','PDD','CPNG',    // Shopify, MercadoLibre, Alibaba, PinDuoDuo/Temu, Coupang
-  'JD','ETSY',                           // JD.com (~$50B), Etsy (~$12B)
+  'WMT','COST','HD','MCD','SBUX',
 
   // ── Energy
-  'XOM','CVX','NEE',
-  'COP','SLB','OXY',                     // ConocoPhillips (~$130B), SLB (~$60B), Occidental (~$50B)
-
-  // ── High-conviction AI/Growth (large-cap leaders)
-  'PLTR','ARM','PANW'
+  'XOM','NEE'
 ];
 
 const MARKET_TICKERS = ['SPY','QQQ','IWM','XLK','XLF'];
@@ -4310,7 +4291,7 @@ async function rotateNext() {
 
 function startRolling() {
   if (_rotTimer) clearInterval(_rotTimer);
-  _rotTimer = setInterval(rotateNext, 20000); // every 20 seconds — full indicator refresh
+  _rotTimer = setInterval(rotateNext, 40000); // every 40 seconds — full indicator refresh
 
   // Live price refresh: every 60 s during market hours
   if (_liveTimer) clearInterval(_liveTimer);
@@ -4343,7 +4324,7 @@ async function refreshAll() {
     await Promise.all(tickers.slice(i, i + 5).map(t => loadOne(t)));
     renderList();
     renderMarketBar();
-    if (i + 5 < tickers.length) await new Promise(r => setTimeout(r, 350));
+    if (i + 5 < tickers.length) await new Promise(r => setTimeout(r, 500));
   }
 
   S.busy = false;
