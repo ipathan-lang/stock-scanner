@@ -1666,16 +1666,21 @@ function signal(d) {
   if (strongBullish) return { label: `🟢 Buy Now · ${pct}`,        cls: 'bg', conf, rank: 1 };
 
   // ── BULLISH  ──────────────────────────────────────────────────────────────────────
-  // Lower 50% of week range + real dip occurred + trend not broken + conf ≥ 65%
-  // Confidence ≥ 65 ensures selling exhaustion and volume are at least partly confirmed.
+  // Lower 50% of week range + real dip occurred + trend not broken.
+  // Two tiers:
+  //   Tier A (conf ≥ 65): classic dip-buy setup — deep exhaustion confirmed
+  //   Tier B (conf ≥ 50): post-rally first pullback — uptrend intact (r20>2), allowing
+  //                       a slightly higher position (≤0.60) so mid-range entries qualify
   const bullish =
-    conf >= 65 &&
     hasDip &&
     s >= 4 &&
-    pos <= 0.50 &&
     r20 > -3 &&
     (d.rsi ?? 50) < 72 &&
-    !(d.gapAndFade);
+    !(d.gapAndFade) &&
+    (
+      (conf >= 65 && pos <= 0.50) ||
+      (conf >= 50 && pos <= 0.60 && r20 > 2)
+    );
 
   if (bullish) return { label: `🟢 Good Entry · ${pct}`,          cls: 'bg', conf, rank: 2 };
 
@@ -1698,7 +1703,7 @@ function signal(d) {
     pos >= 0.30 && pos <= 0.82 &&
     (d.rsi     ?? 50) >= 45 && (d.rsi ?? 50) < 70 &&
     (d.volumeRatio ?? 1) >= 1.2 &&
-    (d.changePct   ?? 0) > 0 &&
+    (d.changePct   ?? 0) > -2 &&   // allow first pullback day (was >0)
     (d.macdDiff    ?? 0) > 0 &&
     trendConf >= 55;
 
