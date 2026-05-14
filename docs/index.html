@@ -1970,10 +1970,29 @@ function buildRotList() {
 //  FETCH  (proxy rotation + light variant for optional data)
 // ══════════════════════════════════════════════════════════════
 const PROXIES = [
+  // codetabs — raw body passthrough, generous rate limits
+  v => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(v)}`,
+  // allorigins /raw — direct body passthrough when up
   v => `https://api.allorigins.win/raw?url=${encodeURIComponent(v)}`,
-  v => `https://corsproxy.io/?${encodeURIComponent(v)}`,
-  v => `https://proxy.cors.sh/${v}`
+  // allorigins /get — JSON-wrapped {contents:"..."}; _proxyParse unwraps it
+  v => `https://api.allorigins.win/get?url=${encodeURIComponent(v)}`,
+  // thingproxy — raw body passthrough
+  v => `https://thingproxy.freeboard.io/fetch/${v}`,
 ];
+
+// Unwrap proxy responses: allorigins /get returns {contents:"json-string"};
+// codetabs / allorigins /raw / thingproxy return the body directly.
+function _proxyParse(text) {
+  const t = (text || '').trim();
+  if (!t || t.startsWith('<') || t.startsWith('<!')) return null;
+  try {
+    if (t.startsWith('{"contents"')) {
+      const wrap = JSON.parse(t);
+      if (wrap.contents) return JSON.parse(wrap.contents);
+    }
+    return JSON.parse(t);
+  } catch(_) { return null; }
+}
 
 function tickerProxyStart(ticker) {
   let h = 0;
@@ -1991,31 +2010,31 @@ async function fetchJ(url, proxyStart = 0) {
   } catch(e) {}
 
   for (let i = 0; i < PROXIES.length; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, 400)); // pace requests
     const p = PROXIES[(proxyStart + i) % PROXIES.length];
     try {
       const sig = AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined;
       const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
       if (!r.ok) continue;
-      const text = await r.text();
-      if (text.trim().startsWith('<')) continue;
-      return JSON.parse(text);
+      const data = _proxyParse(await r.text());
+      if (data) return data;
     } catch(e) { continue; }
   }
   throw new Error('All fetch attempts failed for ' + url);
 }
 
-// Proxy-only fetch: skips direct (avoids 401s), tries all 3 proxies in order
+// Proxy-only fetch: skips direct (avoids 401s), tries all proxies in order
 async function fetchJProxy(url, proxyStart = 0) {
   const u = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
   for (let i = 0; i < PROXIES.length; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, 400)); // pace requests
     const p = PROXIES[(proxyStart + i) % PROXIES.length];
     try {
       const sig = AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined;
       const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
       if (!r.ok) continue;
-      const text = await r.text();
-      if (text.trim().startsWith('<')) continue;
-      return JSON.parse(text);
+      const data = _proxyParse(await r.text());
+      if (data) return data;
     } catch(e) { continue; }
   }
   return null;
@@ -2154,14 +2173,14 @@ async function fetchStock(ticker) {
   // Regular stocks: one combined quoteSummary call (was two) + nasdaq = 3 total proxy calls
   let news, nasdaqData, comboData;
   if (isETF) {
-    news = await fetchJ(newsUrl, (ps + 1) % 3).catch(() => null);
+    news = await fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null);
     nasdaqData = null;
     comboData  = null;
   } else {
     [news, nasdaqData, comboData] = await Promise.all([
-      fetchJ(newsUrl, (ps + 1) % 3).catch(() => null),
+      fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null),
       fetchJProxy(nasdaqUrl, ps).catch(() => null),
-      fetchJProxy(comboUrl, (ps + 2) % 3).catch(() => null)
+      fetchJProxy(comboUrl, (ps + 2) % PROXIES.length).catch(() => null)
     ]);
   }
 
