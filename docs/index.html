@@ -2641,11 +2641,16 @@ async function fetchStock(ticker) {
 
   let preMoveWatch = null;
   if (pmScore >= 2) {
-    const pmDir  = pmSurge > pmDip + 1 ? 'surge'
-                 : pmDip > pmSurge + 1 ? 'dip'
+    // Suppress 'surge' when the current net score is deeply bearish (≤ -5).
+    // Volatility compression can break either way — don't contradict a clear trend.
+    const pmDir  = (pmSurge > pmDip + 1 && netScoreFinal > -5) ? 'surge'
+                 : (pmDip   > pmSurge + 1 || netScoreFinal <= -5 && pmDip >= pmSurge) ? 'dip'
                  : 'either';
     const pmConf = pmScore >= 5 ? 'High' : pmScore >= 3 ? 'Medium' : 'Low';
-    preMoveWatch = { direction: pmDir, confidence: pmConf, score: pmScore, reasons: pmReasons };
+    // Flag when pre-move direction conflicts with current signal (e.g. surge + bearish)
+    const pmConflict = (pmDir === 'surge' && netScoreFinal <= -3) ||
+                       (pmDir === 'dip'   && netScoreFinal >= 3);
+    preMoveWatch = { direction: pmDir, confidence: pmConf, score: pmScore, reasons: pmReasons, conflict: pmConflict };
   }
 
   // ── Day Conviction composite ─────────────────────────────────────────────────────────
@@ -3919,6 +3924,7 @@ function buildCard(d, rank, pinned) {
           }</span>
         </span>
         <span class="pm-conf">${d.preMoveWatch.confidence} confidence &nbsp;&middot;&nbsp; score ${d.preMoveWatch.score}</span>
+        ${d.preMoveWatch.conflict ? `<div style="font-size:0.72rem;color:#b45309;margin-top:4px;font-style:italic">&#9888; Pattern conflicts with current bearish signal &mdash; direction uncertain</div>` : ''}
         <div class="pm-reasons">${d.preMoveWatch.reasons.map(r => '&bull; ' + esc(r)).join('<br>')}</div>
       </div>` : ''}
 
