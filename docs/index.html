@@ -789,8 +789,22 @@
       text-transform: uppercase;
       flex-shrink: 0;
     }
-    .live-badge.open  { background: rgba(22,163,74,.15); color: #15803d; border: 1px solid rgba(22,163,74,.35); }
-    .live-badge.closed{ background: rgba(100,116,139,.1); color: #64748b; border: 1px solid rgba(100,116,139,.25); }
+    .live-badge.open     { background: rgba(22,163,74,.15);  color: #15803d; border: 1px solid rgba(22,163,74,.35); }
+    .live-badge.closed   { background: rgba(100,116,139,.1); color: #64748b; border: 1px solid rgba(100,116,139,.25); }
+    .live-badge.pre      { background: rgba(234,179,8,.15);  color: #a16207; border: 1px solid rgba(234,179,8,.4); }
+    .live-badge.after    { background: rgba(234,88,12,.12);  color: #c2410c; border: 1px solid rgba(234,88,12,.35); }
+    .ext-badge {
+      display: inline-flex; align-items: center;
+      font-size: 0.58rem; font-weight: 800;
+      padding: 1px 5px; border-radius: 10px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      vertical-align: middle; margin-left: 3px;
+    }
+    .ext-badge.ah  { background: rgba(234,88,12,.1);  color: #c2410c; border: 1px solid rgba(234,88,12,.3); }
+    .ext-badge.pre { background: rgba(234,179,8,.12); color: #a16207; border: 1px solid rgba(234,179,8,.35); }
+    .ext-chg { font-size: 0.7rem; font-weight: 600; margin-left: 3px; }
+    .ext-chg.pos { color: var(--green); }
+    .ext-chg.neg { color: var(--red); }
     .live-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
@@ -3879,6 +3893,8 @@ function buildCard(d, rank, pinned) {
               $${d.price.toFixed(2)}&nbsp;&nbsp;
               <span class="${cc}">${cs}${d.changePct.toFixed(2)}%</span>
               &nbsp;<span style="color:var(--muted)">(${d.change >= 0 ? '+' : ''}$${d.change.toFixed(2)})</span>
+              ${d.extHours ? `<span class="ext-badge ${d.extHours === 'after' ? 'ah' : 'pre'}">${d.extHours === 'after' ? 'AH' : 'Pre'}</span>` : ''}
+              ${d.extHours && d.extChangePct != null ? `<span class="ext-chg ${d.extChangePct >= 0 ? 'pos' : 'neg'}">${d.extChangePct >= 0 ? '+' : ''}${d.extChangePct.toFixed(2)}% ${d.extHours === 'after' ? 'after hrs' : 'pre-mkt'}</span>` : ''}
               ${d.isEarningsDay ? `&nbsp;&middot;&nbsp;<span class="age-badge" style="background:#fff3e0;color:#b45309;border:1px solid #fcd34d">&#128226; Earnings Day</span>` : ''}
               ${ageTxt ? `&nbsp;&middot;&nbsp;<span class="age-badge ${ageCls}">${ageTxt}</span>` : ''}
             </div>
@@ -3999,37 +4015,50 @@ async function loadOne(ticker) {
 
 // Called by rolling timer — silently refreshes next batch of 5 stocks (randomised order)
 // ── Market Hours (US Eastern) ──────────────────────────────────────────────────
-function isMarketHours() {
+// Returns current US market session: 'open' | 'pre' | 'after' | 'overnight'
+function getMarketSession() {
   const now = new Date();
   const day = now.getDay();          // 0=Sun, 6=Sat
-  if (day === 0 || day === 6) return false;
   const et  = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
   const tot = et.getHours() * 60 + et.getMinutes();
-  return tot >= 570 && tot < 960;   // 9:30 AM – 4:00 PM ET
+  if (day === 0 || day === 6) return 'overnight';
+  if (tot >= 240  && tot < 570)  return 'pre';       // 4:00 AM – 9:30 AM ET
+  if (tot >= 570  && tot < 960)  return 'open';      // 9:30 AM – 4:00 PM ET
+  if (tot >= 960  && tot < 1200) return 'after';     // 4:00 PM – 8:00 PM ET
+  return 'overnight';
 }
+
+// Keep isMarketHours as alias for any callers that still reference it
+function isMarketHours() { return getMarketSession() === 'open'; }
 
 function updateLiveBadge() {
   const el = document.getElementById('live-badge');
   if (!el) return;
-  if (isMarketHours()) {
-    el.style.display = '';
+  el.style.display = '';
+  const session = getMarketSession();
+  if (session === 'open') {
     el.innerHTML = '<span class="live-dot"></span>LIVE';
     el.className = 'live-badge open';
+  } else if (session === 'pre') {
+    el.innerHTML = '&#9651; Pre-Market';
+    el.className = 'live-badge pre';
+  } else if (session === 'after') {
+    el.innerHTML = '&#9661; After Hours';
+    el.className = 'live-badge after';
   } else {
-    el.style.display = '';
-    el.innerHTML = 'Market Closed';
+    el.innerHTML = 'Last Close';
     el.className = 'live-badge closed';
   }
 }
 
-// ── Live Price Refresh (every 60 s during market hours) ─────────────────────
+// ── Live Price Refresh (every 60 s, 24 h — always on) ───────────────────────
 // Fetches current price/vol/change for ALL stocks at once via Yahoo Finance
-// v7 quote API (batched 20 at a time). Updates price-sensitive display fields
-// without recomputing heavy indicators. Full indicator refresh still happens
-// every 20 s via rotateNext().
+// v7 quote API (batched 20 at a time). During extended hours (pre/after) the
+// preMarketPrice / postMarketPrice fields are used so the UI always shows the
+// most recent tradeable price. Full indicator refresh still every 20 s via rotateNext().
 async function refreshLivePrices() {
-  if (!isMarketHours()) { updateLiveBadge(); return; }
   updateLiveBadge();
+  const session = getMarketSession();
 
   const allTickers = [...new Set([...S.watchlist, ...(S.pinnedTicker ? [S.pinnedTicker] : [])])];
   const loaded = allTickers.filter(t => S.data[t] && !S.data[t].err);
@@ -4038,7 +4067,9 @@ async function refreshLivePrices() {
   const BATCH = 20;
   const fields = 'regularMarketPrice,regularMarketChangePercent,regularMarketVolume,' +
                  'regularMarketDayHigh,regularMarketDayLow,regularMarketOpen,' +
-                 'regularMarketPreviousClose';
+                 'regularMarketPreviousClose,' +
+                 'postMarketPrice,postMarketChangePercent,' +
+                 'preMarketPrice,preMarketChangePercent';
 
   for (let i = 0; i < loaded.length; i += BATCH) {
     const batch   = loaded.slice(i, i + BATCH);
@@ -4052,33 +4083,52 @@ async function refreshLivePrices() {
         const d = S.data[q.symbol];
         if (!d || d.err) continue;
 
-        const price   = q.regularMarketPrice;
+        const regPrice  = q.regularMarketPrice;
         const prevClose = q.regularMarketPreviousClose || d.price;
-        if (!price || price <= 0) continue;
+        if (!regPrice || regPrice <= 0) continue;
 
-        d.price     = price;
-        d.changePct = q.regularMarketChangePercent ?? d.changePct;
-        d.change    = price - prevClose;
-        d.dayHigh   = q.regularMarketDayHigh  ?? d.dayHigh;
-        d.dayLow    = q.regularMarketDayLow   ?? d.dayLow;
-        d.marketOpen= q.regularMarketOpen     ?? d.marketOpen;
-        d.fetchedAt = Date.now();
+        // Pick the best available price based on current session
+        let displayPrice = regPrice;
+        let extHours     = null;
+        let extChangePct = null;
+
+        if (session === 'pre' && q.preMarketPrice && q.preMarketPrice > 0) {
+          displayPrice = q.preMarketPrice;
+          extHours     = 'pre';
+          extChangePct = q.preMarketChangePercent ?? null;
+        } else if ((session === 'after' || session === 'overnight') &&
+                   q.postMarketPrice && q.postMarketPrice > 0) {
+          displayPrice = q.postMarketPrice;
+          extHours     = 'after';
+          extChangePct = q.postMarketChangePercent ?? null;
+        }
+
+        d.price          = displayPrice;
+        d.changePct      = extChangePct !== null ? extChangePct : (q.regularMarketChangePercent ?? d.changePct);
+        d.change         = displayPrice - (session === 'after' ? regPrice : prevClose);
+        d.extHours       = extHours;           // 'pre' | 'after' | null
+        d.extChangePct   = extChangePct;       // extended-hours % change (shown separately)
+        d.regularPrice   = regPrice;           // always keep today's close for reference
+        d.dayHigh        = q.regularMarketDayHigh  ?? d.dayHigh;
+        d.dayLow         = q.regularMarketDayLow   ?? d.dayLow;
+        d.marketOpen     = q.regularMarketOpen     ?? d.marketOpen;
+        d.fetchedAt      = Date.now();
 
         // Recompute volume ratio against stored 20d avg
         if (q.regularMarketVolume && d.avgVol20 && d.avgVol20 > 0)
           d.volumeRatio = q.regularMarketVolume / d.avgVol20;
 
-        // Recompute intraday VWAP approximation
-        const o = d.marketOpen || price;
-        const h = d.dayHigh   || price;
-        const l = d.dayLow    || price;
-        const vwap = (o + h + l + price) / 4;
-        d.vwapDevPct = vwap > 0 ? ((price - vwap) / vwap) * 100 : 0;
+        // Recompute intraday VWAP approximation (uses regular session prices)
+        const o = d.marketOpen || regPrice;
+        const h = d.dayHigh   || regPrice;
+        const l = d.dayLow    || regPrice;
+        const vwap = (o + h + l + regPrice) / 4;
+        d.vwapDevPct = vwap > 0 ? ((regPrice - vwap) / vwap) * 100 : 0;
 
         // Recompute week position from stored week high/low
         const wH = d.wHigh5, wL = d.wLow5;
         if (wH && wL && wH !== wL)
-          d.livePos = Math.min(Math.max((price - wL) / (wH - wL), 0), 1);
+          d.livePos = Math.min(Math.max((regPrice - wL) / (wH - wL), 0), 1);
 
         // Refresh signal badge based on updated price/position
         const sig = signal(d);
