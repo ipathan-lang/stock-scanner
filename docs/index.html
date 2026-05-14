@@ -2228,13 +2228,13 @@ async function fetchStock(ticker) {
     const _sr = await fetch(`./data/stocks/${ticker}.json`);
     if (_sr.ok) {
       const _sf = await _sr.json();
-      if (_sf._fetched && (Date.now() - _sf._fetched) < 8 * 3600000) { // < 8 hours old
+      if (_sf.chart) { // use static file regardless of age — GitHub Actions keeps it fresh
         chart      = _sf.chart;
         comboData  = _sf.combo ?? null;
         news       = _sf.news  ?? null;
         nasdaqData = null;
         _usedStatic = true;
-        try { localStorage.setItem(_cKey, JSON.stringify({ ts: _sf._fetched, data: chart })); } catch {}
+        try { localStorage.setItem(_cKey, JSON.stringify({ ts: _sf._fetched || Date.now(), data: chart })); } catch {}
       }
     }
   } catch {}
