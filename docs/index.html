@@ -3250,7 +3250,8 @@ function _renderEcWeekRow() {
 
 function _parseMarketCap(str) {
   if (!str || str === '--') return 0;
-  const s = str.replace(/,/g, '').trim();
+  // Strip commas, dollar signs, spaces e.g. "$94.5B" → "94.5B"
+  const s = str.replace(/[$,\s]/g, '');
   const n = parseFloat(s);
   if (isNaN(n)) return 0;
   if (s.includes('T')) return n * 1e12;
@@ -3466,13 +3467,14 @@ function setSortMode(mode) {
   if (active) active.classList.add('active');
 
   if (isEarnings) {
-    // Pause background stock rotation — saves proxy calls while browsing earnings
-    if (_rotTimer) { clearInterval(_rotTimer); _rotTimer = null; }
-    if (!wasEarnings) loadEarningsCal();  // fresh fetch on first switch to this tab
+    // Stop ALL background stock timers — earnings tab must not hammer proxies
+    if (_rotTimer)  { clearInterval(_rotTimer);  _rotTimer  = null; }
+    if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+    if (!wasEarnings) loadEarningsCal();  // fresh fetch on first switch
     else _renderEcList();                 // already fetched — just re-render
   } else {
     renderList();
-    // Restart rolling timer if stocks are loaded and it was stopped
+    // Restart both timers if stocks are loaded and they were stopped
     if (!_rotTimer && !S.busy) startRolling();
   }
 }
@@ -4547,6 +4549,7 @@ function updateLiveBadge() {
 // preMarketPrice / postMarketPrice fields are used so the UI always shows the
 // most recent tradeable price. Full indicator refresh still every 20 s via rotateNext().
 async function refreshLivePrices() {
+  if (_sortMode === 'earnings') return;  // don't touch proxies while browsing earnings
   updateLiveBadge();
   const session = getMarketSession();
 
