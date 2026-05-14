@@ -974,6 +974,7 @@
       <div class="score-visual" style="flex-wrap:wrap;gap:4px">
         <div class="sv-item sv-sb" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Buy Now</span><span class="sv-range">All gates: dip + conf ≥88% + score ≥6 + pos ≤35%</span></div>
         <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Good Entry</span><span class="sv-range">Dip confirmed · conf ≥65% · score ≥4 · pos ≤50%</span></div>
+        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">📈</span><span>Momentum Buy</span><span class="sv-range">Uptrend confirmed · score ≥5 · ret20 >5% · vol ≥1.2× · MACD bullish</span></div>
         <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Building</span><span class="sv-range">Score ≥4 but dip / conf not yet met</span></div>
         <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Pullback Soon</span><span class="sv-range">Score ≥4 · pos 50–70% — wait for dip</span></div>
         <div class="sv-item sv-ca" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">⏳</span><span>Wait · Overextended</span><span class="sv-range">Score ≥5 · pos ≥70% — don't chase</span></div>
@@ -1592,11 +1593,13 @@ function signal(d) {
 
   // ── GATE: has the stock ACTUALLY pulled back? ─────────────────────────────────────
   // NVDA/COST/LLY straight up 5 days = at risk of correcting the moment you invest.
-  // Require at least one of: a red closing day, a weekly dip, or a down day today.
+  // Require at least one of: a red closing day, a weekly dip, a down day today,
+  // OR the stock is already near its 5-day low (structural dip, even after recovery day).
   const hasDip =
     (d.consecutiveDownDays ?? 0) >= 1 ||
     (d.ret5     ?? 0) < -0.3 ||
-    (d.changePct ?? 0) < -0.5;
+    (d.changePct ?? 0) < -0.5 ||
+    pos <= 0.30;  // near week low = structural dip, regardless of recent session direction
 
   // ── STRONG BULLISH  ───────────────────────────────────────────────────────────────
   // Requires ALL of: real dip occurred · at week low · 20d uptrend · clean RSI ·
@@ -1631,6 +1634,31 @@ function signal(d) {
     !(d.gapAndFade);
 
   if (bullish) return { label: `🟢 Good Entry · ${pct}`,          cls: 'bg', conf, rank: 2 };
+
+  // ── MOMENTUM ENTRY (trending / rally-market play) ────────────────────────────────
+  // Fires when the dip-buy gate doesn't apply but the stock is in a confirmed uptrend.
+  // Uses a separate trend-confidence score: rewards net score, 20d trend, volume, RSI.
+  // This catches opportunities in strong bull markets where "wait for a dip" = never.
+  const trendPts =
+    Math.round((Math.min(s, 12) / 12) * 35) +
+    Math.round((Math.min(Math.max(r20, 0), 20) / 20) * 30) +
+    ((d.volumeRatio ?? 1) >= 2.0 ? 20 :
+     (d.volumeRatio ?? 1) >= 1.5 ? 15 :
+     (d.volumeRatio ?? 1) >= 1.2 ? 10 : 5) +
+    ((d.rsi ?? 50) >= 50 && (d.rsi ?? 50) <= 65 ? 15 :
+     (d.rsi ?? 50) >= 45 && (d.rsi ?? 50) <= 70 ?  8 : 0);
+  const trendConf = Math.min(99, Math.max(1, trendPts));
+  const momentumEntry =
+    s >= 5 &&
+    r20 > 5 &&
+    pos >= 0.30 && pos <= 0.82 &&
+    (d.rsi     ?? 50) >= 45 && (d.rsi ?? 50) < 70 &&
+    (d.volumeRatio ?? 1) >= 1.2 &&
+    (d.changePct   ?? 0) > 0 &&
+    (d.macdDiff    ?? 0) > 0 &&
+    trendConf >= 55;
+
+  if (momentumEntry) return { label: `📈 Momentum Buy · ${trendConf}%`, cls: 'bg', conf: trendConf, rank: 2 };
 
   // ── BALANCED  (conf ≥ 50%) ────────────────────────────────────────────────────────
   // Score is positive and context is neutral — neither a clear buy nor avoid.
