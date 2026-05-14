@@ -296,6 +296,45 @@
       margin-top: 2px;
     }
 
+    /* ── Pre-Move Prediction Banner ── */
+    .pre-move-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin: 4px 0;
+      border: 1.5px solid #a78bfa;
+      background: rgba(139,92,246,0.07);
+      color: #5b21b6;
+      flex-wrap: wrap;
+    }
+    .pre-move-banner .pm-icon  { font-size: 1.05rem; }
+    .pre-move-banner .pm-label { font-size: 0.84rem; }
+    .pre-move-banner .pm-conf {
+      font-size: 0.67rem;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      background: rgba(139,92,246,0.15);
+      color: #4c1d95;
+    }
+    .pre-move-banner .pm-dir-surge { color: #047857; font-weight: 800; }
+    .pre-move-banner .pm-dir-dip   { color: #b91c1c; font-weight: 800; }
+    .pre-move-banner .pm-dir-either{ color: #92400e; font-weight: 800; }
+    .pre-move-banner .pm-reasons {
+      font-size: 0.67rem;
+      font-weight: 600;
+      opacity: 0.82;
+      flex: 1 1 100%;
+      margin-top: 3px;
+      line-height: 1.65;
+    }
+
     /* Today's Hold bar */
     .hold-bar {
       display: flex;
@@ -1298,6 +1337,30 @@ function calcMacdSlope(closes) {
   const prev = line[line.length - 2] - sig[sig.length - 2];
   const curr = line[line.length - 1] - sig[sig.length - 1];
   return curr - prev; // positive = diff widening (accelerating), negative = narrowing (decelerating)
+}
+
+// ── Bollinger Band Width — measures volatility compression vs historical expansion
+// squeezeRatio < 0.60 = bands have narrowed to 60% of historical → imminent breakout
+function calcBollingerBandWidth(closes, period = 20) {
+  if (!closes || closes.length < period * 2) return null;
+  const bandWidth = arr => {
+    const m  = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const sd = Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length);
+    return m > 0 ? (4 * sd / m) * 100 : 0;  // (upper–lower) / mid × 100
+  };
+  const currentWidth = bandWidth(closes.slice(-period));
+  const histWidth    = bandWidth(closes.slice(-period * 2, -period));
+  const squeezeRatio = histWidth > 0 ? currentWidth / histWidth : 1;
+  return { currentWidth, squeezeRatio };
+}
+
+// ── Volume Trend — 3-day avg vs 10-day avg
+// ratio > 1.3 on flat price = institutional accumulation before a move
+function calcVolumeTrend(vols) {
+  if (!vols || vols.length < 14) return null;
+  const avg3  = vols.slice(-4, -1).reduce((a, b) => a + b, 0) / 3;    // last 3 completed days
+  const avg10 = vols.slice(-14, -4).reduce((a, b) => a + b, 0) / 10;  // prior 10 days baseline
+  return avg10 > 0 ? avg3 / avg10 : null;
 }
 
 function calcIndicators(closes, highs, lows) {
@@ -2407,6 +2470,83 @@ async function fetchStock(ticker) {
     suddenMove = { type: smType, confidence: smConf, factors: smFactors, pctMove: changePct, smScore };
   }
 
+  // ── Pre-Move Prediction (tomorrow) ────────────────────────────────────────────
+  // Fires BEFORE a sudden move happens. Uses structural setup signals that
+  // precede explosive moves: volatility coil, BB squeeze, volume buildup,
+  // earnings proximity, RSI extremes, multi-day exhaustion.
+  const bbData     = calcBollingerBandWidth(closes);
+  const volTrend3d = calcVolumeTrend(rawVols);
+
+  let pmScore = 0, pmSurge = 0, pmDip = 0;
+  const pmReasons = [];
+
+  // 1. ATR coil: short-term volatility compressed vs long-term — coiled spring setup
+  if (atrRatio !== null && atrRatio < 0.75) {
+    pmScore += 2; pmSurge++; pmDip++;
+    pmReasons.push(`Volatility coil — ATR at ${(atrRatio * 100).toFixed(0)}% of normal (compressed)`);
+    if (atrRatio < 0.55) { pmScore += 1; pmReasons.push('Deep compression — breakout may be imminent'); }
+  }
+
+  // 2. Bollinger Band squeeze: bands narrowed to < 60% of historical width
+  if (bbData !== null && bbData.squeezeRatio < 0.60) {
+    pmScore += 2; pmSurge++; pmDip++;
+    pmReasons.push(`BB squeeze — band width ${(bbData.squeezeRatio * 100).toFixed(0)}% of historical (tight range)`);
+  }
+
+  // 3. Volume buildup on flat/quiet price = institutional accumulation
+  if (volTrend3d !== null && volTrend3d > 1.30 && Math.abs(changePct) < 1.0) {
+    pmScore += 2; pmSurge += 2;
+    pmReasons.push(`Volume building ${volTrend3d.toFixed(1)}× (3d vs 10d avg) on quiet price — accumulation signal`);
+  }
+
+  // 4. Earnings proximity: scheduled event = large move almost guaranteed
+  if (nextEarnings) {
+    const daysTo = (nextEarnings - Date.now()) / 86400000;
+    if (daysTo >= 0 && daysTo <= 2) {
+      pmScore += 3; pmSurge++; pmDip++;
+      pmReasons.push(`Earnings in ${Math.ceil(daysTo) || 'today'} day(s) — large move expected`);
+    } else if (daysTo > 2 && daysTo <= 5) {
+      pmScore += 1; pmSurge++; pmDip++;
+      pmReasons.push(`Earnings in ${Math.ceil(daysTo)} days — pre-earnings volatility window`);
+    }
+  }
+
+  // 5. RSI extremes: overbought → dip risk; oversold → surge risk
+  if (ind.rsi > 73) {
+    pmScore += 2; pmDip += 2;
+    pmReasons.push(`RSI ${ind.rsi.toFixed(1)} — overbought, snap-reversal dip risk`);
+  } else if (ind.rsi < 27) {
+    pmScore += 2; pmSurge += 2;
+    pmReasons.push(`RSI ${ind.rsi.toFixed(1)} — oversold, snap-reversal surge risk`);
+  }
+
+  // 6. Multi-day selling exhaustion at week low = bounce setup
+  if (consecutiveDownDays >= 3 && livePos <= 0.25) {
+    pmScore += 1; pmSurge += 2;
+    pmReasons.push(`${consecutiveDownDays} consecutive down days at week low — sellers exhausting`);
+  }
+
+  // 7. Multi-day run-up at week high = profit-taking risk
+  if (ret5 !== null && ret5 > 5 && livePos >= 0.80) {
+    pmScore += 1; pmDip += 2;
+    pmReasons.push(`Up ${ret5.toFixed(1)}% this week at 5-day high — profit-taking pullback risk`);
+  }
+
+  // 8. Ultra-tight today range = energy coiling for next session
+  if (todayRangePct !== null && todayRangePct < 0.40) {
+    pmScore += 1; pmSurge++; pmDip++;
+    pmReasons.push('Extremely tight today range — energy coiling for next session');
+  }
+
+  let preMoveWatch = null;
+  if (pmScore >= 3) {
+    const pmDir  = pmSurge > pmDip + 1 ? 'surge'
+                 : pmDip > pmSurge + 1 ? 'dip'
+                 : 'either';
+    const pmConf = pmScore >= 5 ? 'High' : 'Medium';
+    preMoveWatch = { direction: pmDir, confidence: pmConf, score: pmScore, reasons: pmReasons };
+  }
+
   // ── Day Conviction composite ─────────────────────────────────────────────────────────
   // Answers: "if I take this trade today, how likely is the move to persist for 1 day?"
   // Score 0–5: each signal that confirms direction adds 1 point
@@ -2473,7 +2613,8 @@ async function fetchStock(ticker) {
     openChangePct, gapAndFade,
     atrPct, atrRatio, todayRangePct, macdSlope,
     dayConviction, dcScore, dcReasons,
-    vwapDevPct, suddenMove
+    vwapDevPct, suddenMove,
+    preMoveWatch
   };
 }
 
@@ -3662,6 +3803,20 @@ function buildCard(d, rank, pinned) {
         </div>
         <span class="badge ${sig.cls}">${sig.label}</span>
       </div>
+
+      ${d.preMoveWatch ? `
+      <div class="pre-move-banner">
+        <span class="pm-icon">&#128302;</span>
+        <span class="pm-label">Pre-Move Watch &nbsp;&middot;&nbsp;
+          <span class="pm-dir-${d.preMoveWatch.direction}">${
+            d.preMoveWatch.direction === 'surge' ? '&#9650; Surge likely'
+          : d.preMoveWatch.direction === 'dip'   ? '&#9660; Dip likely'
+          : '&#9644; Either direction'
+          }</span>
+        </span>
+        <span class="pm-conf">${d.preMoveWatch.confidence} confidence &nbsp;&middot;&nbsp; score ${d.preMoveWatch.score}</span>
+        <div class="pm-reasons">${d.preMoveWatch.reasons.map(r => '&bull; ' + esc(r)).join('<br>')}</div>
+      </div>` : ''}
 
       ${d.suddenMove ? `
       <div class="sudden-move-banner ${d.suddenMove.type}">
