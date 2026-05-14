@@ -3250,7 +3250,7 @@ function _renderEcWeekRow() {
 
 function _parseMarketCap(str) {
   if (!str || str === '--') return 0;
-  // Strip commas, dollar signs, spaces e.g. "$94.5B" → "94.5B"
+  // Strip commas, dollar signs, spaces e.g. "$392,184,880,140" or "$94.5B"
   const s = str.replace(/[$,\s]/g, '');
   const n = parseFloat(s);
   if (isNaN(n)) return 0;
@@ -3258,7 +3258,25 @@ function _parseMarketCap(str) {
   if (s.includes('B')) return n * 1e9;
   if (s.includes('M')) return n * 1e6;
   if (s.includes('K')) return n * 1e3;
-  return n;
+  return n; // raw number (e.g. 392184880140)
+}
+
+// Parse EPS strings like "$0.86", "($0.25)", "N/A" → number or null
+function _parseEPS(s) {
+  if (!s || s === '--' || s === 'N/A' || s === '') return null;
+  const neg = s.includes('(');
+  const n = parseFloat(s.replace(/[()$,\s]/g, ''));
+  if (isNaN(n)) return null;
+  return neg ? -n : n;
+}
+
+// Format a raw market-cap number → "$392.2B", "$2.1T" etc.
+function _fmtMcap(n) {
+  if (!n || n === 0) return null;
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
+  if (n >= 1e9)  return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6)  return `$${(n / 1e6).toFixed(1)}M`;
+  return `$${n.toLocaleString()}`;
 }
 
 async function loadEarningsCal(dateStr) {
@@ -3285,18 +3303,18 @@ async function loadEarningsCal(dateStr) {
     const json = await fetchJProxy(url, 0);
     const rows = json?.data?.rows ?? [];
     _ecData = rows.map(r => {
-      const mcNum = _parseMarketCap(r.market_cap);
+      const mcNum = _parseMarketCap(r.marketCap);
       return {
         ticker:            r.symbol,
         companyshortName:  r.name,
-        startdatetimetype: r.time === 'time-before-open' ? 'BMO'
-                         : r.time === 'time-after-hours'  ? 'AMC' : 'TBD',
-        epsestimate:    (r.eps_forecast         && r.eps_forecast         !== '--') ? parseFloat(r.eps_forecast)  : null,
-        epsactual:      (r.eps_actual           && r.eps_actual           !== '--') ? parseFloat(r.eps_actual)    : null,
-        epssurprisepct: (r.surprise_pct         && r.surprise_pct         !== '--') ? parseFloat(r.surprise_pct) : null,
-        marketCap:      (r.market_cap           && r.market_cap           !== '--') ? r.market_cap               : null,
-        lastYearEps:    (r.last_year_eps        && r.last_year_eps        !== '--') ? r.last_year_eps            : null,
-        fiscalQuarter:  (r.fiscal_quarter_ending && r.fiscal_quarter_ending !== '--') ? r.fiscal_quarter_ending : null,
+        // API values: 'time-pre-market', 'time-after-hours', 'time-not-supplied'
+        startdatetimetype: r.time === 'time-pre-market'  ? 'BMO'
+                         : r.time === 'time-after-hours' ? 'AMC' : 'TBD',
+        epsestimate:    _parseEPS(r.epsForecast),
+        epsactual:      _parseEPS(r.epsActual),
+        epssurprisepct: _parseEPS(r.surprisePct),
+        lastYearEps:    _parseEPS(r.lastYearEPS),
+        fiscalQuarter:  (r.fiscalQuarterEnding && r.fiscalQuarterEnding !== '--') ? r.fiscalQuarterEnding : null,
         _mcNum:         mcNum,
       };
     });
@@ -3358,15 +3376,17 @@ function _renderEcList() {
 function _buildEcRow(row) {
   const ticker      = esc(row.ticker || '');
   const name        = esc(row.companyshortName || row.shortName || row.ticker || '');
-  const epsEst      = row.epsestimate != null ? `$${(+row.epsestimate).toFixed(2)}` : '—';
+  const epsEst      = row.epsestimate != null
+    ? (row.epsestimate < 0 ? `-$${Math.abs(row.epsestimate).toFixed(2)}` : `$${row.epsestimate.toFixed(2)}`)
+    : '—';
   const timing      = row.startdatetimetype === 'BMO' ? 'bmo'
                     : row.startdatetimetype === 'AMC' ? 'amc' : 'tns';
   const timingLabel = timing === 'bmo' ? 'BMO' : timing === 'amc' ? 'AMC'
                     : (row.startdatetimetype || 'TBD');
 
-  // Market cap chip
-  const mcapHtml = row.marketCap
-    ? `<span class="ec-meta-chip mcap">&#x1F4B0; ${esc(row.marketCap)}</span>`
+  // Market cap chip — format _mcNum as "$392.2B" etc.
+  const mcapHtml = row._mcNum > 0
+    ? `<span class="ec-meta-chip mcap">&#x1F4B0; ${_fmtMcap(row._mcNum)}</span>`
     : '';
 
   // Fiscal quarter chip
@@ -3387,8 +3407,8 @@ function _buildEcRow(row) {
   }
 
   // Last year EPS
-  const lyHtml = row.lastYearEps
-    ? `<span class="ec-ly">LY: <b>$${esc(row.lastYearEps)}</b></span>`
+  const lyHtml = row.lastYearEps != null
+    ? `<span class="ec-ly">LY: <b>${row.lastYearEps < 0 ? '-' : ''}$${Math.abs(row.lastYearEps).toFixed(2)}</b></span>`
     : '';
 
   return `<div class="ec-row" onclick="showEarningsStock('${ticker}')">
