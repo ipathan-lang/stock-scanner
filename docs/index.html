@@ -1034,6 +1034,80 @@
     }
     .yr-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#157f63,#1e63d9); }
     .yr-labels { display: flex; justify-content: space-between; font-size: 0.67rem; color: var(--muted); }
+
+    /* ── EARNINGS CALENDAR PANEL ── */
+    #earnings-cal-panel { padding: 0 0 60px; }
+    .ec-date-nav {
+      display: flex; align-items: center; gap: 8px;
+      padding: 14px 0 12px; border-bottom: 1px solid var(--border); margin-bottom: 14px;
+    }
+    .ec-nav-arrow {
+      width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+      background: rgba(19,43,67,.05); border: 1px solid var(--border);
+      font-size: 1rem; cursor: pointer; color: var(--ink);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ec-nav-arrow:hover { background: rgba(30,99,217,.08); border-color: rgba(30,99,217,.25); }
+    .ec-date-center { flex: 1; text-align: center; }
+    .ec-date-label  { font-size: 0.88rem; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+    .ec-week-row    { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+    .ec-day-btn {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 6px 9px; border-radius: 10px; gap: 2px; cursor: pointer;
+      background: rgba(19,43,67,.04); border: 1px solid var(--border);
+      min-width: 42px; transition: all .15s;
+    }
+    .ec-day-btn:hover { background: rgba(30,99,217,.07); border-color: rgba(30,99,217,.2); }
+    .ec-day-btn.selected { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .ec-day-btn.today:not(.selected) { border-color: var(--blue); color: var(--blue); font-weight: 700; }
+    .ec-day-name { font-size: 0.59rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .ec-day-num  { font-size: 0.87rem; font-weight: 800; }
+    .ec-summary  { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+    .ec-sum-pill {
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 0.71rem; font-weight: 700; border: 1px solid transparent;
+    }
+    .ec-sum-pill.bmo   { background: rgba(234,179,8,.12); color: #92400e; border-color: rgba(234,179,8,.3); }
+    .ec-sum-pill.amc   { background: rgba(139,92,246,.1); color: #5b21b6; border-color: rgba(139,92,246,.25); }
+    .ec-sum-pill.total { background: rgba(19,43,67,.06); color: var(--muted); border-color: var(--border); }
+    .ec-section-label {
+      font-size: 0.67rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .07em; color: var(--muted); margin: 14px 0 7px; padding-left: 2px;
+    }
+    .ec-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 11px 14px; border-radius: 12px; margin-bottom: 6px;
+      background: var(--surface); border: 1px solid var(--border);
+      cursor: pointer; transition: all .15s;
+    }
+    .ec-row:hover { border-color: rgba(30,99,217,.3); background: rgba(30,99,217,.03); }
+    .ec-row-main { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .ec-row-left  { min-width: 0; }
+    .ec-ticker    { font-size: 0.98rem; font-weight: 800; color: var(--ink); }
+    .ec-company   { font-size: 0.71rem; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+    .ec-row-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+    .ec-eps       { font-size: 0.74rem; color: var(--ink); white-space: nowrap; }
+    .ec-eps-label { color: var(--muted); font-weight: 600; font-size: 0.68rem; }
+    .ec-eps-val   { font-weight: 700; }
+    .ec-surprise  { font-size: 0.67rem; font-weight: 800; padding: 1px 6px; border-radius: 20px; }
+    .ec-surprise.pos { background: rgba(21,127,99,.1);  color: var(--green); }
+    .ec-surprise.neg { background: rgba(196,81,75,.1);  color: var(--red);   }
+    .ec-timing {
+      font-size: 0.63rem; font-weight: 800; padding: 2px 8px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: .05em; flex-shrink: 0;
+    }
+    .ec-timing.bmo { background: rgba(234,179,8,.12); color: #92400e; border: 1px solid rgba(234,179,8,.3); }
+    .ec-timing.amc { background: rgba(139,92,246,.1); color: #5b21b6; border: 1px solid rgba(139,92,246,.25); }
+    .ec-timing.tns { background: rgba(19,43,67,.07);  color: var(--muted); border: 1px solid var(--border); }
+    .ec-row-arrow { color: var(--muted); font-size: 1.15rem; flex-shrink: 0; }
+    .ec-stock-view { padding: 4px 0; }
+    .ec-back-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 8px 14px; border-radius: 10px; margin-bottom: 14px;
+      background: rgba(19,43,67,.06); border: 1px solid var(--border);
+      font-size: 0.8rem; font-weight: 700; color: var(--ink); cursor: pointer;
+    }
+    .ec-back-btn:hover { background: rgba(30,99,217,.08); color: var(--blue); }
   </style>
 </head>
 <body>
@@ -1222,6 +1296,21 @@
   </div>
   <div id="stock-list">
     <div class="empty">Fetching stock data… usually takes 30–60 s on first load.</div>
+  </div>
+
+  <!-- EARNINGS CALENDAR PANEL -->
+  <div id="earnings-cal-panel" style="display:none">
+    <div class="ec-date-nav">
+      <button class="ec-nav-arrow" onclick="ecMoveDate(-7)" title="Previous week">&#x00AB;</button>
+      <button class="ec-nav-arrow" onclick="ecMoveDate(-1)" title="Previous day">&#x2039;</button>
+      <div class="ec-date-center">
+        <div id="ec-date-label" class="ec-date-label">Loading…</div>
+        <div id="ec-week-row" class="ec-week-row"></div>
+      </div>
+      <button class="ec-nav-arrow" onclick="ecMoveDate(1)"  title="Next day">&#x203A;</button>
+      <button class="ec-nav-arrow" onclick="ecMoveDate(7)"  title="Next week">&#x00BB;</button>
+    </div>
+    <div id="ec-body"></div>
   </div>
 </main>
 
@@ -3103,38 +3192,232 @@ function renderStrategy() {
     + disclaimerHtml;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  EARNINGS CALENDAR
+// ══════════════════════════════════════════════════════════════
+let _ecDate      = new Date();   // currently viewed date
+let _ecData      = [];           // raw rows from Yahoo Finance earnings API
+let _ecLoading   = false;        // debounce guard
+let _ecViewStock = null;         // null = list view, string = ticker detail view
+
+function _ecDateISO(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  const y  = dt.getFullYear();
+  const m  = String(dt.getMonth() + 1).padStart(2, '0');
+  const dy = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dy}`;
+}
+
+function ecMoveDate(days) {
+  _ecDate = new Date(_ecDate.getTime() + days * 86400000);
+  loadEarningsCal();
+}
+
+function _ecWeekDates(date) {
+  const d   = new Date(date);
+  const dow = d.getDay();  // 0=Sun
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return Array.from({ length: 5 }, (_, i) => {
+    const wd = new Date(monday);
+    wd.setDate(monday.getDate() + i);
+    return wd;
+  });
+}
+
+function _renderEcWeekRow() {
+  const row = document.getElementById('ec-week-row');
+  if (!row) return;
+  const days     = _ecWeekDates(_ecDate);
+  const todayISO = _ecDateISO(new Date());
+  const selISO   = _ecDateISO(_ecDate);
+  const names    = ['Mon','Tue','Wed','Thu','Fri'];
+  row.innerHTML  = days.map((d, i) => {
+    const iso = _ecDateISO(d);
+    const sel = iso === selISO   ? 'selected' : '';
+    const tod = iso === todayISO ? 'today'    : '';
+    return `<button class="ec-day-btn ${sel} ${tod}" onclick="loadEarningsCal('${iso}')">
+              <span class="ec-day-name">${names[i]}</span>
+              <span class="ec-day-num">${d.getDate()}</span>
+            </button>`;
+  }).join('');
+}
+
+async function loadEarningsCal(dateStr) {
+  if (dateStr) _ecDate = new Date(dateStr + 'T12:00:00');
+  if (_ecLoading) return;
+  _ecLoading   = true;
+  _ecViewStock = null;
+
+  // Update date label + week buttons immediately
+  const label = document.getElementById('ec-date-label');
+  if (label) label.textContent = _ecDate.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  });
+  _renderEcWeekRow();
+
+  const body = document.getElementById('ec-body');
+  if (body) body.innerHTML = '<div class="empty" style="padding:36px 0">Loading earnings…</div>';
+
+  try {
+    const ds  = _ecDateISO(_ecDate);
+    // Yahoo Finance calendar earnings API — returns up to 100 stocks for the date
+    const url = `https://query2.finance.yahoo.com/v1/finance/calendar/earnings?from=${ds}&to=${ds}&day=${ds}&start=0&count=100`;
+    const json = await fetchJProxy(url, 0);
+    _ecData = json?.finance?.result ?? [];
+
+    // Sort by EPS estimate descending; null estimates go last
+    _ecData.sort((a, b) => {
+      const ea = a.epsestimate ?? -9999;
+      const eb = b.epsestimate ?? -9999;
+      return eb - ea;
+    });
+    _renderEcList();
+  } catch (_) {
+    const b2 = document.getElementById('ec-body');
+    if (b2) b2.innerHTML = `<div class="empty" style="padding:36px 0;color:var(--red)">
+      Could not load earnings data.<br>
+      <small>Try refreshing or selecting a different date.</small></div>`;
+  } finally {
+    _ecLoading = false;
+  }
+}
+
+function _renderEcList() {
+  const body = document.getElementById('ec-body');
+  if (!body || _sortMode !== 'earnings') return;
+
+  if (!_ecData.length) {
+    body.innerHTML = `<div class="empty" style="padding:36px 0">
+      No earnings scheduled for this date.<br>
+      <small>Markets may be closed or no companies are reporting.</small></div>`;
+    return;
+  }
+
+  const bmoRows = _ecData.filter(r => r.startdatetimetype === 'BMO');
+  const amcRows = _ecData.filter(r => r.startdatetimetype === 'AMC');
+  const tnsRows = _ecData.filter(r => r.startdatetimetype !== 'BMO' && r.startdatetimetype !== 'AMC');
+
+  let html = `<div class="ec-summary">
+    <span class="ec-sum-pill bmo">&#x1F305; ${bmoRows.length} Before Open</span>
+    <span class="ec-sum-pill amc">&#x1F319; ${amcRows.length} After Close</span>
+    <span class="ec-sum-pill total">${_ecData.length} total</span>
+  </div>`;
+
+  if (bmoRows.length) {
+    html += `<div class="ec-section-label">&#x1F305; Before Market Open</div>`;
+    html += bmoRows.map(_buildEcRow).join('');
+  }
+  if (amcRows.length) {
+    html += `<div class="ec-section-label">&#x1F319; After Market Close</div>`;
+    html += amcRows.map(_buildEcRow).join('');
+  }
+  if (tnsRows.length) {
+    html += `<div class="ec-section-label">&#x1F4CA; During Market / Time N/A</div>`;
+    html += tnsRows.map(_buildEcRow).join('');
+  }
+
+  body.innerHTML = html;
+}
+
+function _buildEcRow(row) {
+  const ticker      = esc(row.ticker || '');
+  const name        = esc(row.companyshortName || row.shortName || row.ticker || '');
+  const epsEst      = row.epsestimate != null ? `$${(+row.epsestimate).toFixed(2)}` : '—';
+  const timing      = row.startdatetimetype === 'BMO' ? 'bmo'
+                    : row.startdatetimetype === 'AMC' ? 'amc' : 'tns';
+  const timingLabel = timing === 'bmo' ? 'BMO' : timing === 'amc' ? 'AMC'
+                    : (row.startdatetimetype || 'TBD');
+
+  let epsActHtml = '';
+  if (row.epsactual != null) {
+    const actStr  = `$${(+row.epsactual).toFixed(2)}`;
+    const surpPct = row.epssurprisepct != null ? (+row.epssurprisepct).toFixed(1) : null;
+    const surpCls = surpPct != null ? (parseFloat(surpPct) > 0 ? 'pos' : parseFloat(surpPct) < 0 ? 'neg' : '') : '';
+    const surpTag = surpPct != null
+      ? `<span class="ec-surprise ${surpCls}">${parseFloat(surpPct) > 0 ? '+' : ''}${surpPct}%</span>`
+      : '';
+    epsActHtml = `&nbsp;<span class="ec-eps-label">Act:</span> <span class="ec-eps-val ${surpCls}">${actStr}</span> ${surpTag}`;
+  }
+
+  return `<div class="ec-row" onclick="showEarningsStock('${ticker}')">
+    <div class="ec-row-main">
+      <div class="ec-row-left">
+        <div class="ec-ticker">${ticker}</div>
+        <div class="ec-company">${name}</div>
+      </div>
+      <div class="ec-row-right">
+        <div class="ec-eps"><span class="ec-eps-label">EPS Est:</span> <span class="ec-eps-val">${epsEst}</span>${epsActHtml}</div>
+        <span class="ec-timing ${timing}">${timingLabel}</span>
+      </div>
+    </div>
+    <div class="ec-row-arrow">&#x203A;</div>
+  </div>`;
+}
+
+async function showEarningsStock(ticker) {
+  _ecViewStock = ticker;
+  const body = document.getElementById('ec-body');
+  if (body) body.innerHTML = `<div class="ec-stock-view">
+    <button class="ec-back-btn" onclick="backToEarningsCal()">&#x2039; Back to Earnings</button>
+    <div id="ec-stock-card">
+      <div class="empty" style="padding:28px 0">Loading ${esc(ticker)}…</div>
+    </div>
+  </div>`;
+
+  try {
+    if (!S.data[ticker] || S.data[ticker].err) await loadOne(ticker);
+    const d  = S.data[ticker];
+    if (!d || d.err) throw new Error('no data');
+    const el = document.getElementById('ec-stock-card');
+    if (el && _ecViewStock === ticker) el.innerHTML = buildCard(d, 1, true);
+  } catch (_) {
+    const el = document.getElementById('ec-stock-card');
+    if (el) el.innerHTML = `<div class="empty" style="color:var(--red);padding:24px 0">
+      Could not load ${esc(ticker)}.<br>
+      <small>Check the ticker or try a different stock.</small></div>`;
+  }
+}
+
+function backToEarningsCal() {
+  _ecViewStock = null;
+  _renderEcList();
+}
+
 function setSortMode(mode) {
   if (mode === 'strategy') return;  // section temporarily hidden
+  const wasEarnings = _sortMode === 'earnings';
   _sortMode = mode;
-  const isStrategy = false;
+  const isEarnings = mode === 'earnings';
 
-  // Toggle which panel is visible
-  const stockList     = document.getElementById('stock-list');
-  const stratPanel    = document.getElementById('strategy-panel');
-  const listHeader    = document.querySelector('.list-header');
-  const filterWrap    = document.querySelector('.filter-wrap');
-  const loadProgress  = document.getElementById('load-progress');
+  const stockList    = document.getElementById('stock-list');
+  const earningsPnl  = document.getElementById('earnings-cal-panel');
+  const filterWrap   = document.querySelector('.filter-wrap');
+  const loadProgress = document.getElementById('load-progress');
 
-  if (stockList)    stockList.style.display    = isStrategy ? 'none' : '';
-  if (stratPanel)   stratPanel.classList.toggle('visible', isStrategy);
-  if (filterWrap)   filterWrap.style.display   = isStrategy ? 'none' : '';
-  if (loadProgress) loadProgress.style.display = isStrategy ? 'none' : '';
+  if (stockList)    stockList.style.display    = isEarnings ? 'none' : '';
+  if (earningsPnl)  earningsPnl.style.display  = isEarnings ? ''     : 'none';
+  if (filterWrap)   filterWrap.style.display   = isEarnings ? 'none' : '';
+  if (loadProgress) loadProgress.style.display = isEarnings ? 'none' : '';
 
   const label = document.getElementById('sort-label');
-  if (label) label.textContent = isStrategy
-    ? '💰 $500K Robinhood Portfolio Strategy'
-    : mode === 'earnings'
-      ? 'Ranked: Soonest Earnings → Bullish'
-      : 'Ranked: Most Bullish → Most Bearish';
+  if (label) label.textContent = isEarnings
+    ? '📅 Earnings Calendar'
+    : 'Ranked: Most Bullish → Most Bearish';
 
   document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
   const active = document.getElementById(`sort-btn-${mode}`);
   if (active) active.classList.add('active');
 
-  if (isStrategy) {
-    renderStrategy();
+  if (isEarnings) {
+    // Pause background stock rotation — saves proxy calls while browsing earnings
+    if (_rotTimer) { clearInterval(_rotTimer); _rotTimer = null; }
+    if (!wasEarnings) loadEarningsCal();  // fresh fetch on first switch to this tab
+    else _renderEcList();                 // already fetched — just re-render
   } else {
     renderList();
+    // Restart rolling timer if stocks are loaded and it was stopped
+    if (!_rotTimer && !S.busy) startRolling();
   }
 }
 
@@ -4296,7 +4579,7 @@ async function refreshLivePrices() {
 let _liveTimer = null;
 
 async function rotateNext() {
-  if (S.busy) return;
+  if (S.busy || _sortMode === 'earnings') return;
   if (!_rotList.length) buildRotList();
   if (_rotIdx >= _rotList.length) {
     // Completed a full cycle — reshuffle for next pass
