@@ -1110,6 +1110,29 @@
       border-radius: 0 0 12px 12px;
       background: var(--surface); padding: 12px 14px;
     }
+    /* ── Portfolio & Trends shared rows ─────────────────────── */
+    #portfolio-panel, #trends-panel { padding: 0 0 20px; }
+    .port-row {
+      border: 1px solid var(--border); border-radius: 12px; margin-bottom: 6px;
+      overflow: hidden; cursor: pointer; transition: background .15s;
+    }
+    .port-row:hover { background: rgba(255,255,255,.04); }
+    .port-row.expanded { border-radius: 12px 12px 0 0; border-bottom-color: transparent; }
+    .port-row-main {
+      display: flex; align-items: center; padding: 12px 16px; gap: 10px; user-select: none;
+    }
+    .port-ticker { font-weight: 700; font-size: .95rem; min-width: 64px; }
+    .port-name   { font-size: .8rem; color: var(--muted); flex: 1; }
+    .port-chevron { color: var(--muted); font-size: 1.1rem; transition: transform .2s; }
+    .port-row.expanded .port-chevron { transform: rotate(90deg); color: var(--blue); }
+    .port-detail {
+      border: 1px solid rgba(30,99,217,.2); border-top: none;
+      border-radius: 0 0 12px 12px;
+      background: var(--surface); padding: 12px 14px;
+    }
+    .trend-hot { font-size: .72rem; font-weight: 700; color: var(--green);
+      background: rgba(34,197,94,.12); padding: 1px 7px; border-radius: 20px; }
+    .trends-meta { margin: 0 0 10px; font-size: .78rem; color: var(--muted); }
     .ec-ticker-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .ec-meta-chip {
       font-size: 0.62rem; font-weight: 700; padding: 1px 7px; border-radius: 20px;
@@ -1288,8 +1311,9 @@
     <h2 id="sort-label">Ranked: Most Bullish → Most Bearish</h2>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="display:flex;gap:4px">
-        <button id="sort-btn-bullish" class="sort-btn active" onclick="setSortMode('bullish')">&#x2605; Bullish</button>
+        <button id="sort-btn-portfolio" class="sort-btn active" onclick="setSortMode('portfolio')">&#128200; Portfolio</button>
         <button id="sort-btn-earnings" class="sort-btn" onclick="setSortMode('earnings')">&#128197; Earnings</button>
+        <button id="sort-btn-trends" class="sort-btn" onclick="setSortMode('trends')">&#128293; Trends</button>
       </div>
       <div class="filter-wrap">
         <input id="wl-filter" type="text" placeholder="Filter stocks…" maxlength="10" oninput="applyFilter()" />
@@ -1301,8 +1325,18 @@
       </div>
     </div>
   </div>
-  <div id="stock-list">
+  <div id="stock-list" style="display:none">
     <div class="empty">Fetching stock data… usually takes 30–60 s on first load.</div>
+  </div>
+
+  <!-- PORTFOLIO PANEL -->
+  <div id="portfolio-panel">
+    <div id="portfolio-body"></div>
+  </div>
+
+  <!-- TRENDS PANEL -->
+  <div id="trends-panel" style="display:none">
+    <div id="trends-body"><div class="empty">Loading trending stocks…</div></div>
   </div>
 
   <!-- EARNINGS CALENDAR PANEL -->
@@ -1950,7 +1984,36 @@ let _rotIdx   = 0;
 let _rotTimer = null;
 let _rotList  = [];  // shuffled copy rebuilt each cycle
 let _filterText = ''; // live filter applied in renderList
-let _sortMode   = 'bullish'; // 'bullish' | 'earnings'
+let _sortMode   = 'portfolio'; // 'portfolio' | 'earnings' | 'trends'
+
+// ── Portfolio stocks (order matches user's Robinhood view) ──────────────────
+const PORTFOLIO_STOCKS = [
+  { t:'AMAT', n:'Applied Materials' },   { t:'MSFT', n:'Microsoft' },
+  { t:'AMZN', n:'Amazon' },              { t:'QCOM', n:'Qualcomm' },
+  { t:'BOOT', n:'Boot Barn Holdings' },  { t:'FIG',  n:'Simplify Macro Strategy ETF' },
+  { t:'KHC',  n:'Kraft Heinz' },         { t:'GLD',  n:'SPDR Gold Shares ETF' },
+  { t:'VXUS', n:'Vanguard Total Intl Stock ETF' }, { t:'CEG',  n:'Constellation Energy' },
+  { t:'AAPL', n:'Apple' },               { t:'ZETA', n:'Zeta Global Holdings' },
+  { t:'TSLA', n:'Tesla' },               { t:'NOW',  n:'ServiceNow' },
+  { t:'GFS',  n:'GlobalFoundries' },     { t:'MA',   n:'Mastercard' },
+  { t:'PANW', n:'Palo Alto Networks' },  { t:'META', n:'Meta Platforms' },
+  { t:'GS',   n:'Goldman Sachs' },       { t:'SPY',  n:'SPDR S&P 500 ETF' },
+  { t:'CVS',  n:'CVS Health' },          { t:'UNH',  n:'UnitedHealth Group' },
+  { t:'PBR',  n:'Petrobras' },           { t:'ELV',  n:'Elevance Health' },
+  { t:'TSM',  n:'Taiwan Semiconductor' },{ t:'NEE',  n:'NextEra Energy' },
+  { t:'KLAC', n:'KLA Corporation' },     { t:'XLF',  n:'Financial Select Sector SPDR' },
+  { t:'XLV',  n:'Health Care Select Sector SPDR' }, { t:'ORCL', n:'Oracle' },
+  { t:'VTI',  n:'Vanguard Total Stock Market ETF' },{ t:'AMD',  n:'Advanced Micro Devices' },
+  { t:'CRM',  n:'Salesforce' },          { t:'NBIS', n:'Nebius Group' },
+  { t:'MU',   n:'Micron Technology' },   { t:'DELL', n:'Dell Technologies' },
+  { t:'ON',   n:'ON Semiconductor' },    { t:'PLTR', n:'Palantir Technologies' },
+  { t:'BN',   n:'Brookfield Corporation' },
+];
+
+// ── Portfolio & Trends view state ───────────────────────────────────────────
+let _portViewStock   = null;
+let _trendsViewStock = null;
+let _trendsData      = null; // cached trending tickers
 
 function shuffle(arr) {
   const a = [...arr];
@@ -3516,40 +3579,214 @@ async function _loadEcStockDetail(ticker, el, attempt) {
 }
 
 function setSortMode(mode) {
-  if (mode === 'strategy') return;  // section temporarily hidden
-  const wasEarnings = _sortMode === 'earnings';
   _sortMode = mode;
-  const isEarnings = mode === 'earnings';
 
+  // Stop any background timers whenever switching tabs
+  if (_rotTimer)  { clearInterval(_rotTimer);  _rotTimer  = null; }
+  if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+
+  // Hide all panels
   const stockList    = document.getElementById('stock-list');
   const earningsPnl  = document.getElementById('earnings-cal-panel');
+  const portfolioPnl = document.getElementById('portfolio-panel');
+  const trendsPnl    = document.getElementById('trends-panel');
   const filterWrap   = document.querySelector('.filter-wrap');
   const loadProgress = document.getElementById('load-progress');
+  const refreshBtn   = document.getElementById('refresh-btn');
+  if (stockList)    stockList.style.display    = 'none';
+  if (earningsPnl)  earningsPnl.style.display  = 'none';
+  if (portfolioPnl) portfolioPnl.style.display = 'none';
+  if (trendsPnl)    trendsPnl.style.display    = 'none';
+  if (filterWrap)   filterWrap.style.display   = 'none';
+  if (loadProgress) loadProgress.style.display = 'none';
+  if (refreshBtn)   refreshBtn.style.display   = 'none';
 
-  if (stockList)    stockList.style.display    = isEarnings ? 'none' : '';
-  if (earningsPnl)  earningsPnl.style.display  = isEarnings ? ''     : 'none';
-  if (filterWrap)   filterWrap.style.display   = isEarnings ? 'none' : '';
-  if (loadProgress) loadProgress.style.display = isEarnings ? 'none' : '';
+  // Activate correct button
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.getElementById(`sort-btn-${mode}`);
+  if (activeBtn) activeBtn.classList.add('active');
 
   const label = document.getElementById('sort-label');
-  if (label) label.textContent = isEarnings
-    ? '📅 Earnings Calendar'
-    : 'Ranked: Most Bullish → Most Bearish';
 
-  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
-  const active = document.getElementById(`sort-btn-${mode}`);
-  if (active) active.classList.add('active');
+  if (mode === 'portfolio') {
+    if (portfolioPnl) portfolioPnl.style.display = '';
+    if (label) label.textContent = '📈 My Portfolio';
+    renderPortfolio();
+  } else if (mode === 'earnings') {
+    if (earningsPnl) earningsPnl.style.display = '';
+    if (label) label.textContent = '📅 Earnings Calendar';
+    loadEarningsCal();
+  } else if (mode === 'trends') {
+    if (trendsPnl) trendsPnl.style.display = '';
+    if (label) label.textContent = '🔥 Trending Stocks';
+    loadTrends();
+  }
+}
 
-  if (isEarnings) {
-    // Stop ALL background stock timers — earnings tab must not hammer proxies
-    if (_rotTimer)  { clearInterval(_rotTimer);  _rotTimer  = null; }
-    if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
-    if (!wasEarnings) loadEarningsCal();  // fresh fetch on first switch
-    else _renderEcList();                 // already fetched — just re-render
+// ══════════════════════════════════════════════════════════════
+//  PORTFOLIO TAB
+// ══════════════════════════════════════════════════════════════
+function renderPortfolio() {
+  const body = document.getElementById('portfolio-body');
+  if (!body) return;
+  body.innerHTML = PORTFOLIO_STOCKS.map(({ t, n }) => `
+    <div class="port-row" id="port-row-${t}" onclick="togglePortfolioRow('${t}')">
+      <div class="port-row-main">
+        <span class="port-ticker">${esc(t)}</span>
+        <span class="port-name">${esc(n)}</span>
+        <span class="port-chevron">›</span>
+      </div>
+      <div class="port-detail" id="port-detail-${t}" style="display:none"></div>
+    </div>
+  `).join('');
+}
+
+function togglePortfolioRow(ticker) {
+  const row    = document.getElementById(`port-row-${ticker}`);
+  const detail = document.getElementById(`port-detail-${ticker}`);
+  if (!row || !detail) return;
+
+  const isOpen = detail.style.display !== 'none';
+
+  // Collapse any previously open row
+  if (_portViewStock && _portViewStock !== ticker) {
+    const pd = document.getElementById(`port-detail-${_portViewStock}`);
+    document.getElementById(`port-row-${_portViewStock}`)?.classList.remove('expanded');
+    if (pd) pd.style.display = 'none';
+  }
+
+  if (isOpen) {
+    detail.style.display = 'none';
+    row.classList.remove('expanded');
+    _portViewStock = null;
   } else {
-    renderList();
-    // Restart both timers if stocks are loaded and they were stopped
-    if (!_rotTimer && !S.busy) startRolling();
+    detail.style.display = 'block';
+    row.classList.add('expanded');
+    _portViewStock = ticker;
+    if (!detail.dataset.loaded) {
+      detail.innerHTML = `<div class="empty" style="padding:16px 0">Loading ${esc(ticker)}…</div>`;
+      _loadPortfolioDetail(ticker, detail, 0);
+    }
+  }
+}
+
+async function _loadPortfolioDetail(ticker, el, attempt) {
+  if (_portViewStock !== ticker) return;
+  try {
+    if (!S.data[ticker] || S.data[ticker].err) {
+      delete S.data[ticker];
+      await loadOne(ticker);
+    }
+    const d = S.data[ticker];
+    if (!d || d.err) throw new Error('no data');
+    if (_portViewStock !== ticker) return;
+    el.innerHTML = buildCard(d, 1, true);
+    el.dataset.loaded = '1';
+  } catch (_) {
+    if (_portViewStock !== ticker) return;
+    const next = attempt + 1;
+    if (next <= 5) {
+      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(retry ${next}/5)</small></div>`;
+      setTimeout(() => _loadPortfolioDetail(ticker, el, next), 6000);
+    } else {
+      el.innerHTML = `<div class="empty" style="color:var(--red);padding:14px 0">Could not load ${esc(ticker)}.
+        <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+          onclick="delete document.getElementById('port-detail-${ticker}').dataset.loaded;_loadPortfolioDetail('${ticker}',document.getElementById('port-detail-${ticker}'),0)">
+          Retry</button></div>`;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TRENDS TAB
+// ══════════════════════════════════════════════════════════════
+async function loadTrends() {
+  if (_trendsData) { renderTrends(); return; } // use cached
+  const body = document.getElementById('trends-body');
+  if (body) body.innerHTML = '<div class="empty">Fetching trending stocks…</div>';
+  try {
+    const url  = 'https://query1.finance.yahoo.com/v1/finance/trending/US?count=25';
+    const json = await fetchJProxy(url, 0);
+    const quotes = json?.finance?.result?.[0]?.quotes ?? [];
+    if (!quotes.length) throw new Error('empty');
+    _trendsData = quotes.map(q => q.symbol).filter(Boolean);
+    renderTrends();
+  } catch (_) {
+    if (body) body.innerHTML = `<div class="empty" style="color:var(--red)">Could not load trending stocks.
+      <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+        onclick="_trendsData=null;loadTrends()">Retry</button></div>`;
+  }
+}
+
+function renderTrends() {
+  const body = document.getElementById('trends-body');
+  if (!body || !_trendsData) return;
+  body.innerHTML = `<p class="trends-meta">Yahoo Finance trending · tap to load analysis</p>` +
+    _trendsData.map(t => `
+      <div class="port-row" id="trend-row-${t}" onclick="toggleTrendsRow('${t}')">
+        <div class="port-row-main">
+          <span class="port-ticker">${esc(t)}</span>
+          <span class="port-name"><span class="trend-hot">Trending</span></span>
+          <span class="port-chevron">›</span>
+        </div>
+        <div class="port-detail" id="trend-detail-${t}" style="display:none"></div>
+      </div>
+    `).join('');
+}
+
+function toggleTrendsRow(ticker) {
+  const row    = document.getElementById(`trend-row-${ticker}`);
+  const detail = document.getElementById(`trend-detail-${ticker}`);
+  if (!row || !detail) return;
+
+  const isOpen = detail.style.display !== 'none';
+
+  // Collapse previous
+  if (_trendsViewStock && _trendsViewStock !== ticker) {
+    const pd = document.getElementById(`trend-detail-${_trendsViewStock}`);
+    document.getElementById(`trend-row-${_trendsViewStock}`)?.classList.remove('expanded');
+    if (pd) pd.style.display = 'none';
+  }
+
+  if (isOpen) {
+    detail.style.display = 'none';
+    row.classList.remove('expanded');
+    _trendsViewStock = null;
+  } else {
+    detail.style.display = 'block';
+    row.classList.add('expanded');
+    _trendsViewStock = ticker;
+    if (!detail.dataset.loaded) {
+      detail.innerHTML = `<div class="empty" style="padding:16px 0">Loading ${esc(ticker)}…</div>`;
+      _loadTrendsDetail(ticker, detail, 0);
+    }
+  }
+}
+
+async function _loadTrendsDetail(ticker, el, attempt) {
+  if (_trendsViewStock !== ticker) return;
+  try {
+    if (!S.data[ticker] || S.data[ticker].err) {
+      delete S.data[ticker];
+      await loadOne(ticker);
+    }
+    const d = S.data[ticker];
+    if (!d || d.err) throw new Error('no data');
+    if (_trendsViewStock !== ticker) return;
+    el.innerHTML = buildCard(d, 1, true);
+    el.dataset.loaded = '1';
+  } catch (_) {
+    if (_trendsViewStock !== ticker) return;
+    const next = attempt + 1;
+    if (next <= 5) {
+      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(retry ${next}/5)</small></div>`;
+      setTimeout(() => _loadTrendsDetail(ticker, el, next), 6000);
+    } else {
+      el.innerHTML = `<div class="empty" style="color:var(--red);padding:14px 0">Could not load ${esc(ticker)}.
+        <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+          onclick="delete document.getElementById('trend-detail-${ticker}').dataset.loaded;_loadTrendsDetail('${ticker}',document.getElementById('trend-detail-${ticker}'),0)">
+          Retry</button></div>`;
+    }
   }
 }
 
@@ -4623,7 +4860,7 @@ function updateLiveBadge() {
 // preMarketPrice / postMarketPrice fields are used so the UI always shows the
 // most recent tradeable price. Full indicator refresh still every 20 s via rotateNext().
 async function refreshLivePrices() {
-  if (_sortMode === 'earnings') return;  // don't touch proxies while browsing earnings
+  if (_sortMode !== 'bullish') return;  // only run when on legacy bullish list
   updateLiveBadge();
   const session = getMarketSession();
 
@@ -4712,7 +4949,7 @@ async function refreshLivePrices() {
 let _liveTimer = null;
 
 async function rotateNext() {
-  if (S.busy || _sortMode === 'earnings') return;
+  if (S.busy || _sortMode !== 'bullish') return;
   if (!_rotList.length) buildRotList();
   if (_rotIdx >= _rotList.length) {
     // Completed a full cycle — reshuffle for next pass
@@ -4764,7 +5001,7 @@ async function refreshAll() {
     : shuffle(allTickers);
 
   for (let i = 0; i < tickers.length; i += 2) {
-    if (_sortMode === 'earnings') break;  // user switched to earnings tab — stop hammering proxies
+    if (_sortMode !== 'bullish') { S.busy = false; break; }  // user left bullish tab
     await Promise.all(tickers.slice(i, i + 2).map(t => loadOne(t)));
     renderList();
     renderMarketBar();
@@ -4862,17 +5099,8 @@ async function searchStock() {
     S.watchlist = [...DEFAULT_WATCHLIST];
   }
 
-  await refreshAll(); // starts rolling timer automatically
-  updateLiveBadge();  // show LIVE / Market Closed badge immediately
-
-  // When tab becomes visible again, immediately catch up then ensure timer is running
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      rotateNext();
-      refreshLivePrices();  // immediate live price catch-up on tab focus
-      if (!_rotTimer) startRolling();
-    }
-  });
+  setSortMode('portfolio');  // show Portfolio immediately — no background loading
+  updateLiveBadge();
 })();
 </script>
 </body>
