@@ -3959,6 +3959,10 @@ function buildCard(d, rank, pinned) {
           <div class="ind-val" style="color:${d.changePct >= 0 ? 'var(--green)' : 'var(--red)'}">${cs}${d.changePct.toFixed(2)}%</div>
         </div>
         <div class="ind-item">
+          <div class="ind-label">Vol Ratio</div>
+          <div class="ind-val" style="color:${(d.volumeRatio??1) >= 1.5 ? 'var(--green)' : (d.volumeRatio??1) < 0.7 ? 'var(--muted)' : 'var(--fg)'}">${d.volumeRatio != null ? d.volumeRatio.toFixed(2) + '×' : '—'}</div>
+        </div>
+        <div class="ind-item">
           <div class="ind-label">vs SPY</div>
           <div class="ind-val" style="color:${rsColor}">${rsTxt}</div>
         </div>
