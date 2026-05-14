@@ -1103,7 +1103,6 @@
       <div style="display:flex;gap:4px">
         <button id="sort-btn-bullish" class="sort-btn active" onclick="setSortMode('bullish')">&#x2605; Bullish</button>
         <button id="sort-btn-earnings" class="sort-btn" onclick="setSortMode('earnings')">&#128197; Earnings</button>
-        <button id="sort-btn-strategy" class="sort-btn" onclick="setSortMode('strategy')" style="background:linear-gradient(135deg,#0f2744,#1e3a6e);color:#fff;border-color:#1e3a6e">&#x1F4B0; $500K Strategy</button>
       </div>
       <div class="filter-wrap">
         <input id="wl-filter" type="text" placeholder="Filter stocks…" maxlength="10" oninput="applyFilter()" />
@@ -1118,7 +1117,6 @@
   <div id="stock-list">
     <div class="empty">Fetching stock data… usually takes 30–60 s on first load.</div>
   </div>
-  <div id="strategy-panel"></div>
 </main>
 
 <script>
@@ -2958,8 +2956,9 @@ function renderStrategy() {
 }
 
 function setSortMode(mode) {
+  if (mode === 'strategy') return;  // section temporarily hidden
   _sortMode = mode;
-  const isStrategy = mode === 'strategy';
+  const isStrategy = false;
 
   // Toggle which panel is visible
   const stockList     = document.getElementById('stock-list');
@@ -3061,7 +3060,7 @@ function renderMarketBar() {
 
 function renderList() {
   // If strategy mode is active, re-render strategy panel instead
-  if (_sortMode === 'strategy') { renderStrategy(); return; }
+  // strategy mode removed
 
   const el      = document.getElementById('stock-list');
   const progEl  = document.getElementById('load-progress');
