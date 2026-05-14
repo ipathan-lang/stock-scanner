@@ -1099,6 +1099,12 @@
           <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">Bear &gt; Bull: risk factors dominate</span></div>
         </div>
         <div class="ig-item">
+          <h4>Vol Ratio</h4>
+          <div class="ig-row"><span class="ig-chip ic-g">≥ 1.5×</span><span class="ig-txt">High volume — institutional activity · confirms move</span></div>
+          <div class="ig-row"><span class="ig-chip ic-y">0.7–1.5×</span><span class="ig-txt">Normal volume — typical trading day</span></div>
+          <div class="ig-row"><span class="ig-chip ic-r">&lt; 0.7×</span><span class="ig-txt">Low volume — low conviction, discount the signal</span></div>
+        </div>
+        <div class="ig-item">
           <h4>Vs SPY (20d)</h4>
           <div class="ig-row"><span class="ig-chip ic-g">Leader</span><span class="ig-txt">Outperforming SPY &gt; 4% — relative strength +1/+2</span></div>
           <div class="ig-row"><span class="ig-chip ic-r">Laggard</span><span class="ig-txt">Underperforming SPY &gt; 4% — relative weakness -1/-2</span></div>
@@ -1109,6 +1115,28 @@
           <div class="ig-row"><span class="ig-chip ic-y">Mild</span><span class="ig-txt">1–2 buys or net positive → +1/+2</span></div>
           <div class="ig-row"><span class="ig-chip ic-r">Bearish</span><span class="ig-txt">3+ sells · 0 buys → -1 bearish</span></div>
         </div>
+        <div class="ig-item" style="grid-column:1/-1">
+          <h4>AH / Pre-Market Price</h4>
+          <div class="ig-row"><span class="ig-chip ic-g">AH</span><span class="ig-txt">After-hours price and % change (shown after 4 PM ET)</span></div>
+          <div class="ig-row"><span class="ig-chip ic-y">Pre</span><span class="ig-txt">Pre-market price and % change (shown 7–9:30 AM ET)</span></div>
+          <div class="ig-row"><span class="ig-chip" style="background:var(--muted);color:#fff">Closed</span><span class="ig-txt">Regular session closed — showing last close price</span></div>
+        </div>
+      </div>
+
+      <!-- 24h Outlook explanation -->
+      <div style="font-size:.73rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px">📈 24H Outlook — How It's Calculated</div>
+      <div style="font-size:.78rem;line-height:1.7;color:var(--ink)">
+        Each stock card shows a plain-English 24-hour price prediction. It uses a <strong>deterministic 6-component model</strong> — no random numbers:
+        <ol style="margin:6px 0 6px 16px;padding:0">
+          <li><strong>Net Score</strong> → primary direction driver (±ATR-scaled)</li>
+          <li><strong>RSI correction</strong> → overbought pushes target down; oversold pushes it up</li>
+          <li><strong>MACD momentum</strong> → aligned MACD adds confidence; opposing MACD reduces target</li>
+          <li><strong>EMA20 gravity</strong> → price gravitates back toward its 20-day moving average</li>
+          <li><strong>Volume conviction</strong> → 1.5× volume confirms the move; &lt;0.6× discounts it</li>
+          <li><strong>ATR budget</strong> → if today already used its full daily range, less room remains</li>
+        </ol>
+        The <strong>range</strong> (e.g. −0.4% to +3.2%) is the ±ATR confidence band around the central estimate.
+        The <strong>pattern label</strong> (Momentum / Reversal snap / Gap fade / Steady / Choppy) describes how the move is expected to unfold during the session.
       </div>
 
       <!-- Formula -->

@@ -277,6 +277,9 @@ const [chart, news, nasdaqData, calendarData, insiderData] = await Promise.all([
   rsi, macdDiff,          // from calcIndicators()
   ema20, position,        // EMA20 price, week position 0–1
   bullishScore, bearishScore, catalystScore,
+  extHours,              // 'pre' | 'after' | null — current extended-hours session
+  extChangePct,           // extended-hours % change (pre or post market)
+  regularPrice,           // regular-session close price (for AH/Pre reference)
   netScore,               // final: -15 to +15
   conviction,             // 0–100 mapped from netScore
   sortScore,              // netScore*100 + bullish*10 - bearish
@@ -316,11 +319,15 @@ const [chart, news, nasdaqData, calendarData, insiderData] = await Promise.all([
 | `buildHoldBar(d)` | 2960 | "Today's Hold" conviction bar |
 | `buildFundamentalsRow(d)` | ~2880 | Fundamentals row (PE, PEG, D/E, growth) |
 | `buildEarningsRow(d)` | ~2850 | Earnings date + EPS surprise row |
-| `buildCard(d, rank, pinned)` | ~3480 | Full stock card HTML |
+| `buildInlineForecast(d)` | ~3858 | Plain-English 24h outlook box (no chart) — same math as old SVG forecast |
+| `buildCard(d, rank, pinned)` | ~3926 | Full stock card HTML — always-visible layout (no collapse) |
 | `renderAll()` | ~3700 | Re-render the list/strategy panel |
 | `loadOne(ticker)` | ~3610 | Load + store a single ticker in S.data |
 | `rotateNext()` | ~3620 | Background rolling refresh (5 stocks every 15min) |
 | `prediction(d)` | 1505 | Plain-text prediction sentence for the card |
+| `getMarketSession()` | ~4090 | Returns 'open'\|'pre'\|'after'\|'overnight' based on ET time |
+| `refreshLivePrices()` | ~4120 | 24/7 price refresh — picks pre/post/regular price per session |
+| `updateLiveBadge()` | ~4105 | 4-state live badge: LIVE / Pre-Market / After Hours / Last Close |
 
 ## Test Lab Simulator
 
@@ -422,6 +429,44 @@ python analyze_trades.py sim_trades_YYYY-MM-DD.csv   # 7-section performance rep
 4. **$500K Strategy tab** — new view with 12-stock portfolio plan, market safety gauge, dip-alert banner, per-stock action badges and entry/exit plans
 5. **`setSortMode('strategy')`** — added third mode to the nav toggle; shows `#strategy-panel`, hides `#stock-list`
 6. **`renderList()` guard** — early return redirects to `renderStrategy()` when in strategy mode, keeping it live on auto-refresh
+
+### 2026-05-13 — Card UI Redesign + Extended Hours + Signal Fixes
+
+**Changes made this session:**
+
+1. **24/7 Extended Hours Pricing**
+   - `refreshLivePrices()` now runs always (no market-hours gate), every 60s
+   - Fetches `postMarketPrice`, `postMarketChangePercent`, `preMarketPrice`, `preMarketChangePercent` from Yahoo v7 quote
+   - `getMarketSession()` returns `'open'|'pre'|'after'|'overnight'` based on ET time
+   - Best price per session is picked and stored as `d.extHours` ('pre'|'after'|null), `d.extChangePct`, `d.regularPrice`
+   - Price row shows AH/Pre badge + extended hours % change
+   - `updateLiveBadge()` has 4 states: green LIVE / amber Pre-Market / orange After Hours / grey Last Close
+
+2. **Vol Ratio tile** added to the 10-tile indicator grid on every stock card
+   - Green ≥ 1.5× · Muted < 0.7× · Default otherwise
+
+3. **Signal starvation fix (post-rally entries)**
+   - **Good Entry Tier B**: `conf ≥ 50`, `pos ≤ 0.60`, `ret20 > 2` (allows post-rally pullback entries at lower confidence)
+   - **Momentum Buy**: `changePct > -2` relaxed from `> 0` — allows first pullback day entries
+   - Prevents signals going dark after a broad market rally
+
+4. **Pre-Move Watch direction conflict fix**
+   - `preMoveWatch` direction only shows 'surge' if `netScoreFinal > -5`
+   - `pmConflict` flag added: shown as amber warning "Pattern conflicts with current bearish signal"
+   - Prevents false 'surge' banners on stocks with weak/bearish signals
+
+5. **Full card UI redesign** — `buildCard()` rewritten, no collapse
+   - **Removed**: "Details & News" collapse button + `toggleDetail()` — caused flicker bug on every `renderAll()` call
+   - **Removed**: "Forecast" modal button + SVG chart — replaced with inline plain-English text
+   - **Added**: `buildInlineForecast(d)` — blue box showing `▲/▼ X%  range lo to hi  target ~$XXX` + pattern label + plain-English drivers
+   - Forecast uses same 6-component deterministic math (score, RSI adj, MACD adj, EMA gravity, volume, ATR budget)
+   - **Always visible**: bull/bear driver pills, 52-week range bar, news headlines
+   - **Card layout** (top to bottom): header → banners → indicators → pred text → hold bar → 24h forecast → earnings/fundamentals/insider → drivers → 52-week range → news
+   - No DOM IDs needed for collapse — eliminates the flicker where sections snapped shut on every refresh
+
+**Commit**: `8574560` on `main`
+
+---
 
 ### 2026-05-08 — Market Regime Overlay + Relative Strength
 
