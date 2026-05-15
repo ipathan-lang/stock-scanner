@@ -3606,8 +3606,11 @@ async function _loadEcStockDetail(ticker, el, attempt) {
   // Only proceed if this row is still expanded
   if (_ecViewStock !== ticker) return;
   try {
-    // Clear cached error so loadOne will retry the network call
     if (!S.data[ticker] || S.data[ticker].err) {
+      // Check static cache first — if the JSON doesn't exist, bail immediately.
+      // This prevents wasted proxy calls (CORS/429) for non-portfolio earnings tickers.
+      const sr = await fetch(`./data/stocks/${ticker}.json`, { cache: 'no-store' });
+      if (!sr.ok) throw new Error('not cached');
       delete S.data[ticker];
       await loadOne(ticker);
     }
@@ -3618,7 +3621,7 @@ async function _loadEcStockDetail(ticker, el, attempt) {
     el.dataset.loaded = '1';
   } catch (_) {
     if (_ecViewStock !== ticker) return;
-    // Fail fast — no retries. Earnings stocks outside our cache can't load via browser.
+    // Show immediately — no retries
     el.innerHTML = `<div class="empty" style="color:var(--muted);padding:14px 0">Data for ${esc(ticker)} unavailable — cache updates every 2h.
       <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
         onclick="delete S.data['${ticker}'];delete document.getElementById('ec-detail-${ticker}').dataset.loaded;_loadEcStockDetail('${ticker}',document.getElementById('ec-detail-${ticker}'),0)">
