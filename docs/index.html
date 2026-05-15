@@ -3606,10 +3606,8 @@ async function _loadEcStockDetail(ticker, el, attempt) {
   if (_ecViewStock !== ticker) return;
   try {
     if (!S.data[ticker] || S.data[ticker].err) {
-      // Check static cache first — if the JSON doesn't exist, bail immediately.
-      // This prevents wasted proxy calls (CORS/429) for non-portfolio earnings tickers.
-      const sr = await fetch(`./data/stocks/${ticker}.json`, { cache: 'no-store' });
-      if (!sr.ok) throw new Error('not cached');
+      // fetchStock already tries static cache first, then proxy fallback.
+      // Don't pre-check here — just let loadOne handle both paths.
       delete S.data[ticker];
       await loadOne(ticker);
     }
