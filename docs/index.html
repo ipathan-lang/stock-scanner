@@ -1149,6 +1149,24 @@
     }
     .ec-ly { font-size: 0.68rem; color: var(--muted); }
     .ec-ly b { color: var(--ink); }
+    /* ── Search Panel ───────────────────────────────────────── */
+    #search-panel { padding: 0 0 20px; }
+    .sp-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px 18px 14px; margin-bottom: 16px;
+    }
+    .sp-input-row { display: flex; gap: 8px; }
+    .sp-input {
+      flex: 1; padding: 10px 14px; border-radius: 10px;
+      border: 1.5px solid var(--border); font-size: 1rem; font-weight: 700;
+      background: var(--bg); color: var(--ink); outline: none;
+      text-transform: uppercase; letter-spacing: .05em;
+      transition: border-color .15s;
+    }
+    .sp-input:focus { border-color: var(--blue); }
+    .sp-btn { padding: 10px 16px; border-radius: 10px; font-size: .88rem; white-space: nowrap; }
+    .sp-hint { font-size: .76rem; color: var(--muted); margin: 8px 0 0; }
+    #sp-result .card-wrap { margin-top: 0; }
   </style>
 </head>
 <body>
@@ -1316,6 +1334,7 @@
         <button id="sort-btn-portfolio" class="sort-btn active" onclick="setSortMode('portfolio')">&#128200; Portfolio</button>
         <button id="sort-btn-earnings" class="sort-btn" onclick="setSortMode('earnings')">&#128197; Earnings</button>
         <button id="sort-btn-trends" class="sort-btn" onclick="setSortMode('trends')">&#128293; Trends</button>
+        <button id="sort-btn-search" class="sort-btn" onclick="setSortMode('search')">&#128269; Search</button>
       </div>
       <div class="filter-wrap">
         <input id="wl-filter" type="text" placeholder="Filter stocks…" maxlength="10" oninput="applyFilter()" />
@@ -1354,6 +1373,20 @@
       <div id="ec-week-row" class="ec-week-row"></div>
     </div>
     <div id="ec-body"></div>
+  </div>
+
+  <!-- SEARCH PANEL -->
+  <div id="search-panel" style="display:none">
+    <div class="sp-wrap">
+      <div class="sp-input-row">
+        <input id="sp-q" type="text" class="sp-input" placeholder="Enter ticker (e.g. NVDA, AAPL)" maxlength="12"
+               onkeydown="if(event.key==='Enter') searchPanelStock()" autocomplete="off" autocorrect="off"
+               autocapitalize="characters" spellcheck="false" />
+        <button class="btn-p sp-btn" onclick="searchPanelStock()">&#128269; Analyze</button>
+      </div>
+      <p class="sp-hint">Enter any stock ticker to load its analysis card. Portfolio stocks load instantly from cache.</p>
+    </div>
+    <div id="sp-result"></div>
   </div>
 </main>
 
@@ -3585,16 +3618,11 @@ async function _loadEcStockDetail(ticker, el, attempt) {
     el.dataset.loaded = '1';
   } catch (_) {
     if (_ecViewStock !== ticker) return;
-    const next = attempt + 1;
-    if (next <= 5) {
-      el.innerHTML = `<div class="empty" style="padding:12px 0;color:var(--muted)">Loading ${esc(ticker)}… <small>(retry ${next}/5)</small></div>`;
-      setTimeout(() => _loadEcStockDetail(ticker, el, next), 6000);
-    } else {
-      el.innerHTML = `<div class="empty" style="color:var(--red);padding:14px 0">Could not load ${esc(ticker)}.
-        <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
-          onclick="delete document.getElementById('ec-detail-${ticker}').dataset.loaded;_loadEcStockDetail('${ticker}',document.getElementById('ec-detail-${ticker}'),0)">
-          Retry</button></div>`;
-    }
+    // Fail fast — no retries. Earnings stocks outside our cache can't load via browser.
+    el.innerHTML = `<div class="empty" style="color:var(--muted);padding:14px 0">Data for ${esc(ticker)} unavailable — cache updates every 2h.
+      <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+        onclick="delete S.data['${ticker}'];delete document.getElementById('ec-detail-${ticker}').dataset.loaded;_loadEcStockDetail('${ticker}',document.getElementById('ec-detail-${ticker}'),0)">
+        Retry</button></div>`;
   }
 }
 
@@ -3610,6 +3638,7 @@ function setSortMode(mode) {
   const earningsPnl  = document.getElementById('earnings-cal-panel');
   const portfolioPnl = document.getElementById('portfolio-panel');
   const trendsPnl    = document.getElementById('trends-panel');
+  const searchPnl    = document.getElementById('search-panel');
   const filterWrap   = document.querySelector('.filter-wrap');
   const loadProgress = document.getElementById('load-progress');
   const refreshBtn   = document.getElementById('refresh-btn');
@@ -3617,6 +3646,7 @@ function setSortMode(mode) {
   if (earningsPnl)  earningsPnl.style.display  = 'none';
   if (portfolioPnl) portfolioPnl.style.display = 'none';
   if (trendsPnl)    trendsPnl.style.display    = 'none';
+  if (searchPnl)    searchPnl.style.display    = 'none';
   if (filterWrap)   filterWrap.style.display   = 'none';
   if (loadProgress) loadProgress.style.display = 'none';
   if (refreshBtn)   refreshBtn.style.display   = 'none';
@@ -3640,7 +3670,37 @@ function setSortMode(mode) {
     if (trendsPnl) trendsPnl.style.display = '';
     if (label) label.textContent = '🔥 Trending Stocks';
     loadTrends();
+  } else if (mode === 'search') {
+    if (searchPnl) searchPnl.style.display = '';
+    if (label) label.textContent = '🔍 Search Stocks';
+    setTimeout(() => document.getElementById('sp-q')?.focus(), 50);
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SEARCH PANEL
+// ══════════════════════════════════════════════════════════════
+async function searchPanelStock() {
+  const input  = document.getElementById('sp-q');
+  const result = document.getElementById('sp-result');
+  if (!input || !result) return;
+  const ticker = input.value.trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, '');
+  if (!ticker) return;
+
+  result.innerHTML = `<div class="empty" style="padding:24px 0">Loading ${esc(ticker)}…</div>`;
+
+  // Clear any cached error so a fresh fetch is attempted
+  if (S.data[ticker]?.err) delete S.data[ticker];
+
+  await loadOne(ticker);
+  const d = S.data[ticker];
+  if (!d || d.err) {
+    result.innerHTML = `<div class="empty" style="color:var(--red);padding:24px 0">
+      Could not load <strong>${esc(ticker)}</strong>. Check the ticker symbol and try again.
+      <br><small>Portfolio &amp; trending stocks load from cache; others require a live proxy.</small></div>`;
+    return;
+  }
+  result.innerHTML = buildCard(d, 1, true);
 }
 
 // ══════════════════════════════════════════════════════════════
