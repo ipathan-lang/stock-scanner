@@ -9,6 +9,8 @@ import urllib.request, urllib.error
 PORTFOLIO = [
     # Trillion-dollar & near-trillion
     'NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AVGO','TSM','LLY','JPM','V','MA',
+    # Nearing $1T - fast growing (>$500B)
+    'WMT','NFLX','ASML','XOM','COST','ABBV','INTU','UBER','ACN',
     # Fast-growing tech
     'PLTR','CRWD','PANW','ARM','SHOP','NOW','CRM','ORCL','NBIS','ZETA',
     # Semiconductors
