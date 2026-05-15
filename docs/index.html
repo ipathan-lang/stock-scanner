@@ -1167,6 +1167,11 @@
     .sp-btn { padding: 10px 16px; border-radius: 10px; font-size: .88rem; white-space: nowrap; }
     .sp-hint { font-size: .76rem; color: var(--muted); margin: 8px 0 0; }
     #sp-result .card-wrap { margin-top: 0; }
+    @media (max-width: 480px) {
+      .sp-input-row { flex-direction: column; }
+      .sp-btn { width: 100%; text-align: center; }
+      .sp-wrap { padding: 14px 12px 12px; }
+    }
   </style>
 </head>
 <body>
@@ -1317,13 +1322,7 @@
 <header>
   <h1>📊 IntelliMarket</h1>
   <button class="info-btn" onclick="openInfo()" title="How scoring works">i</button>
-  <div class="search-wrap">
-    <input id="q" type="text" placeholder="Search ticker e.g. NVDA" maxlength="12"
-           onkeydown="if(event.key==='Enter') searchStock()" />
-    <button class="btn-p" onclick="searchStock()">Search</button>
-    <button onclick="manualRefresh()" id="refresh-btn">&#x21BB; Refresh</button>
-  </div>
-  <div id="search-err-box" class="search-err"></div>
+  <button onclick="manualRefresh()" id="refresh-btn" style="margin-left:auto">&#x21BB; Refresh</button>
 </header>
 
 <main>
