@@ -36,6 +36,32 @@ const PROXIES = [
 - `fetchJProxy(url, ps)` — proxy-only (skips direct, avoids 401s)
 - `tickerProxyStart(ticker)` — deterministic proxy assignment per ticker
 
+### Static Cache (primary data source — no CORS)
+
+GitHub Actions pre-fetches JSON files server-side and commits them to the repo. The browser reads them as same-origin static files — **zero CORS issues**.
+
+```
+docs/data/stocks/TICKER.json        # chart + news per ticker
+docs/data/trending.json             # { symbols: [...], _fetched }
+docs/data/earnings/YYYY-MM-DD.json  # Nasdaq earnings calendar per date
+```
+
+**`fetchStock(ticker)`** tries static cache first:
+```javascript
+const sr = await fetch(`./data/stocks/${ticker}.json`);
+if (sr.ok && _sf.chart) { /* use it — always trust static over proxy */ }
+```
+
+**GitHub Actions workflows** (all commit to `docs/data/`):
+
+| Workflow | Script | Schedule | Coverage |
+|----------|--------|----------|----------|
+| `fetch-portfolio.yml` | `fetch_portfolio.py` | Every 2h Mon–Fri (11,13,15,17,21 UTC) | 39 portfolio tickers |
+| `fetch-trending.yml` | `fetch_trending.py` | Every 2h Mon–Fri (12,14,16,18,22 UTC) | Top 25 Yahoo trending |
+| `fetch-earnings.yml` | `fetch_earnings.py` | Every 2h Mon–Fri (12,14,16,18,20,22 UTC) | Earnings calendars (−1 to +14 days) + top 60 earnings stocks by market cap |
+
+All workflows use `token: ${{ secrets.GITHUB_TOKEN }}` in checkout and `git pull --rebase` before push.
+
 ## When to Use This Skill
 
 - "Update the trading algorithm / scoring"
@@ -51,12 +77,24 @@ const PROXIES = [
 
 ```
 docs/
-  index.html            # Main SPA (~4700 lines) — ALL app code is here
+  index.html                        # Main SPA (~6000+ lines) — ALL app code is here
   data/
+    stocks/TICKER.json              # Per-ticker cache (chart + news). 60+ files.
+    earnings/YYYY-MM-DD.json        # Nasdaq earnings calendar per date
+    trending.json                   # { symbols: [...25], _fetched }
     portfolio.json
     trackedStocks.json
     watchlist.json
-.github/skills/stock-scanner/SKILL.md   # This file
+.github/
+  scripts/
+    fetch_portfolio.py              # Fetches 39 portfolio tickers → docs/data/stocks/
+    fetch_trending.py               # Fetches trending list + stock data
+    fetch_earnings.py               # Fetches earnings calendars + top 60 earnings stocks
+  workflows/
+    fetch-portfolio.yml
+    fetch-trending.yml
+    fetch-earnings.yml
+  skills/stock-scanner/SKILL.md     # This file
 analyze_trades.py       # Python performance analyzer
 trade_journal_coach.py  # Trade coaching system
 ```
@@ -75,21 +113,36 @@ const S = {
 };
 ```
 
-### Sort Modes (replaces old tab system)
+### Nav Tabs (`setSortMode(mode)`)
 
-The UI has **3 modes**, switched via nav buttons:
+The UI has **4 tabs**, switched via nav buttons:
 
-| Button | Mode | What it shows |
-|--------|------|---------------|
-| ★ Bullish | `'bullish'` | Sorted stock card list by signal tier |
-| 📅 Earnings | `'earnings'` | Sorted by nearest upcoming earnings |
-| 💰 $500K Strategy | `'strategy'` | Full portfolio plan panel |
+| Button | Mode | Panel shown | Panel id |
+|--------|------|-------------|----------|
+| 📈 Portfolio | `'portfolio'` | Pre-cached portfolio stocks (39 tickers) | `#portfolio-panel` |
+| 📅 Earnings | `'earnings'` | Earnings calendar (static JSON → proxy fallback) | `#earnings-cal-panel` |
+| 🔥 Trends | `'trends'` | Yahoo trending stocks (from static cache) | `#trends-panel` |
+| 🔍 Search | `'search'` | Ticker search panel | `#search-panel` |
 
-**`setSortMode(mode)`** — switches between modes, controls visibility of `#stock-list` vs `#strategy-panel`.
+**`setSortMode(mode)`** — hides all panels, shows the active one, activates the nav button.
 
-**`renderList()`** — renders all stock cards; has early-return guard: if `_sortMode === 'strategy'`, calls `renderStrategy()` instead. This ensures auto-refresh keeps the strategy panel live.
+- Portfolio → `renderPortfolio()` (renders rows from `PORTFOLIO_STOCKS` list)
+- Earnings → `loadEarningsCal()` (reads `./data/earnings/YYYY-MM-DD.json`, falls back to proxy)
+- Trends → `loadTrends()` (reads `./data/trending.json`, then loads each ticker)
+- Search → focuses `#sp-q` input
 
-**`sortStocks(list)`** — sorts by `signalRank` first (badge tier 1–9), then `sortScore` as tiebreaker.
+**`renderPortfolio()`** — builds row-per-ticker list; each row expands via `togglePortfolioRow(ticker)` → `_loadPortfolioDetail`.
+
+**`loadTrends()`** — reads `./data/trending.json`, renders rows, each expands via `_loadTrendsDetail`.
+
+**Detail loaders (fail-fast pattern — no retries)**:
+- `_loadPortfolioDetail(ticker, el, attempt)` — calls `loadOne(ticker)` → `buildCard()`. On error: "Data unavailable" + Retry.
+- `_loadTrendsDetail(ticker, el, attempt)` — same pattern.
+- `_loadEcStockDetail(ticker, el, attempt)` — does a same-origin `fetch('./data/stocks/TICKER.json')` HEAD check first; if 404 → immediately shows "Data unavailable" (no proxy calls, no CORS errors). If 200 → `loadOne()` → `buildCard()`.
+
+**`searchPanelStock()`** — clears cached error, calls `loadOne(ticker)`, renders `buildCard()` result in `#sp-result`.
+
+**`renderList()`** / **`sortStocks(list)`** — legacy scored watchlist, still present but `#stock-list` is hidden in normal tab use.
 
 ## Signal System (Badge Labels)
 
@@ -312,17 +365,25 @@ const [chart, news, nasdaqData, calendarData, insiderData] = await Promise.all([
 | `signal(d)` | 1430 | Returns badge label, css class, confidence %, rank 1–9 |
 | `computeConfidence(d)` | 1395 | 6-factor weighted confidence 0–99 |
 | `sortStocks(list)` | 1116 | Sort by signalRank then sortScore |
-| `setSortMode(mode)` | 2667 | Switch between 'bullish'/'earnings'/'strategy' views |
-| `renderList()` | 2769 | Render stock cards; redirects to renderStrategy() in strategy mode |
-| `renderStrategy()` | 2520 | Build entire $500K strategy panel |
-| `buildInsiderSection(d)` | 2918 | Render insider activity block on stock card |
-| `buildHoldBar(d)` | 2960 | "Today's Hold" conviction bar |
+| `setSortMode(mode)` | ~3630 | Switch between 'portfolio'/'earnings'/'trends'/'search' tabs |
+| `renderPortfolio()` | ~3710 | Build portfolio rows list |
+| `togglePortfolioRow(ticker)` | ~3725 | Expand/collapse a portfolio row |
+| `_loadPortfolioDetail(ticker,el,attempt)` | ~3750 | Load + render stock card in portfolio row (fail-fast) |
+| `loadTrends()` | ~3840 | Read trending.json, render trend rows |
+| `_loadTrendsDetail(ticker,el,attempt)` | ~3860 | Load + render stock card in trends row (fail-fast) |
+| `loadEarningsCal(dateStr)` | ~3384 | Load earnings calendar (static JSON → proxy fallback) |
+| `toggleEarningsRow(ticker)` | ~3540 | Expand/collapse an earnings row |
+| `_loadEcStockDetail(ticker,el,attempt)` | ~3572 | Static HEAD check first; bail on 404, no proxy calls |
+| `searchPanelStock()` | ~3693 | Search panel: loadOne + buildCard in #sp-result |
+| `renderList()` | ~2769 | Render scored watchlist stock cards (legacy, hidden normally) |
+| `renderStrategy()` | ~2520 | Build entire $500K strategy panel |
+| `buildInsiderSection(d)` | ~2918 | Render insider activity block on stock card |
+| `buildHoldBar(d)` | ~2960 | "Today's Hold" conviction bar |
 | `buildFundamentalsRow(d)` | ~2880 | Fundamentals row (PE, PEG, D/E, growth) |
 | `buildEarningsRow(d)` | ~2850 | Earnings date + EPS surprise row |
-| `buildInlineForecast(d)` | ~3858 | Plain-English 24h outlook box (no chart) — same math as old SVG forecast |
-| `buildCard(d, rank, pinned)` | ~3926 | Full stock card HTML — always-visible layout (no collapse) |
-| `renderAll()` | ~3700 | Re-render the list/strategy panel |
-| `loadOne(ticker)` | ~3610 | Load + store a single ticker in S.data |
+| `buildInlineForecast(d)` | ~3858 | Plain-English 24h outlook box |
+| `buildCard(d, rank, pinned)` | ~3926 | Full stock card HTML |
+| `loadOne(ticker)` | ~4823 | Load + store a single ticker in S.data |
 | `rotateNext()` | ~3620 | Background rolling refresh (5 stocks every 15min) |
 | `prediction(d)` | 1505 | Plain-text prediction sentence for the card |
 | `getMarketSession()` | ~4090 | Returns 'open'\|'pre'\|'after'\|'overnight' based on ET time |
@@ -414,6 +475,31 @@ python analyze_trades.py sim_trades_YYYY-MM-DD.csv   # 7-section performance rep
 - [ ] Update this skill file if architecture changed
 
 ## Daily Learning Log
+
+### 2026-05-14/15 — Static Cache Architecture + Earnings Fix + Search Panel
+
+**Changes made this session:**
+
+1. **Static cache as primary data source** — `fetchStock(ticker)` checks `./data/stocks/TICKER.json` first (same-origin, no CORS). Always uses the static file if `_sf.chart` exists — no age TTL. Falls back to proxy only if 404.
+
+2. **GitHub Actions pre-seeding** — Portfolio (39) and trending (25) stocks pre-fetched every 2h by Actions and committed as JSON. Browser reads them same-origin — zero CORS.
+
+3. **Navigation redesign: 4 tabs** — Portfolio / Earnings / Trends / Search. Each has its own panel (`#portfolio-panel`, `#earnings-cal-panel`, `#trends-panel`, `#search-panel`). Header search input removed; Refresh button stays standalone in the header.
+
+4. **Search panel** (`#search-panel`, `searchPanelStock()`) — user types a ticker, hits Enter or "Analyze", gets full `buildCard()` result. Responsive: ≤480px stacks input + button vertically.
+
+5. **Earnings calendar fixes**:
+   - `_loadEcStockDetail` does a same-origin `fetch('./data/stocks/TICKER.json')` first. If 404 → immediately shows "Data unavailable" — **no proxy calls, no CORS/429 spam**.
+   - `fetch_earnings.py` rewritten: fetches calendars for −1 to +14 days, then pre-caches **top 60 earnings stocks** (≥$1B market cap) into `docs/data/stocks/`. Skips stocks cached <4h.
+   - `fetch-earnings.yml` fixed: added `token: ${{ secrets.GITHUB_TOKEN }}` (was missing → push silently failed), `actions/setup-python@v5`, `docs/data/stocks/` in git add, `git pull --rebase` before push.
+
+6. **TDZ bug fix** (commit `1518229`) — `const netScoreFinal` was declared after the `preMoveWatch` block that referenced it. Crashed `fetchStock` for tickers with `pmScore >= 2` (e.g. XLF). Fix: moved declaration before the block.
+
+7. **Fail-fast detail loaders** — all three detail loaders (`_loadPortfolioDetail`, `_loadTrendsDetail`, `_loadEcStockDetail`) show "Data unavailable" immediately on error, no retries.
+
+**Key commits**: `1518229` (TDZ) → `0859859` (fail-fast + Search) → `815e12f` (earnings static check) → `ed35eb6` (remove header search + mobile CSS) → `ef7f88c` (fetch_earnings.py + workflow fix)
+
+---
 
 ### 2026-05-13 — Major Architecture Refactor
 
