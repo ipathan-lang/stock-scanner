@@ -1125,6 +1125,9 @@
     }
     .port-ticker { font-weight: 700; font-size: .95rem; min-width: 64px; }
     .port-name   { font-size: .8rem; color: var(--muted); flex: 1; }
+    .port-sector { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 20px;
+      background: rgba(30,99,217,.08); color: var(--blue); border: 1px solid rgba(30,99,217,.18);
+      white-space: nowrap; flex-shrink: 0; }
     .port-chevron { color: var(--muted); font-size: 1.1rem; transition: transform .2s; }
     .port-row.expanded .port-chevron { transform: rotate(90deg); color: var(--blue); }
     .port-detail {
@@ -2022,26 +2025,62 @@ let _sortMode   = 'portfolio'; // 'portfolio' | 'earnings' | 'trends'
 
 // ── Portfolio stocks (order matches user's Robinhood view) ──────────────────
 const PORTFOLIO_STOCKS = [
-  { t:'AMAT', n:'Applied Materials' },   { t:'MSFT', n:'Microsoft' },
-  { t:'AMZN', n:'Amazon' },              { t:'QCOM', n:'Qualcomm' },
-  { t:'BOOT', n:'Boot Barn Holdings' },  { t:'FIG',  n:'Simplify Macro Strategy ETF' },
-  { t:'KHC',  n:'Kraft Heinz' },         { t:'GLD',  n:'SPDR Gold Shares ETF' },
-  { t:'VXUS', n:'Vanguard Total Intl Stock ETF' }, { t:'CEG',  n:'Constellation Energy' },
-  { t:'AAPL', n:'Apple' },               { t:'ZETA', n:'Zeta Global Holdings' },
-  { t:'TSLA', n:'Tesla' },               { t:'NOW',  n:'ServiceNow' },
-  { t:'GFS',  n:'GlobalFoundries' },     { t:'MA',   n:'Mastercard' },
-  { t:'PANW', n:'Palo Alto Networks' },  { t:'META', n:'Meta Platforms' },
-  { t:'GS',   n:'Goldman Sachs' },       { t:'SPY',  n:'SPDR S&P 500 ETF' },
-  { t:'CVS',  n:'CVS Health' },          { t:'UNH',  n:'UnitedHealth Group' },
-  { t:'PBR',  n:'Petrobras' },           { t:'ELV',  n:'Elevance Health' },
-  { t:'TSM',  n:'Taiwan Semiconductor' },{ t:'NEE',  n:'NextEra Energy' },
-  { t:'KLAC', n:'KLA Corporation' },     { t:'XLF',  n:'Financial Select Sector SPDR' },
-  { t:'XLV',  n:'Health Care Select Sector SPDR' }, { t:'ORCL', n:'Oracle' },
-  { t:'VTI',  n:'Vanguard Total Stock Market ETF' },{ t:'AMD',  n:'Advanced Micro Devices' },
-  { t:'CRM',  n:'Salesforce' },          { t:'NBIS', n:'Nebius Group' },
-  { t:'MU',   n:'Micron Technology' },   { t:'DELL', n:'Dell Technologies' },
-  { t:'ON',   n:'ON Semiconductor' },    { t:'PLTR', n:'Palantir Technologies' },
-  { t:'BN',   n:'Brookfield Corporation' },
+  // ── Trillion-dollar & near-trillion companies ──────────────────────────────
+  { t:'NVDA', n:'NVIDIA',                   s:'AI Chips' },
+  { t:'AAPL', n:'Apple',                    s:'Technology' },
+  { t:'MSFT', n:'Microsoft',                s:'Technology' },
+  { t:'AMZN', n:'Amazon',                   s:'Cloud / E-commerce' },
+  { t:'GOOGL',n:'Alphabet',                 s:'Technology / AI' },
+  { t:'META', n:'Meta Platforms',           s:'Social Media / AI' },
+  { t:'TSLA', n:'Tesla',                    s:'EV / Robotics' },
+  { t:'AVGO', n:'Broadcom',                 s:'Semiconductors' },
+  { t:'TSM',  n:'Taiwan Semiconductor',     s:'Semiconductors' },
+  { t:'LLY',  n:'Eli Lilly',                s:'Healthcare / GLP-1' },
+  { t:'JPM',  n:'JPMorgan Chase',           s:'Banking' },
+  { t:'V',    n:'Visa',                     s:'Payments' },
+  { t:'MA',   n:'Mastercard',               s:'Payments' },
+  // ── Fast-growing tech ───────────────────────────────────────────────────
+  { t:'PLTR', n:'Palantir Technologies',    s:'AI / Data' },
+  { t:'CRWD', n:'CrowdStrike',              s:'Cybersecurity' },
+  { t:'PANW', n:'Palo Alto Networks',       s:'Cybersecurity' },
+  { t:'ARM',  n:'Arm Holdings',             s:'Semiconductors / IP' },
+  { t:'SHOP', n:'Shopify',                  s:'E-commerce' },
+  { t:'NOW',  n:'ServiceNow',               s:'Cloud / SaaS' },
+  { t:'CRM',  n:'Salesforce',               s:'Cloud / SaaS' },
+  { t:'ORCL', n:'Oracle',                   s:'Cloud / Database' },
+  { t:'NBIS', n:'Nebius Group',             s:'AI / Cloud' },
+  { t:'ZETA', n:'Zeta Global Holdings',     s:'AdTech / AI' },
+  // ── Semiconductors ──────────────────────────────────────────────────────
+  { t:'AMD',  n:'Advanced Micro Devices',   s:'Semiconductors' },
+  { t:'AMAT', n:'Applied Materials',        s:'Semiconductors' },
+  { t:'QCOM', n:'Qualcomm',                 s:'Semiconductors' },
+  { t:'KLAC', n:'KLA Corporation',          s:'Semiconductors' },
+  { t:'MU',   n:'Micron Technology',        s:'Semiconductors' },
+  { t:'ON',   n:'ON Semiconductor',         s:'Semiconductors' },
+  { t:'GFS',  n:'GlobalFoundries',          s:'Semiconductors' },
+  // ── Financials ──────────────────────────────────────────────────────────
+  { t:'GS',   n:'Goldman Sachs',            s:'Financials' },
+  { t:'BN',   n:'Brookfield Corporation',   s:'Asset Management' },
+  // ── Healthcare ──────────────────────────────────────────────────────────
+  { t:'UNH',  n:'UnitedHealth Group',       s:'Health Insurance' },
+  { t:'ELV',  n:'Elevance Health',          s:'Health Insurance' },
+  { t:'CVS',  n:'CVS Health',               s:'Healthcare Retail' },
+  // ── Energy / Utilities ──────────────────────────────────────────────────
+  { t:'CEG',  n:'Constellation Energy',     s:'Nuclear / Utilities' },
+  { t:'NEE',  n:'NextEra Energy',           s:'Clean Energy' },
+  { t:'PBR',  n:'Petrobras',                s:'Energy' },
+  // ── Other / Hardware ────────────────────────────────────────────────────
+  { t:'DELL', n:'Dell Technologies',        s:'Technology / Hardware' },
+  { t:'BOOT', n:'Boot Barn Holdings',       s:'Consumer Retail' },
+  { t:'KHC',  n:'Kraft Heinz',              s:'Consumer Staples' },
+  // ── ETFs ────────────────────────────────────────────────────────────────
+  { t:'SPY',  n:'SPDR S&P 500 ETF',         s:'Index ETF' },
+  { t:'VTI',  n:'Vanguard Total Market ETF',s:'Index ETF' },
+  { t:'XLF',  n:'Financial Select SPDR',    s:'Financials ETF' },
+  { t:'XLV',  n:'Health Care Select SPDR',  s:'Healthcare ETF' },
+  { t:'GLD',  n:'SPDR Gold Shares',         s:'Commodity ETF' },
+  { t:'VXUS', n:'Vanguard Intl Stock ETF',  s:'Intl ETF' },
+  { t:'FIG',  n:'Simplify Macro Strategy',  s:'Macro ETF' },
 ];
 
 // ── Portfolio & Trends view state ───────────────────────────────────────────
@@ -3709,11 +3748,12 @@ async function searchPanelStock() {
 function renderPortfolio() {
   const body = document.getElementById('portfolio-body');
   if (!body) return;
-  body.innerHTML = PORTFOLIO_STOCKS.map(({ t, n }) => `
+  body.innerHTML = PORTFOLIO_STOCKS.map(({ t, n, s }) => `
     <div class="port-row" id="port-row-${t}" onclick="togglePortfolioRow('${t}')">
       <div class="port-row-main">
         <span class="port-ticker">${esc(t)}</span>
         <span class="port-name">${esc(n)}</span>
+        ${s ? `<span class="port-sector">${esc(s)}</span>` : ''}
         <span class="port-chevron">›</span>
       </div>
       <div class="port-detail" id="port-detail-${t}" style="display:none"></div>
@@ -3798,17 +3838,41 @@ async function loadTrends() {
 function renderTrends() {
   const body = document.getElementById('trends-body');
   if (!body || !_trendsData) return;
+  // Build a name/sector lookup from portfolio + a small known-ticker map for trending
+  const _knownStocks = {};
+  PORTFOLIO_STOCKS.forEach(({ t, n, s }) => { _knownStocks[t] = { n, s }; });
+  const _trendExtra = {
+    'BTC-USD':{'n':'Bitcoin','s':'Crypto'},'ETH-USD':{'n':'Ethereum','s':'Crypto'},
+    'XRP-USD':{'n':'XRP','s':'Crypto'},'MSTR':{'n':'MicroStrategy','s':'Crypto / BTC'},
+    'COIN':{'n':'Coinbase','s':'Crypto Exchange'},'MARA':{'n':'MARA Holdings','s':'Crypto Mining'},
+    'NVDA':{'n':'NVIDIA','s':'AI Chips'},'AMD':{'n':'Advanced Micro Devices','s':'Semiconductors'},
+    'AAPL':{'n':'Apple','s':'Technology'},'TSLA':{'n':'Tesla','s':'EV / Robotics'},
+    'AMZN':{'n':'Amazon','s':'Cloud / E-commerce'},'GOOGL':{'n':'Alphabet','s':'Technology / AI'},
+    'META':{'n':'Meta Platforms','s':'Social Media / AI'},'MSFT':{'n':'Microsoft','s':'Technology'},
+    'PLTR':{'n':'Palantir','s':'AI / Data'},'CRWD':{'n':'CrowdStrike','s':'Cybersecurity'},
+    'ARM':{'n':'Arm Holdings','s':'Semiconductors / IP'},'SHOP':{'n':'Shopify','s':'E-commerce'},
+    'ASTS':{'n':'AST SpaceMobile','s':'Satellite / Telecom'},'UPST':{'n':'Upstart','s':'AI Lending'},
+    'DOCS':{'n':'Doximity','s':'Healthcare Tech'},'ONDS':{'n':'Ondas Holdings','s':'Drones / AI'},
+    'BA':{'n':'Boeing','s':'Aerospace / Defense'},
+  };
+  Object.assign(_trendExtra, Object.fromEntries(PORTFOLIO_STOCKS.map(({ t, n, s }) => [t, { n, s }])));
+
   body.innerHTML = `<p class="trends-meta">Yahoo Finance trending · tap to load analysis</p>` +
-    _trendsData.map(t => `
+    _trendsData.map(t => {
+      const info = _trendExtra[t];
+      const nameHtml = info
+        ? `<span class="port-name">${esc(info.n)}</span>${info.s ? `<span class="port-sector">${esc(info.s)}</span>` : ''}`
+        : `<span class="port-name"><span class="trend-hot">Trending</span></span>`;
+      return `
       <div class="port-row" id="trend-row-${t}" onclick="toggleTrendsRow('${t}')">
         <div class="port-row-main">
           <span class="port-ticker">${esc(t)}</span>
-          <span class="port-name"><span class="trend-hot">Trending</span></span>
+          ${nameHtml}
           <span class="port-chevron">›</span>
         </div>
         <div class="port-detail" id="trend-detail-${t}" style="display:none"></div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 }
 
 function toggleTrendsRow(ticker) {

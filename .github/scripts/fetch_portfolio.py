@@ -7,10 +7,22 @@ import os, json, time, sys
 import urllib.request, urllib.error
 
 PORTFOLIO = [
-    'AMAT','MSFT','AMZN','QCOM','BOOT','FIG','KHC','GLD','VXUS','CEG',
-    'AAPL','ZETA','TSLA','NOW','GFS','MA','PANW','META','GS','SPY',
-    'CVS','UNH','PBR','ELV','TSM','NEE','KLAC','XLF','XLV','ORCL',
-    'VTI','AMD','CRM','NBIS','MU','DELL','ON','PLTR','BN',
+    # Trillion-dollar & near-trillion
+    'NVDA','AAPL','MSFT','AMZN','GOOGL','META','TSLA','AVGO','TSM','LLY','JPM','V','MA',
+    # Fast-growing tech
+    'PLTR','CRWD','PANW','ARM','SHOP','NOW','CRM','ORCL','NBIS','ZETA',
+    # Semiconductors
+    'AMD','AMAT','QCOM','KLAC','MU','ON','GFS',
+    # Financials
+    'GS','BN',
+    # Healthcare
+    'UNH','ELV','CVS',
+    # Energy / Utilities
+    'CEG','NEE','PBR',
+    # Other / Hardware
+    'DELL','BOOT','KHC',
+    # ETFs
+    'SPY','VTI','XLF','XLV','GLD','VXUS','FIG',
 ]
 
 HEADERS = {
