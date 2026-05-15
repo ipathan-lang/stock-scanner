@@ -2902,6 +2902,8 @@ async function fetchStock(ticker) {
     pmReasons.push(`Down ${Math.abs(changePct).toFixed(1)}% on ${volumeRatio.toFixed(1)}× volume — selling pressure accelerating`);
   }
 
+  const netScoreFinal   = (ind.bullishScore + fundBullAdj) + catalystScore - (bearishScore + fundBearAdj);
+
   let preMoveWatch = null;
   if (pmScore >= 2) {
     // Suppress 'surge' when the current net score is deeply bearish (≤ -5).
@@ -2939,7 +2941,6 @@ async function fetchStock(ticker) {
                       : dcScore >= 1 ? 'Low'
                       : 'None';
 
-  const netScoreFinal   = (ind.bullishScore + fundBullAdj) + catalystScore - (bearishScore + fundBearAdj);
   // Conviction: calibrated to the wider score range after all signal additions
   // Maps netScore -15 → 0%, 0 → 50%, +15 → 100%
   const convictionFinal = clamp(Math.round(((netScoreFinal + 15) / 30) * 100), 0, 100);
