@@ -32,8 +32,9 @@ YAHOO_HEADERS = {
     "Origin": "https://finance.yahoo.com",
 }
 
-FOUR_HOURS_MS = 4 * 3600 * 1000
-MAX_TICKERS   = 60  # top N earnings stocks to pre-cache
+FOUR_HOURS_MS  = 4 * 3600 * 1000
+MAX_TICKERS    = 60   # top N *additional* tickers beyond the near-date set
+NEAR_DAY_RANGE = 2    # days around today whose tickers are always cached
 
 def fetch_url(url, headers, timeout=20):
     req = urllib.request.Request(url, headers=headers)
@@ -78,7 +79,8 @@ def main():
     today  = datetime.date.today()
     now_ms = int(time.time() * 1000)
 
-    all_tickers = {}  # ticker → best (highest) market cap seen across all dates
+    all_tickers  = {}  # ticker → best (highest) market cap seen across all dates
+    near_tickers = set()  # tickers within NEAR_DAY_RANGE days of today (always cached)
 
     # ── Step 1: Fetch earnings calendars ─────────────────────────────────────
     print("=== Earnings calendars ===")
@@ -87,6 +89,7 @@ def main():
         date_str = d.strftime("%Y-%m-%d")
         url      = f"https://api.nasdaq.com/api/calendar/earnings?date={date_str}"
         out_path = os.path.join(EARNINGS_DIR, f"{date_str}.json")
+        is_near  = abs(delta) <= NEAR_DAY_RANGE
 
         try:
             data = fetch_url(url, NASDAQ_HEADERS, timeout=15)
@@ -101,8 +104,11 @@ def main():
                 if not ticker or len(ticker) > 6 or not ticker.isalnum():
                     continue
                 mc = parse_mcap(row.get("marketCap", ""))
-                if mc >= 1e9 and mc > all_tickers.get(ticker, 0):
-                    all_tickers[ticker] = mc
+                if mc >= 1e9:
+                    if mc > all_tickers.get(ticker, 0):
+                        all_tickers[ticker] = mc
+                    if is_near:
+                        near_tickers.add(ticker)
 
         except urllib.error.HTTPError as e:
             print(f"  ✗ {date_str}  HTTP {e.code}")
@@ -112,9 +118,13 @@ def main():
         time.sleep(0.4)
 
     # ── Step 2: Cache stock data for top earnings tickers ────────────────────
-    sorted_tickers = sorted(all_tickers.items(), key=lambda x: x[1], reverse=True)
-    top_tickers    = [t for t, _ in sorted_tickers[:MAX_TICKERS]]
-    print(f"\n=== Stock cache: {len(top_tickers)} tickers ===")
+    # Always include ±NEAR_DAY_RANGE tickers; fill remaining slots with global top-N
+    sorted_global = sorted(all_tickers.items(), key=lambda x: x[1], reverse=True)
+    top_tickers   = list(near_tickers)  # near-date tickers always included
+    for t, _ in sorted_global:
+        if t not in near_tickers and len(top_tickers) < len(near_tickers) + MAX_TICKERS:
+            top_tickers.append(t)
+    print(f"\n=== Stock cache: {len(top_tickers)} tickers ({len(near_tickers)} near-date + up to {MAX_TICKERS} global) ===")
 
     fetched = 0
     errors  = []
