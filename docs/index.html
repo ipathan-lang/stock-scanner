@@ -4112,10 +4112,13 @@ Rules:
 - volRatio: today's volume divided by average daily volume (1.0 = normal, 2.5 = 2.5× normal)
 - Output must start with { and end with } — nothing else`;
 
-  const resp = await fetch('https://api.openai.com/v1/responses', {
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_OAI_KEY}` },
-    body:    JSON.stringify({ model: 'gpt-4o-search-preview', input: prompt }),
+    body:    JSON.stringify({
+      model: 'gpt-4o-search-preview',
+      messages: [{ role: 'user', content: prompt }],
+    }),
     signal:  AbortSignal.timeout(40000),
   });
   if (!resp.ok) {
@@ -4123,12 +4126,7 @@ Rules:
     throw new Error(`OpenAI ${resp.status}: ${err?.error?.message || resp.statusText}`);
   }
   const data = await resp.json();
-  const text = (data.output ?? [])
-    .filter(o => o.type === 'message')
-    .flatMap(o => o.content ?? [])
-    .filter(c => c.type === 'text')
-    .map(c => c.text)
-    .join('');
+  const text = data.choices?.[0]?.message?.content || '';
   const clean = text.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
   const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
   if (s === -1 || e === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
