@@ -825,6 +825,10 @@
     .live-badge.closed   { background: rgba(100,116,139,.1); color: #64748b; border: 1px solid rgba(100,116,139,.25); }
     .live-badge.pre      { background: rgba(234,179,8,.15);  color: #a16207; border: 1px solid rgba(234,179,8,.4); }
     .live-badge.after    { background: rgba(234,88,12,.12);  color: #c2410c; border: 1px solid rgba(234,88,12,.35); }
+    .live-badge.realtime { background: rgba(99,102,241,.13); color: #4338ca; border: 1px solid rgba(99,102,241,.4); }
+    .fh-key-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 5px 9px; cursor: pointer; font-size: .78rem; color: var(--muted); transition: border-color .2s, color .2s; }
+    .fh-key-btn:hover { border-color: #6366f1; color: #4338ca; }
+    .fh-key-btn.active { border-color: #6366f1; color: #4338ca; background: rgba(99,102,241,.08); }
     .ext-badge {
       display: inline-flex; align-items: center;
       font-size: 0.58rem; font-weight: 800;
@@ -1326,7 +1330,23 @@
   <h1>📊 IntelliMarket</h1>
   <button class="info-btn" onclick="openInfo()" title="How scoring works">i</button>
   <button onclick="manualRefresh()" id="refresh-btn" style="margin-left:auto">&#x21BB; Refresh</button>
+  <button id="fh-key-btn" class="fh-key-btn" onclick="openFHModal()" title="Real-Time Data — Enter Finnhub API key">⚡ Real-Time</button>
 </header>
+
+<!-- Finnhub API Key Modal -->
+<div id="fh-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);align-items:center;justify-content:center" onclick="if(event.target===this)closeFHModal()">
+  <div style="background:#fff;border-radius:18px;padding:26px 24px;width:380px;max-width:92vw;box-shadow:0 24px 64px rgba(0,0,0,.28)">
+    <h3 style="margin:0 0 6px;font-size:1rem;font-weight:800">⚡ Real-Time Market Data</h3>
+    <p style="margin:0 0 14px;font-size:.82rem;color:#64748b;line-height:1.55">Get a <strong>free</strong> API key at <a href="https://finnhub.io" target="_blank" rel="noopener" style="color:#6366f1">finnhub.io</a> (no credit card).<br>This connects a live WebSocket stream — prices update <em>trade-by-trade</em> with zero delay, including pre-market and after-hours.</p>
+    <input id="fh-key-input" type="password" placeholder="Paste your Finnhub API key…" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.88rem;margin-bottom:12px;outline:none;font-family:monospace" />
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="removeFHKey()" style="padding:8px 14px;border:1px solid #fca5a5;border-radius:8px;background:#fff;color:#ef4444;cursor:pointer;font-size:.82rem">Remove</button>
+      <button onclick="closeFHModal()" style="padding:8px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:.82rem">Cancel</button>
+      <button onclick="applyFHKey()" style="padding:8px 16px;border:none;border-radius:8px;background:#6366f1;color:#fff;font-weight:700;cursor:pointer;font-size:.85rem">Connect</button>
+    </div>
+    <p id="fh-status" style="margin:10px 0 0;font-size:.78rem;color:#64748b;text-align:center;min-height:18px"></p>
+  </div>
+</div>
 
 <main>
   <div class="list-header">
@@ -4991,8 +5011,11 @@ function updateLiveBadge() {
   if (!el) return;
   el.style.display = '';
   const session = getMarketSession();
-  if (session === 'open') {
-    el.innerHTML = '<span class="live-dot"></span>LIVE';
+  if (_fhConnected) {
+    el.innerHTML = '<span class="live-dot" style="background:#4338ca"></span>Real-Time';
+    el.className = 'live-badge realtime';
+  } else if (session === 'open') {
+    el.innerHTML = '<span class="live-dot"></span>LIVE (15m delay)';
     el.className = 'live-badge open';
   } else if (session === 'pre') {
     el.innerHTML = '&#9651; Pre-Market';
@@ -5006,14 +5029,13 @@ function updateLiveBadge() {
   }
 }
 
-// ── Live Price Refresh (every 60 s, 24 h — always on) ───────────────────────
-// Fetches current price/vol/change for ALL stocks at once via Yahoo Finance
-// v7 quote API (batched 20 at a time). During extended hours (pre/after) the
-// preMarketPrice / postMarketPrice fields are used so the UI always shows the
-// most recent tradeable price. Full indicator refresh still every 20 s via rotateNext().
+// ── Live Price Refresh (every 15 s, 24 h — always on) ───────────────────────
+// When Finnhub WebSocket is active: WS handles real-time ticks, this just updates
+// the badge. When WS is off: falls back to Yahoo Finance v7 (via CORS proxy,
+// ~15s poll). Extended hours (pre/after) uses preMarketPrice/postMarketPrice.
 async function refreshLivePrices() {
-  if (_sortMode !== 'bullish') return;  // only run when on legacy bullish list
   updateLiveBadge();
+  if (_fhConnected) return; // WebSocket is active — no need to poll Yahoo
   const session = getMarketSession();
 
   const allTickers = [...new Set([...S.watchlist, ...(S.pinnedTicker ? [S.pinnedTicker] : [])])];
@@ -5121,14 +5143,155 @@ async function rotateNext() {
   renderList();
 }
 
+// ── Finnhub Real-Time WebSocket ──────────────────────────────────────────────
+// Direct browser→Finnhub (no CORS proxy). WebSocket streams actual trade ticks,
+// so prices update the instant a trade happens — zero delay, pre/after-hours too.
+// Free key: https://finnhub.io  (no credit card, 60 REST calls/min, WS up to 50 symbols)
+
+let _fhKey        = '';
+let _fhWS         = null;
+let _fhConnected  = false;
+let _fhReconnTimer = null;
+let _fhPending    = false; // debounce render
+
+function loadFHKey() {
+  _fhKey = localStorage.getItem('fh_apikey') || '';
+}
+
+function openFHModal() {
+  const m   = document.getElementById('fh-modal');
+  const inp = document.getElementById('fh-key-input');
+  const st  = document.getElementById('fh-status');
+  if (!m) return;
+  m.style.display = 'flex';
+  if (inp) inp.value = _fhKey;
+  if (st)  st.textContent = _fhConnected ? '✅ WebSocket connected — live data active'
+                          : (_fhKey ? '⚠️ Key saved but not connected yet' : '');
+  setTimeout(() => inp && inp.focus(), 80);
+}
+
+function closeFHModal() {
+  const m = document.getElementById('fh-modal');
+  if (m) m.style.display = 'none';
+}
+
+function applyFHKey() {
+  const inp = document.getElementById('fh-key-input');
+  const key = (inp ? inp.value : '').trim();
+  if (!key) return;
+  _fhKey = key;
+  localStorage.setItem('fh_apikey', _fhKey);
+  const st = document.getElementById('fh-status');
+  if (st) st.textContent = '🔄 Connecting…';
+  connectFinnhubWS();
+  setTimeout(closeFHModal, 1200);
+}
+
+function removeFHKey() {
+  _fhKey = '';
+  localStorage.removeItem('fh_apikey');
+  disconnectFinnhubWS();
+  closeFHModal();
+  updateLiveBadge();
+  const btn = document.getElementById('fh-key-btn');
+  if (btn) btn.classList.remove('active');
+}
+
+function connectFinnhubWS() {
+  if (!_fhKey) return;
+  if (_fhReconnTimer) { clearTimeout(_fhReconnTimer); _fhReconnTimer = null; }
+  if (_fhWS) { try { _fhWS.close(); } catch(_) {} _fhWS = null; }
+  try {
+    _fhWS = new WebSocket(`wss://ws.finnhub.io?token=${_fhKey}`);
+  } catch(_) { return; }
+
+  _fhWS.onopen = () => {
+    _fhConnected = true;
+    updateLiveBadge();
+    const btn = document.getElementById('fh-key-btn');
+    if (btn) btn.classList.add('active');
+    _getFHSymbols().forEach(sym =>
+      _fhWS.send(JSON.stringify({ type: 'subscribe', symbol: sym }))
+    );
+  };
+
+  _fhWS.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.type !== 'trade' || !msg.data) return;
+      msg.data.forEach(trade => {
+        const sym = trade.s, price = trade.p;
+        if (!sym || !price || price <= 0) return;
+        const d = S.data[sym];
+        if (!d || d.err) return;
+        const base = d.prevClose || d.regularPrice || d.price;
+        d.price     = price;
+        d.changePct = base > 0 ? ((price - base) / base) * 100 : (d.changePct || 0);
+        d.change    = price - base;
+        d.fetchedAt = Date.now();
+        // Recompute intraday indicators
+        const o = d.marketOpen || price, h = Math.max(d.dayHigh || price, price),
+              l = Math.min(d.dayLow  || price, price);
+        d.dayHigh = h; d.dayLow = l;
+        d.vwapDevPct = ((price - (o+h+l+price)/4) / ((o+h+l+price)/4)) * 100;
+        const sig = signal(d);
+        d.signalLabel = sig.label; d.signalCls = sig.cls;
+        d.conf = sig.conf; d.signalRank = sig.rank ?? 6;
+      });
+      if (!_fhPending) {
+        _fhPending = true;
+        requestAnimationFrame(() => { _fhPending = false; renderAll(); });
+      }
+    } catch(_) {}
+  };
+
+  _fhWS.onerror = () => { _fhConnected = false; updateLiveBadge(); };
+
+  _fhWS.onclose = () => {
+    _fhConnected = false;
+    _fhWS = null;
+    updateLiveBadge();
+    const btn = document.getElementById('fh-key-btn');
+    if (btn) btn.classList.remove('active');
+    // Auto-reconnect every 7 s (handles brief network drops)
+    if (_fhKey) _fhReconnTimer = setTimeout(connectFinnhubWS, 7000);
+  };
+}
+
+function disconnectFinnhubWS() {
+  if (_fhReconnTimer) { clearTimeout(_fhReconnTimer); _fhReconnTimer = null; }
+  if (_fhWS) { try { _fhWS.close(); } catch(_) {} _fhWS = null; }
+  _fhConnected = false;
+}
+
+function _getFHSymbols() {
+  // Finnhub free tier: US equities only. Skip crypto (contains '-') and futures ('=F').
+  // Limit 50 concurrent subscriptions on free plan.
+  const all = [...new Set([...S.watchlist, ...(S.pinnedTicker ? [S.pinnedTicker] : [])])];
+  return all.filter(t => !/[-=]/.test(t) && S.data[t] && !S.data[t].err).slice(0, 50);
+}
+
+// Call after new tickers load to subscribe them in the live feed
+function fhResubscribe() {
+  if (!_fhWS || _fhWS.readyState !== WebSocket.OPEN) return;
+  _getFHSymbols().forEach(sym =>
+    _fhWS.send(JSON.stringify({ type: 'subscribe', symbol: sym }))
+  );
+}
+
 function startRolling() {
   if (_rotTimer) clearInterval(_rotTimer);
-  _rotTimer = setInterval(rotateNext, 40000); // every 40 seconds — full indicator refresh
+  _rotTimer = setInterval(rotateNext, 40000); // every 40 s — full indicator refresh
 
-  // Live price refresh: every 60 s during market hours
+  // Live price refresh: 15 s when Finnhub key set, 30 s otherwise (was 60 s)
   if (_liveTimer) clearInterval(_liveTimer);
   updateLiveBadge();
-  _liveTimer = setInterval(refreshLivePrices, 60000);
+  _liveTimer = setInterval(refreshLivePrices, _fhKey ? 15000 : 30000);
+
+  // Connect Finnhub WebSocket for zero-delay trade-tick prices
+  if (_fhKey && !_fhConnected) connectFinnhubWS();
+  // Re-subscribe any newly loaded tickers to the live feed
+  fhResubscribe();
 }
 
 // Full load — fetches everything once then starts the rolling timer
@@ -5252,7 +5415,9 @@ async function searchStock() {
   }
 
   setSortMode('portfolio');  // show Portfolio immediately — no background loading
+  loadFHKey();               // restore Finnhub API key from localStorage
   updateLiveBadge();
+  if (_fhKey) connectFinnhubWS(); // reconnect WebSocket on page load
 })();
 </script>
 </body>
