@@ -2135,12 +2135,16 @@ function buildRotList() {
 //  FETCH  (proxy rotation + light variant for optional data)
 // ══════════════════════════════════════════════════════════════
 const PROXIES = [
-  // codetabs — raw body passthrough, generous rate limits
+  // corsproxy.io — most reliable, high rate limits
+  v => `https://corsproxy.io/?url=${encodeURIComponent(v)}`,
+  // codetabs — raw body passthrough
   v => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(v)}`,
-  // allorigins /raw — direct body passthrough when up
+  // allorigins /raw — direct body passthrough
   v => `https://api.allorigins.win/raw?url=${encodeURIComponent(v)}`,
   // allorigins /get — JSON-wrapped {contents:"..."}; _proxyParse unwraps it
   v => `https://api.allorigins.win/get?url=${encodeURIComponent(v)}`,
+  // thingproxy fallback
+  v => `https://thingproxy.freeboard.io/fetch/${v}`,
 ];
 
 // Unwrap proxy responses: allorigins /get returns {contents:"json-string"};
@@ -2163,6 +2167,54 @@ function tickerProxyStart(ticker) {
   return h % PROXIES.length;
 }
 
+// Finnhub candle fallback — direct browser fetch (no proxy needed, CORS enabled)
+// Used when all Yahoo CORS proxies fail. Converts Finnhub format → Yahoo chart shape.
+async function _fetchChartFromFinnhub(ticker) {
+  const key  = _fhKey;
+  if (!key) return null;
+  const to   = Math.floor(Date.now() / 1000);
+  const from = to - 2 * 365 * 24 * 3600; // 2 years
+  const url  = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(ticker)}&resolution=D&from=${from}&to=${to}&token=${key}`;
+  const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(ticker)}&token=${key}`;
+  try {
+    const [candle, quote] = await Promise.all([
+      fetch(url,      { cache: 'no-store' }).then(r => r.json()),
+      fetch(quoteUrl, { cache: 'no-store' }).then(r => r.json()),
+    ]);
+    if (!candle || candle.s !== 'ok' || !candle.t?.length) return null;
+    // Wrap into Yahoo v8 chart shape the app expects
+    return {
+      chart: {
+        result: [{
+          meta: {
+            symbol: ticker,
+            currency: 'USD',
+            regularMarketPrice:         quote.c  ?? candle.c[candle.c.length - 1],
+            regularMarketPreviousClose: quote.pc ?? candle.c[candle.c.length - 2] ?? quote.c,
+            regularMarketDayHigh:       quote.h  ?? candle.h[candle.h.length - 1],
+            regularMarketDayLow:        quote.l  ?? candle.l[candle.l.length - 1],
+            regularMarketOpen:          quote.o  ?? candle.o[candle.o.length - 1],
+            regularMarketVolume:        candle.v[candle.v.length - 1] ?? 0,
+            fiftyTwoWeekHigh:           Math.max(...candle.h),
+            fiftyTwoWeekLow:            Math.min(...candle.l),
+          },
+          timestamp:   candle.t,
+          indicators: {
+            quote: [{
+              open:   candle.o,
+              high:   candle.h,
+              low:    candle.l,
+              close:  candle.c,
+              volume: candle.v,
+            }]
+          }
+        }],
+        error: null
+      }
+    };
+  } catch(_) { return null; }
+}
+
 async function fetchJ(url, proxyStart = 0) {
   const u  = url + (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
   const TO = AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined;
@@ -2176,7 +2228,7 @@ async function fetchJ(url, proxyStart = 0) {
     if (i > 0) await new Promise(r => setTimeout(r, 400)); // pace requests
     const p = PROXIES[(proxyStart + i) % PROXIES.length];
     try {
-      const sig = AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined;
+      const sig = AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined;
       const r   = await fetch(p(u), { cache: 'no-store', signal: sig });
       if (!r.ok) continue;
       const data = _proxyParse(await r.text());
@@ -2312,8 +2364,7 @@ function getFundamentalScore(fund) {
 async function fetchStock(ticker) {
   const ps       = tickerProxyStart(ticker);
   const isETF    = MARKET_TICKERS.includes(ticker);
-  const CHART_TTL = 4 * 60 * 60 * 1000; // 4-hour chart cache — 2yr history barely changes intraday
-  const _cKey    = `ss_chart_${ticker}`;
+  const _cKey    = `ss_chart_${ticker}`; // kept for write-only (no read — always fetch live)
   const chartUrl  = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y&includePrePost=false&events=earnings`;
   const newsUrl   = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
   // Combined quoteSummary: one call instead of two (saves 1 proxy hit per stock)
@@ -2340,16 +2391,14 @@ async function fetchStock(ticker) {
   } catch {}
 
   if (!_usedStatic) {
-    // Fallback: proxy-based fetch (may fail due to CORS/rate limits)
+    // Always fetch live — no localStorage cache read
     try {
-      const _cc = JSON.parse(localStorage.getItem(_cKey) || 'null');
-      if (_cc && Date.now() - _cc.ts < CHART_TTL) {
-        chart = _cc.data;
-      } else {
-        chart = await fetchJ(chartUrl, ps);
-        try { localStorage.setItem(_cKey, JSON.stringify({ ts: Date.now(), data: chart })); } catch {}
-      }
-    } catch { chart = await fetchJ(chartUrl, ps); }
+      chart = await fetchJ(chartUrl, ps);
+      try { localStorage.setItem(_cKey, JSON.stringify({ ts: Date.now(), data: chart })); } catch {}
+    } catch {
+      // All proxies failed — try Finnhub candle as last resort
+      chart = await _fetchChartFromFinnhub(ticker).catch(() => null);
+    }
 
     if (isETF) {
       news = await fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null);
