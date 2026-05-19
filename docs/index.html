@@ -3698,9 +3698,9 @@ async function _loadEcStockDetail(ticker, el, attempt) {
 function setSortMode(mode) {
   _sortMode = mode;
 
-  // Stop any background timers whenever switching tabs
-  if (_rotTimer)  { clearInterval(_rotTimer);  _rotTimer  = null; }
-  if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+  // Stop background LOADER (bullish tab only), but keep live price refresh running
+  if (_rotTimer) { clearInterval(_rotTimer); _rotTimer = null; }
+  // NOTE: do NOT clear _liveTimer — price polling must run on all tabs
 
   // Hide all panels
   const stockList    = document.getElementById('stock-list');
@@ -3769,6 +3769,7 @@ async function searchPanelStock() {
       <br><small>Portfolio &amp; trending stocks load from cache; others require a live proxy.</small></div>`;
     return;
   }
+  input.dataset.lastTicker = ticker; // track so live refresh can update card in-place
   result.innerHTML = buildCard(d, 1, true);
 }
 
@@ -5117,7 +5118,33 @@ async function refreshLivePrices() {
       }
     } catch (_) { /* silent — stale data is fine, full refresh will catch up */ }
   }
-  renderAll();
+  renderActivePanel();
+}
+
+// Renders whatever panel/tab is currently visible
+function renderActivePanel() {
+  if (_sortMode === 'bullish') {
+    renderList();
+    return;
+  }
+  // Portfolio: refresh the open detail card in-place
+  if (_sortMode === 'portfolio' && _portViewStock) {
+    const d  = S.data[_portViewStock];
+    const el = document.getElementById(`port-detail-${_portViewStock}`);
+    if (d && !d.err && el && el.dataset.loaded) {
+      el.innerHTML = buildCard(d, 1, true);
+    }
+    return;
+  }
+  // Search: refresh the result card if one is showing
+  if (_sortMode === 'search') {
+    const res = document.getElementById('sp-result');
+    const inp = document.getElementById('sp-q');
+    const ticker = inp ? inp.dataset.lastTicker : null;
+    if (ticker && res && S.data[ticker] && !S.data[ticker].err) {
+      res.innerHTML = buildCard(S.data[ticker], 1, true);
+    }
+  }
 }
 
 let _liveTimer = null;
@@ -5240,7 +5267,7 @@ function connectFinnhubWS() {
       });
       if (!_fhPending) {
         _fhPending = true;
-        requestAnimationFrame(() => { _fhPending = false; renderAll(); });
+        requestAnimationFrame(() => { _fhPending = false; renderActivePanel(); });
       }
     } catch(_) {}
   };
@@ -5417,6 +5444,8 @@ async function searchStock() {
   setSortMode('portfolio');  // show Portfolio immediately — no background loading
   loadFHKey();               // restore Finnhub API key from localStorage
   updateLiveBadge();
+  // Start live price polling immediately (runs on all tabs)
+  if (!_liveTimer) _liveTimer = setInterval(refreshLivePrices, _fhKey ? 15000 : 30000);
   if (_fhKey) connectFinnhubWS(); // reconnect WebSocket on page load
 })();
 </script>
