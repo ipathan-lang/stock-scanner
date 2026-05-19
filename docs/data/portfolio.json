@@ -44,7 +44,7 @@
   { "ticker": "HON",  "shares": 0,      "buyPrice": 210.00, "note": "Industrials" },
   { "ticker": "DE",   "shares": 0,      "buyPrice": 390.00, "note": "Industrials" },
   { "ticker": "ROK",  "shares": 0,      "buyPrice": 240.00, "note": "Robotics / Automation" },
-  { "ticker": "ABB",  "shares": 0,      "buyPrice": 50.00,  "note": "Robotics / Automation" },
+  { "ticker": "ABBNY","shares": 0,      "buyPrice": 50.00,  "note": "Robotics / Automation" },
 
   { "ticker": "NVO",  "shares": 0,      "buyPrice": 73.00,  "note": "Healthcare / Biotech" },
   { "ticker": "AMGN", "shares": 0,      "buyPrice": 295.00, "note": "Healthcare / Biotech" },

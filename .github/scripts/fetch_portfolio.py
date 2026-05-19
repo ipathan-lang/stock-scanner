@@ -44,7 +44,7 @@ PORTFOLIO = [
     # Cybersecurity (expanded)
     'ZS','FTNT','NET',
     # Industrials / Robotics
-    'CAT','HON','DE','ROK','ABB',
+    'CAT','HON','DE','ROK','ABBNY',
     # Healthcare / Biotech (expanded)
     'NVO','AMGN','REGN',
     # Financials (expanded)
