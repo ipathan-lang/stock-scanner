@@ -446,12 +446,28 @@
     .forecast-btn:hover { background: rgba(30,99,217,.14); }
 
     /* Forecast modal */
-    .fc-modal-bg {
+    .fc-modal-bg, .ai-detail-bg {
       display: none; position: fixed; inset: 0;
       background: rgba(10,25,50,.6); z-index: 1000;
       align-items: flex-end; justify-content: center;
       backdrop-filter: blur(4px);
     }
+    .ai-detail-bg.open { display: flex; }
+    .ai-detail-sheet {
+      background: var(--bg); border-radius: 20px 20px 0 0;
+      max-width: 560px; width: 100%; max-height: 92dvh;
+      box-shadow: 0 -8px 40px rgba(10,25,50,.35);
+      overflow: hidden; display: flex; flex-direction: column;
+      animation: slideup .22s ease;
+    }
+    .ai-detail-head {
+      padding: 14px 18px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid var(--border);
+      background: rgba(30,99,217,.07); flex-shrink: 0;
+    }
+    .ai-detail-title { font-size: .95rem; font-weight: 800; }
+    .ai-detail-sub { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+    .ai-detail-body { overflow-y: auto; flex: 1; padding: 12px 14px 28px; }
     .fc-modal-bg.open { display: flex; }
     .fc-modal {
       background: #fff; border-radius: 20px 20px 0 0;
@@ -1379,6 +1395,20 @@
       </div>
       <div id="forecast-drivers"></div>
     </div>
+  </div>
+</div>
+
+<!-- AI STOCK DETAIL MODAL -->
+<div class="ai-detail-bg" id="ai-detail-modal" onclick="if(event.target===this)closeAIStockInfo()">
+  <div class="ai-detail-sheet">
+    <div class="ai-detail-head">
+      <div>
+        <div class="ai-detail-title" id="ai-detail-ticker">Loading…</div>
+        <div class="ai-detail-sub" id="ai-detail-name">AI Scanner · Live data</div>
+      </div>
+      <button class="fc-close" onclick="closeAIStockInfo()">&#x2715;</button>
+    </div>
+    <div class="ai-detail-body" id="ai-detail-body"></div>
   </div>
 </div>
 
@@ -4697,6 +4727,43 @@ function openForecast(ticker) {
 }
 function closeForecast() {
   document.getElementById('forecast-modal').classList.remove('open');
+}
+
+async function openAIStockInfo(symbol) {
+  const modal  = document.getElementById('ai-detail-modal');
+  const body   = document.getElementById('ai-detail-body');
+  const title  = document.getElementById('ai-detail-ticker');
+  const sub    = document.getElementById('ai-detail-name');
+  if (!modal || !body) return;
+
+  title.textContent = symbol;
+  sub.textContent   = 'Loading…';
+  body.innerHTML    = `<div class="empty" style="padding:20px">Fetching data for ${esc(symbol)}…</div>`;
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  try {
+    if (!S.data[symbol] || S.data[symbol].err) {
+      delete S.data[symbol];
+      await loadOne(symbol);
+    }
+    const d = S.data[symbol];
+    if (!d || d.err) throw new Error('no data');
+    sub.textContent = d.name || 'AI Scanner · Live data';
+    body.innerHTML  = buildCard(d, 1, true);
+  } catch(_) {
+    body.innerHTML = `<div class="empty" style="color:var(--muted);padding:20px">
+      Data unavailable for ${esc(symbol)}.
+      <br><button style="margin-top:10px;padding:5px 14px;border-radius:8px;
+                         border:1px solid var(--border);cursor:pointer"
+        onclick="delete S.data['${esc(symbol)}'];openAIStockInfo('${esc(symbol)}')">Retry</button>
+    </div>`;
+  }
+}
+
+function closeAIStockInfo() {
+  document.getElementById('ai-detail-modal')?.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 function buildForecastSVG(d) {
