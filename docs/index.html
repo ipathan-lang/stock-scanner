@@ -4081,31 +4081,106 @@ async function loadTrends() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   AI MARKET SCANNER
-   Fetches live screener data (most-actives, gainers, losers) from
-   Yahoo Finance via CORS proxy, groups by sector theme, and renders
-   a natural-language Market Pulse summary + grouped stock rows.
+   AI MARKET SCANNER  —  powered by OpenAI web search (no proxies)
+   Uses OpenAI Responses API with gpt-4o-search-preview which has
+   real-time web search built-in. API key stored in localStorage.
 ═══════════════════════════════════════════════════════════════════ */
-let _aiScannerTimer = null;
+let _aiScannerTimer  = null;
 let _aiScannerLoaded = false;
 
-async function _fetchScreener(scrId, count = 20) {
-  const url = `https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=${scrId}&count=${count}`;
-  const proxies = [
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  ];
-  for (const px of proxies) {
-    try {
-      const r = await fetch(px(url), { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) continue;
-      const j = await r.json();
-      const quotes = j?.finance?.result?.[0]?.quotes ?? [];
-      return quotes;
-    } catch(_) { /* try next */ }
+function _getAIKey() { return localStorage.getItem('ss_ai_key') || ''; }
+function _setAIKey(k) { localStorage.setItem('ss_ai_key', k.trim()); }
+
+function _clearAIKey() {
+  localStorage.removeItem('ss_ai_key');
+  _aiScannerLoaded = false;
+  _showKeyPrompt();
+}
+
+function _showKeyPrompt() {
+  const body = document.getElementById('ai-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="ai-pulse-banner" style="text-align:center;padding:28px 20px">
+      <div class="ai-pulse-title" style="font-size:1rem;margin-bottom:12px">🔑 OpenAI API Key Required</div>
+      <div class="ai-pulse-text" style="margin-bottom:18px">
+        AI Scanner uses <strong>OpenAI GPT-4o with live web search</strong> to discover
+        today's most active stocks and market themes in real-time — no proxies, no hardcoded lists.<br><br>
+        Your key is stored only in this browser's localStorage.
+      </div>
+      <input id="ai-key-input" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false"
+        style="width:100%;max-width:400px;padding:10px 14px;border-radius:10px;
+               border:1px solid var(--border);background:var(--surface);color:var(--text);
+               font-size:.9rem;margin-bottom:14px;box-sizing:border-box;font-family:monospace"
+        onkeydown="if(event.key==='Enter')_saveAIKey()" />
+      <br>
+      <button onclick="_saveAIKey()"
+        style="padding:9px 28px;border-radius:10px;background:rgba(30,99,217,.2);
+               color:var(--blue);border:1px solid rgba(30,99,217,.35);cursor:pointer;font-size:.85rem;font-weight:600">
+        Save &amp; Scan Market →
+      </button>
+      <div style="margin-top:12px;font-size:.72rem;color:var(--muted)">
+        Get a free key at
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener"
+           style="color:var(--blue)">platform.openai.com/api-keys</a>
+      </div>
+    </div>`;
+  setTimeout(() => document.getElementById('ai-key-input')?.focus(), 80);
+}
+
+function _saveAIKey() {
+  const k = (document.getElementById('ai-key-input')?.value || '').trim();
+  if (!k.startsWith('sk-')) { alert('Please enter a valid OpenAI key (starts with sk-)'); return; }
+  _setAIKey(k);
+  loadAIScanner(true);
+}
+
+async function _callOpenAI(apiKey) {
+  const today = new Date().toLocaleDateString('en-US',
+    { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const prompt =
+`Today is ${today}. Search the web right now and find current live US stock market data.
+Return ONLY a raw JSON object (no markdown, no code fences, no explanation) in this exact schema:
+
+{
+  "pulse": "2-3 sentence plain-English summary of today's market activity and dominant themes",
+  "actives": [
+    {"symbol":"NVDA","name":"NVIDIA Corp","sector":"Technology","price":135.50,"changePct":2.5,"volRatio":1.8}
+  ],
+  "gainers": [ ...same structure, top 8 biggest percentage gainers today... ],
+  "losers":  [ ...same structure, top 8 biggest percentage losers today... ]
+}
+
+Rules:
+- actives: top 10 most traded US stocks today by dollar volume
+- changePct: a plain number — positive means up, negative means down (e.g. 2.5 = +2.5%)
+- volRatio: today's volume divided by average daily volume (1.0 = normal, 2.5 = 2.5× normal)
+- Output must start with { and end with } — nothing else`;
+
+  const resp = await fetch('https://api.openai.com/v1/responses', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body:    JSON.stringify({ model: 'gpt-4o-search-preview', input: prompt }),
+    signal:  AbortSignal.timeout(40000),
+  });
+  if (resp.status === 401) throw new Error('Invalid API key — please re-enter your OpenAI key.');
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(`OpenAI ${resp.status}: ${err?.error?.message || resp.statusText}`);
   }
-  return [];
+  const data = await resp.json();
+  // Extract text content from the responses API output array
+  const text = (data.output ?? [])
+    .filter(o => o.type === 'message')
+    .flatMap(o => o.content ?? [])
+    .filter(c => c.type === 'text')
+    .map(c => c.text)
+    .join('');
+  // Strip any accidental markdown code fences
+  const clean = text.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
+  const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+  if (s === -1 || e === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
+  return JSON.parse(clean.slice(s, e + 1));
 }
 
 function _themeLabel(sector) {
@@ -4121,146 +4196,115 @@ function _themeLabel(sector) {
   if (s.includes('material') || s.includes('mining') || s.includes('metal') || s.includes('gold')) return { label: '🥇 Materials & Metals', cls: '' };
   if (s.includes('real estate') || s.includes('reit')) return { label: '🏢 Real Estate', cls: '' };
   if (s.includes('communic') || s.includes('media') || s.includes('telecom')) return { label: '📡 Communications & Media', cls: '' };
-  if (s.includes('crypto') || s.includes('digital asset')) return { label: '₿ Crypto', cls: 'hot' };
-  return { label: '📊 Mixed / ETF', cls: '' };
-}
-
-function _aiPulseText(actives, gainers, losers) {
-  // Build short natural-language summary from top movers
-  const topGainer = gainers[0];
-  const topLoser  = losers[0];
-  const topActive = actives[0];
-
-  const gPct  = topGainer ? ((topGainer.regularMarketChangePercent?.raw ?? 0) * 100).toFixed(1) : null;
-  const lPct  = topLoser  ? ((topLoser.regularMarketChangePercent?.raw  ?? 0) * 100).toFixed(1) : null;
-  const aSym  = topActive ? topActive.symbol : null;
-
-  const totalGainers = gainers.filter(q => (q.regularMarketChangePercent?.raw ?? 0) > 0.03).length;
-  const totalLosers  = losers.filter(q  => (q.regularMarketChangePercent?.raw ?? 0) < -0.03).length;
-
-  let parts = [];
-  if (aSym) parts.push(`<strong>${esc(aSym)}</strong> is the most active stock in today's session.`);
-  if (topGainer && gPct) parts.push(`Top gainer: <strong>${esc(topGainer.symbol)}</strong> is up <span style="color:var(--green)">${gPct}%</span>${topGainer.shortName ? ' (' + esc(topGainer.shortName) + ')' : ''}.`);
-  if (topLoser  && lPct) parts.push(`Biggest decliner: <strong>${esc(topLoser.symbol)}</strong> is down <span style="color:var(--red)">${lPct}%</span>.`);
-  if (totalGainers > totalLosers) parts.push(`Broad market tone is <span style="color:var(--green)">bullish</span> — ${totalGainers} large-cap gainers vs ${totalLosers} decliners.`);
-  else if (totalLosers > totalGainers) parts.push(`Broad market tone is <span style="color:var(--red)">cautious</span> — ${totalLosers} notable decliners vs ${totalGainers} gainers.`);
-  else parts.push(`Market is mixed today — roughly even between gainers and decliners.`);
-  return parts.join(' ');
+  if (s.includes('crypto') || s.includes('digital asset') || s.includes('bitcoin')) return { label: '₿ Crypto', cls: 'hot' };
+  return { label: '📊 Mixed / Other', cls: '' };
 }
 
 function _renderAIStockRow(q) {
-  const pct   = (q.regularMarketChangePercent?.raw ?? 0) * 100;
-  const price = q.regularMarketPrice?.raw ?? q.regularMarketPrice ?? 0;
-  const volRatio = q.averageDailyVolume3Month?.raw
-    ? (q.regularMarketVolume?.raw / q.averageDailyVolume3Month.raw)
-    : null;
-  const pctStr  = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-  const pctCls  = pct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
-  const volLbl  = volRatio ? (volRatio >= 2 ? '🔥 ' + volRatio.toFixed(1) + 'x vol' : volRatio.toFixed(1) + 'x vol') : '';
-  const volCls  = volRatio && volRatio >= 2 ? 'high' : '';
+  const pct    = q.changePct ?? 0;
+  const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+  const pctCls = pct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+  const vr     = q.volRatio ?? 0;
+  const volLbl = vr > 0 ? (vr >= 2 ? `🔥 ${vr.toFixed(1)}x vol` : `${vr.toFixed(1)}x vol`) : '';
+  const volCls = vr >= 2 ? 'high' : '';
   return `
-    <div class="ai-stock-row" onclick="S&&(S.mode='watchlist')&&addToWatchlist&&addToWatchlist('${esc(q.symbol)}')">
+    <div class="ai-stock-row" onclick="openAIStockInfo&&openAIStockInfo('${esc(q.symbol)}')">
       <span class="ai-stock-ticker">${esc(q.symbol)}</span>
-      <span class="ai-stock-name">${esc(q.shortName||q.longName||'')}</span>
+      <span class="ai-stock-name">${esc(q.name || '')}</span>
       ${volLbl ? `<span class="ai-stock-vol ${volCls}">${volLbl}</span>` : ''}
       <span class="ai-stock-change" style="${pctCls}">${pctStr}</span>
     </div>`;
 }
 
-function renderAIScanner({ actives, gainers, losers }) {
+function renderAIScanner(data) {
   const body = document.getElementById('ai-body');
   if (!body) return;
+  const { pulse = '', actives = [], gainers = [], losers = [] } = data;
 
-  // Merge all quotes, deduplicate by symbol
-  const seen = new Set(); const allQuotes = [];
+  // Merge all for sector grouping, deduplicate by symbol
+  const seen = new Set(); const allQ = [];
   for (const q of [...actives, ...gainers, ...losers]) {
-    if (!seen.has(q.symbol)) { seen.add(q.symbol); allQuotes.push(q); }
+    if (!seen.has(q.symbol)) { seen.add(q.symbol); allQ.push(q); }
   }
-
-  // Group by sector theme
   const themeMap = new Map();
-  for (const q of allQuotes) {
-    const sector = q.sector ?? q.sectorDisp ?? q.quoteType ?? '';
-    const { label, cls } = _themeLabel(sector);
+  for (const q of allQ) {
+    const { label, cls } = _themeLabel(q.sector || '');
     if (!themeMap.has(label)) themeMap.set(label, { cls, stocks: [] });
     themeMap.get(label).stocks.push(q);
   }
 
   const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  const pulse = _aiPulseText(actives, gainers, losers);
-
   let html = `
     <div class="ai-pulse-banner">
       <div class="ai-pulse-title">🤖 Market Pulse · ${now}</div>
-      <div class="ai-pulse-text">${pulse}</div>
+      <div class="ai-pulse-text">${esc(pulse)}</div>
+      <div style="margin-top:8px;font-size:.7rem;color:var(--muted)">
+        Powered by OpenAI web search ·
+        <span style="cursor:pointer;color:var(--blue);text-decoration:underline"
+              onclick="_clearAIKey()">Change API key</span>
+      </div>
     </div>`;
 
-  // Most Active section
   if (actives.length) {
     html += `<div class="ai-section-header">⚡ Most Active</div>`;
     html += actives.slice(0, 10).map(_renderAIStockRow).join('');
   }
-
-  // Top Gainers section
   if (gainers.length) {
     html += `<div class="ai-section-header" style="margin-top:14px">🟢 Top Gainers</div>`;
     html += gainers.slice(0, 8).map(_renderAIStockRow).join('');
   }
-
-  // Top Losers section
   if (losers.length) {
     html += `<div class="ai-section-header" style="margin-top:14px">🔴 Top Losers</div>`;
     html += losers.slice(0, 8).map(_renderAIStockRow).join('');
   }
-
-  // By sector theme
-  if (themeMap.size > 0) {
+  if (themeMap.size > 1) {
     html += `<div class="ai-section-header" style="margin-top:14px">🗂️ By Sector Theme</div>`;
     for (const [label, { cls, stocks }] of themeMap) {
       if (!stocks.length) continue;
-      // sort by abs change desc
-      stocks.sort((a, b) => Math.abs((b.regularMarketChangePercent?.raw??0)) - Math.abs((a.regularMarketChangePercent?.raw??0)));
+      stocks.sort((a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0));
       html += `<div class="ai-theme-group">
         <div class="ai-theme-label ${cls}">${esc(label)} &nbsp;${stocks.length}</div>
         ${stocks.slice(0, 5).map(_renderAIStockRow).join('')}
       </div>`;
     }
   }
-
-  html += `<div class="ai-refresh-bar">Auto-refreshes every 5 min · Data via Yahoo Finance · ${now}</div>`;
+  html += `<div class="ai-refresh-bar">Auto-refreshes every 5 min · ${now} · Powered by OpenAI</div>`;
   body.innerHTML = html;
 }
 
 async function loadAIScanner(force = false) {
   const body = document.getElementById('ai-body');
   if (!body) return;
+  const apiKey = _getAIKey();
+  if (!apiKey) { _showKeyPrompt(); return; }
 
-  // Show skeletons while loading
   if (!_aiScannerLoaded || force) {
-    body.innerHTML = Array(6).fill('<div class="ai-skeleton"></div>').join('');
+    body.innerHTML = `
+      <div class="ai-pulse-banner" style="text-align:center;padding:20px">
+        <div class="ai-pulse-title" style="animation:pulse 1.5s ease-in-out infinite">🔍 Scanning live market data…</div>
+        <div class="ai-pulse-text" style="margin-top:6px">OpenAI is searching the web for today's active stocks</div>
+      </div>
+      ${Array(5).fill('<div class="ai-skeleton"></div>').join('')}`;
   }
 
-  // Fetch all three screeners in parallel
   try {
-    const [actives, gainers, losers] = await Promise.all([
-      _fetchScreener('most_actives', 20),
-      _fetchScreener('day_gainers',  15),
-      _fetchScreener('day_losers',   15),
-    ]);
-    if (actives.length || gainers.length || losers.length) {
-      _aiScannerLoaded = true;
-      renderAIScanner({ actives, gainers, losers });
-    } else {
-      body.innerHTML = `<div class="empty" style="color:var(--muted)">
-        Could not load screener data — market may be closed or proxy unavailable.
-        <br><button style="margin-top:8px;padding:4px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
-          onclick="loadAIScanner(true)">Retry</button></div>`;
-    }
+    const data = await _callOpenAI(apiKey);
+    _aiScannerLoaded = true;
+    renderAIScanner(data);
   } catch(e) {
-    body.innerHTML = `<div class="empty" style="color:var(--red)">Error loading AI Scanner: ${esc(String(e))}</div>`;
+    const msg      = String(e.message || e);
+    const isKeyErr = msg.includes('Invalid API key') || msg.includes('401');
+    body.innerHTML = `
+      <div class="empty" style="color:var(--red);padding:24px;text-align:center">
+        ${esc(msg)}<br>
+        <button style="margin-top:12px;padding:6px 18px;border-radius:8px;
+                       border:1px solid var(--border);cursor:pointer;font-size:.82rem"
+          onclick="${isKeyErr ? '_clearAIKey()' : 'loadAIScanner(true)'}">
+          ${isKeyErr ? '🔑 Re-enter API Key' : '↺ Retry'}
+        </button>
+      </div>`;
   }
 
-  // Auto-refresh every 5 min while on this tab
   if (_aiScannerTimer) clearInterval(_aiScannerTimer);
   _aiScannerTimer = setInterval(() => {
     const aiPnl = document.getElementById('ai-panel');
