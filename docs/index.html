@@ -1139,6 +1139,62 @@
       border-radius: 0 0 12px 12px;
       background: var(--surface); padding: 12px 14px;
     }
+    /* ── Portfolio sector groups ─────────────────────────── */
+    .port-group { margin-bottom: 8px; }
+    .port-group-header {
+      display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+      cursor: pointer; border-radius: 10px; border: 1px solid rgba(255,255,255,.07);
+      background: rgba(255,255,255,.03); margin-bottom: 4px; user-select: none;
+      transition: background .15s;
+    }
+    .port-group-header:hover { background: rgba(255,255,255,.06); }
+    .port-group-icon { font-size: 1rem; }
+    .port-group-name { font-size: .73rem; font-weight: 700; letter-spacing: .06em;
+      color: var(--muted); text-transform: uppercase; flex: 1; }
+    .port-group-count { font-size: .68rem; font-weight: 700; padding: 1px 8px;
+      border-radius: 20px; background: rgba(30,99,217,.1); color: var(--blue);
+      border: 1px solid rgba(30,99,217,.2); }
+    .port-group-chevron { color: var(--muted); font-size: .9rem;
+      transition: transform .2s; line-height: 1; }
+    .port-group.open > .port-group-header .port-group-chevron { transform: rotate(90deg); color: var(--blue); }
+    .port-group-body { display: none; }
+    .port-group.open > .port-group-body { display: block; }
+    /* ── AI Scanner panel ───────────────────────────────── */
+    #ai-panel { padding: 0 0 24px; }
+    .ai-pulse-banner {
+      background: linear-gradient(135deg,rgba(30,99,217,.12),rgba(139,92,246,.08));
+      border: 1px solid rgba(139,92,246,.25); border-radius: 14px;
+      padding: 16px 18px; margin-bottom: 14px;
+    }
+    .ai-pulse-title { font-size: .8rem; font-weight: 700; color: rgba(139,92,246,.9);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+    .ai-pulse-text { font-size: .85rem; line-height: 1.55; color: var(--text); }
+    .ai-section-header { font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); padding: 10px 2px 6px; }
+    .ai-theme-group { margin-bottom: 12px; }
+    .ai-theme-label {
+      font-size: .68rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+      display: inline-block; margin-bottom: 6px;
+      background: rgba(30,99,217,.1); color: var(--blue); border: 1px solid rgba(30,99,217,.2);
+    }
+    .ai-theme-label.hot { background: rgba(239,68,68,.1); color: var(--red); border-color: rgba(239,68,68,.2); }
+    .ai-theme-label.warm { background: rgba(245,158,11,.1); color: var(--yellow); border-color: rgba(245,158,11,.2); }
+    .ai-theme-label.green { background: rgba(34,197,94,.1); color: var(--green); border-color: rgba(34,197,94,.2); }
+    .ai-stock-row {
+      display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+      border: 1px solid var(--border); border-radius: 10px; margin-bottom: 4px;
+      cursor: pointer; transition: background .15s;
+    }
+    .ai-stock-row:hover { background: rgba(255,255,255,.04); }
+    .ai-stock-ticker { font-weight: 700; font-size: .9rem; min-width: 60px; }
+    .ai-stock-name { font-size: .78rem; color: var(--muted); flex: 1; }
+    .ai-stock-change { font-size: .82rem; font-weight: 700; min-width: 58px; text-align: right; }
+    .ai-stock-vol { font-size: .68rem; padding: 1px 7px; border-radius: 20px; white-space: nowrap;
+      background: rgba(245,158,11,.1); color: var(--yellow); border: 1px solid rgba(245,158,11,.2); }
+    .ai-stock-vol.high { background: rgba(239,68,68,.1); color: var(--red); border-color: rgba(239,68,68,.2); }
+    .ai-refresh-bar { font-size: .72rem; color: var(--muted); text-align: center; padding-top: 10px; }
+    .ai-skeleton { animation: pulse 1.6s ease-in-out infinite; height: 44px;
+      background: rgba(255,255,255,.05); border-radius: 10px; margin-bottom: 4px; }
     .trend-hot { font-size: .72rem; font-weight: 700; color: var(--green);
       background: rgba(34,197,94,.12); padding: 1px 7px; border-radius: 20px; }
     .trends-meta { margin: 0 0 10px; font-size: .78rem; color: var(--muted); }
@@ -1355,6 +1411,7 @@
         <button id="sort-btn-portfolio" class="sort-btn active" onclick="setSortMode('portfolio')">&#128200; Portfolio</button>
         <button id="sort-btn-earnings" class="sort-btn" onclick="setSortMode('earnings')">&#128197; Earnings</button>
         <button id="sort-btn-trends" class="sort-btn" onclick="setSortMode('trends')">&#128293; Trends</button>
+        <button id="sort-btn-ai" class="sort-btn" onclick="setSortMode('ai')">&#129302; AI Scanner</button>
         <button id="sort-btn-search" class="sort-btn" onclick="setSortMode('search')">&#128269; Search</button>
       </div>
       <div class="filter-wrap">
@@ -1374,6 +1431,11 @@
   <!-- PORTFOLIO PANEL -->
   <div id="portfolio-panel">
     <div id="portfolio-body"></div>
+  </div>
+
+  <!-- AI SCANNER PANEL -->
+  <div id="ai-panel" style="display:none">
+    <div id="ai-body"><div class="empty">Initializing AI Market Scanner…</div></div>
   </div>
 
   <!-- TRENDS PANEL -->
@@ -2044,72 +2106,123 @@ let _sortMode   = 'portfolio'; // 'portfolio' | 'earnings' | 'trends'
 
 // ── Portfolio stocks (order matches user's Robinhood view) ──────────────────
 const PORTFOLIO_STOCKS = [
-  // ── Trillion-dollar & near-trillion companies ──────────────────────────────
-  { t:'NVDA', n:'NVIDIA',                   s:'AI Chips' },
-  { t:'AAPL', n:'Apple',                    s:'Technology' },
-  { t:'MSFT', n:'Microsoft',                s:'Technology' },
-  { t:'AMZN', n:'Amazon',                   s:'Cloud / E-commerce' },
-  { t:'GOOGL',n:'Alphabet',                 s:'Technology / AI' },
-  { t:'META', n:'Meta Platforms',           s:'Social Media / AI' },
-  { t:'TSLA', n:'Tesla',                    s:'EV / Robotics' },
-  { t:'AVGO', n:'Broadcom',                 s:'Semiconductors' },
-  { t:'TSM',  n:'Taiwan Semiconductor',     s:'Semiconductors' },
-  { t:'LLY',  n:'Eli Lilly',                s:'Healthcare / GLP-1' },
-  { t:'JPM',  n:'JPMorgan Chase',           s:'Banking' },
-  { t:'V',    n:'Visa',                     s:'Payments' },
-  { t:'MA',   n:'Mastercard',               s:'Payments' },
-  // ── Nearing $1T — fast growing (>$500B) ────────────────────────────────
-  { t:'WMT',  n:'Walmart',                  s:'E-commerce / Retail' },
-  { t:'NFLX', n:'Netflix',                  s:'Streaming / AI Content' },
-  { t:'ASML', n:'ASML Holding',             s:'Semiconductor Equipment' },
-  { t:'XOM',  n:'ExxonMobil',               s:'Energy' },
-  { t:'COST', n:'Costco',                   s:'Membership Retail' },
-  { t:'ABBV', n:'AbbVie',                   s:'Pharma / Immunology' },
-  { t:'INTU', n:'Intuit',                   s:'FinTech / AI' },
-  { t:'UBER', n:'Uber',                     s:'Platform / Mobility' },
-  { t:'ACN',  n:'Accenture',                s:'IT Services / AI' },
-  // ── Fast-growing tech ───────────────────────────────────────────────────
-  { t:'PLTR', n:'Palantir Technologies',    s:'AI / Data' },
-  { t:'CRWD', n:'CrowdStrike',              s:'Cybersecurity' },
-  { t:'PANW', n:'Palo Alto Networks',       s:'Cybersecurity' },
-  { t:'ARM',  n:'Arm Holdings',             s:'Semiconductors / IP' },
-  { t:'SHOP', n:'Shopify',                  s:'E-commerce' },
-  { t:'NOW',  n:'ServiceNow',               s:'Cloud / SaaS' },
-  { t:'CRM',  n:'Salesforce',               s:'Cloud / SaaS' },
-  { t:'ORCL', n:'Oracle',                   s:'Cloud / Database' },
-  { t:'NBIS', n:'Nebius Group',             s:'AI / Cloud' },
-  { t:'ZETA', n:'Zeta Global Holdings',     s:'AdTech / AI' },
+  // ── Mega Cap ──────────────────────────────────────────────────────────────
+  { t:'NVDA', n:'NVIDIA',                   s:'AI Chips',              g:'Mega Cap' },
+  { t:'AAPL', n:'Apple',                    s:'Technology',            g:'Mega Cap' },
+  { t:'MSFT', n:'Microsoft',                s:'Technology',            g:'Mega Cap' },
+  { t:'AMZN', n:'Amazon',                   s:'Cloud / E-commerce',    g:'Mega Cap' },
+  { t:'GOOGL',n:'Alphabet',                 s:'Technology / AI',       g:'Mega Cap' },
+  { t:'META', n:'Meta Platforms',           s:'Social Media / AI',     g:'Mega Cap' },
+  { t:'TSLA', n:'Tesla',                    s:'EV / Robotics',         g:'Mega Cap' },
+  { t:'AVGO', n:'Broadcom',                 s:'Semiconductors',        g:'Mega Cap' },
+  { t:'TSM',  n:'Taiwan Semiconductor',     s:'Semiconductors',        g:'Mega Cap' },
+  { t:'LLY',  n:'Eli Lilly',                s:'Healthcare / GLP-1',    g:'Mega Cap' },
+  { t:'JPM',  n:'JPMorgan Chase',           s:'Banking',               g:'Mega Cap' },
+  { t:'V',    n:'Visa',                     s:'Payments',              g:'Mega Cap' },
+  { t:'MA',   n:'Mastercard',               s:'Payments',              g:'Mega Cap' },
+  { t:'WMT',  n:'Walmart',                  s:'E-commerce / Retail',   g:'Mega Cap' },
+  { t:'COST', n:'Costco',                   s:'Membership Retail',     g:'Mega Cap' },
+  { t:'NFLX', n:'Netflix',                  s:'Streaming / AI Content',g:'Mega Cap' },
+  { t:'XOM',  n:'ExxonMobil',               s:'Energy',                g:'Mega Cap' },
+  { t:'ASML', n:'ASML Holding',             s:'Semiconductor Equipment',g:'Mega Cap' },
+  { t:'ABBV', n:'AbbVie',                   s:'Pharma / Immunology',   g:'Mega Cap' },
+  // ── Technology & Cloud ───────────────────────────────────────────────────
+  { t:'INTU', n:'Intuit',                   s:'FinTech / AI',          g:'Technology & Cloud' },
+  { t:'UBER', n:'Uber',                     s:'Platform / Mobility',   g:'Technology & Cloud' },
+  { t:'ACN',  n:'Accenture',                s:'IT Services / AI',      g:'Technology & Cloud' },
+  { t:'PLTR', n:'Palantir Technologies',    s:'AI / Data Analytics',   g:'Technology & Cloud' },
+  { t:'ARM',  n:'Arm Holdings',             s:'Semiconductors / IP',   g:'Technology & Cloud' },
+  { t:'SHOP', n:'Shopify',                  s:'E-commerce Platform',   g:'Technology & Cloud' },
+  { t:'NOW',  n:'ServiceNow',               s:'Cloud / SaaS',          g:'Technology & Cloud' },
+  { t:'CRM',  n:'Salesforce',               s:'Cloud / SaaS',          g:'Technology & Cloud' },
+  { t:'ORCL', n:'Oracle',                   s:'Cloud / Database',      g:'Technology & Cloud' },
+  { t:'NBIS', n:'Nebius Group',             s:'AI / Cloud',            g:'Technology & Cloud' },
+  { t:'ZETA', n:'Zeta Global',              s:'AdTech / AI',           g:'Technology & Cloud' },
+  { t:'DELL', n:'Dell Technologies',        s:'Technology / Hardware', g:'Technology & Cloud' },
   // ── Semiconductors ──────────────────────────────────────────────────────
-  { t:'AMD',  n:'Advanced Micro Devices',   s:'Semiconductors' },
-  { t:'AMAT', n:'Applied Materials',        s:'Semiconductors' },
-  { t:'QCOM', n:'Qualcomm',                 s:'Semiconductors' },
-  { t:'KLAC', n:'KLA Corporation',          s:'Semiconductors' },
-  { t:'MU',   n:'Micron Technology',        s:'Semiconductors' },
-  { t:'ON',   n:'ON Semiconductor',         s:'Semiconductors' },
-  { t:'GFS',  n:'GlobalFoundries',          s:'Semiconductors' },
+  { t:'AMD',  n:'Advanced Micro Devices',   s:'Semiconductors',        g:'Semiconductors' },
+  { t:'AMAT', n:'Applied Materials',        s:'Semiconductor Equipment',g:'Semiconductors' },
+  { t:'QCOM', n:'Qualcomm',                 s:'Semiconductors',        g:'Semiconductors' },
+  { t:'KLAC', n:'KLA Corporation',          s:'Semiconductor Equipment',g:'Semiconductors' },
+  { t:'MU',   n:'Micron Technology',        s:'Memory Chips',          g:'Semiconductors' },
+  { t:'ON',   n:'ON Semiconductor',         s:'Power / Auto Chips',    g:'Semiconductors' },
+  { t:'GFS',  n:'GlobalFoundries',          s:'Contract Foundry',      g:'Semiconductors' },
+  { t:'INTC', n:'Intel',                    s:'Semiconductors',        g:'Semiconductors' },
+  { t:'MRVL', n:'Marvell Technology',       s:'AI / Data Center Chips',g:'Semiconductors' },
+  // ── AI Infrastructure & Data Centers ────────────────────────────────────
+  { t:'SMCI', n:'Super Micro Computer',     s:'AI Server Hardware',    g:'AI Infrastructure' },
+  { t:'ANET', n:'Arista Networks',          s:'Data Center Networking',g:'AI Infrastructure' },
+  { t:'EQIX', n:'Equinix',                  s:'Data Centers (REIT)',   g:'AI Infrastructure' },
+  { t:'DLR',  n:'Digital Realty Trust',     s:'Data Centers (REIT)',   g:'AI Infrastructure' },
+  // ── Cybersecurity ────────────────────────────────────────────────────────
+  { t:'CRWD', n:'CrowdStrike',              s:'Endpoint Security',     g:'Cybersecurity' },
+  { t:'PANW', n:'Palo Alto Networks',       s:'Network Security',      g:'Cybersecurity' },
+  { t:'ZS',   n:'Zscaler',                  s:'Zero-Trust Cloud',      g:'Cybersecurity' },
+  { t:'FTNT', n:'Fortinet',                 s:'Network Security',      g:'Cybersecurity' },
+  { t:'NET',  n:'Cloudflare',               s:'Network / CDN Security',g:'Cybersecurity' },
+  { t:'S',    n:'SentinelOne',              s:'AI-Driven Security',    g:'Cybersecurity' },
+  { t:'OKTA', n:'Okta',                     s:'Identity Management',   g:'Cybersecurity' },
   // ── Financials ──────────────────────────────────────────────────────────
-  { t:'GS',   n:'Goldman Sachs',            s:'Financials' },
-  { t:'BN',   n:'Brookfield Corporation',   s:'Asset Management' },
-  // ── Healthcare ──────────────────────────────────────────────────────────
-  { t:'UNH',  n:'UnitedHealth Group',       s:'Health Insurance' },
-  { t:'ELV',  n:'Elevance Health',          s:'Health Insurance' },
-  { t:'CVS',  n:'CVS Health',               s:'Healthcare Retail' },
-  // ── Energy / Utilities ──────────────────────────────────────────────────
-  { t:'CEG',  n:'Constellation Energy',     s:'Nuclear / Utilities' },
-  { t:'NEE',  n:'NextEra Energy',           s:'Clean Energy' },
-  { t:'PBR',  n:'Petrobras',                s:'Energy' },
-  // ── Other / Hardware ────────────────────────────────────────────────────
-  { t:'DELL', n:'Dell Technologies',        s:'Technology / Hardware' },
-  { t:'BOOT', n:'Boot Barn Holdings',       s:'Consumer Retail' },
-  { t:'KHC',  n:'Kraft Heinz',              s:'Consumer Staples' },
-  // ── ETFs ────────────────────────────────────────────────────────────────
-  { t:'SPY',  n:'SPDR S&P 500 ETF',         s:'Index ETF' },
-  { t:'VTI',  n:'Vanguard Total Market ETF',s:'Index ETF' },
-  { t:'XLF',  n:'Financial Select SPDR',    s:'Financials ETF' },
-  { t:'XLV',  n:'Health Care Select SPDR',  s:'Healthcare ETF' },
-  { t:'GLD',  n:'SPDR Gold Shares',         s:'Commodity ETF' },
-  { t:'VXUS', n:'Vanguard Intl Stock ETF',  s:'Intl ETF' },
-  { t:'FIG',  n:'Simplify Macro Strategy',  s:'Macro ETF' },
+  { t:'GS',   n:'Goldman Sachs',            s:'Investment Banking',    g:'Financials' },
+  { t:'BN',   n:'Brookfield Corporation',   s:'Asset Management',      g:'Financials' },
+  { t:'BAC',  n:'Bank of America',          s:'Banking',               g:'Financials' },
+  { t:'MS',   n:'Morgan Stanley',           s:'Investment Banking',    g:'Financials' },
+  // ── Healthcare & Biotech ─────────────────────────────────────────────────
+  { t:'UNH',  n:'UnitedHealth Group',       s:'Health Insurance',      g:'Healthcare & Biotech' },
+  { t:'ELV',  n:'Elevance Health',          s:'Health Insurance',      g:'Healthcare & Biotech' },
+  { t:'CVS',  n:'CVS Health',               s:'Healthcare Retail',     g:'Healthcare & Biotech' },
+  { t:'NVO',  n:'Novo Nordisk',             s:'GLP-1 / Obesity',       g:'Healthcare & Biotech' },
+  { t:'AMGN', n:'Amgen',                    s:'Biotech',               g:'Healthcare & Biotech' },
+  { t:'REGN', n:'Regeneron',                s:'Biotech',               g:'Healthcare & Biotech' },
+  // ── Energy ──────────────────────────────────────────────────────────────
+  { t:'CEG',  n:'Constellation Energy',     s:'Nuclear / Utilities',   g:'Energy' },
+  { t:'NEE',  n:'NextEra Energy',           s:'Clean Energy',          g:'Energy' },
+  { t:'PBR',  n:'Petrobras',                s:'Oil & Gas',             g:'Energy' },
+  { t:'CVX',  n:'Chevron',                  s:'Oil & Gas',             g:'Energy' },
+  { t:'GEV',  n:'GE Vernova',               s:'Power / Grid',          g:'Energy' },
+  { t:'DVN',  n:'Devon Energy',             s:'E&P',                   g:'Energy' },
+  { t:'XLE',  n:'Energy Select SPDR ETF',   s:'Energy ETF',            g:'Energy' },
+  { t:'XOP',  n:'Oil & Gas Exploration ETF',s:'Energy ETF',            g:'Energy' },
+  // ── Defense & Aerospace ─────────────────────────────────────────────────
+  { t:'LMT',  n:'Lockheed Martin',          s:'Defense',               g:'Defense & Aerospace' },
+  { t:'RTX',  n:'RTX Corporation',          s:'Defense / Aerospace',   g:'Defense & Aerospace' },
+  { t:'NOC',  n:'Northrop Grumman',         s:'Defense',               g:'Defense & Aerospace' },
+  { t:'GD',   n:'General Dynamics',         s:'Defense / IT',          g:'Defense & Aerospace' },
+  { t:'AVAV', n:'AeroVironment',            s:'Drones / Defense',      g:'Defense & Aerospace' },
+  { t:'KTOS', n:'Kratos Defense',           s:'Drones / Defense Tech', g:'Defense & Aerospace' },
+  // ── Nuclear Energy ───────────────────────────────────────────────────────
+  { t:'OKLO', n:'Oklo',                     s:'Micro-Reactor',         g:'Nuclear Energy' },
+  { t:'SMR',  n:'NuScale Power',            s:'Small Modular Reactor', g:'Nuclear Energy' },
+  // ── Industrials & Robotics ───────────────────────────────────────────────
+  { t:'CAT',  n:'Caterpillar',              s:'Heavy Machinery',       g:'Industrials & Robotics' },
+  { t:'HON',  n:'Honeywell',                s:'Industrial Automation', g:'Industrials & Robotics' },
+  { t:'DE',   n:'Deere & Company',          s:'Agriculture / Machinery',g:'Industrials & Robotics' },
+  { t:'ROK',  n:'Rockwell Automation',      s:'Industrial Automation', g:'Industrials & Robotics' },
+  { t:'ABBNY',n:'ABB Ltd (OTC)',             s:'Robotics / Power Grids',g:'Industrials & Robotics' },
+  // ── Consumer & Retail ────────────────────────────────────────────────────
+  { t:'DIS',  n:'Walt Disney',              s:'Entertainment / Streaming',g:'Consumer & Retail' },
+  { t:'KO',   n:'Coca-Cola',                s:'Beverages / Consumer Staples',g:'Consumer & Retail' },
+  { t:'BOOT', n:'Boot Barn Holdings',       s:'Specialty Retail',      g:'Consumer & Retail' },
+  { t:'KHC',  n:'Kraft Heinz',              s:'Consumer Staples',      g:'Consumer & Retail' },
+  { t:'F',    n:'Ford Motor',               s:'Automotive',            g:'Consumer & Retail' },
+  // ── Gold & Precious Metals ───────────────────────────────────────────────
+  { t:'GLD',  n:'SPDR Gold Shares',         s:'Gold ETF',              g:'Gold & Precious Metals' },
+  { t:'GLDM', n:'SPDR Gold MiniShares',     s:'Gold ETF',              g:'Gold & Precious Metals' },
+  { t:'IAU',  n:'iShares Gold Trust',       s:'Gold ETF',              g:'Gold & Precious Metals' },
+  { t:'GDX',  n:'VanEck Gold Miners ETF',   s:'Gold Miners ETF',       g:'Gold & Precious Metals' },
+  { t:'GDXJ', n:'Junior Gold Miners ETF',   s:'Gold Miners ETF',       g:'Gold & Precious Metals' },
+  { t:'GOLD', n:'Barrick Gold',             s:'Gold Mining',           g:'Gold & Precious Metals' },
+  { t:'KGC',  n:'Kinross Gold',             s:'Gold Mining',           g:'Gold & Precious Metals' },
+  { t:'PHYS', n:'Sprott Physical Gold',     s:'Physical Gold Trust',   g:'Gold & Precious Metals' },
+  { t:'UGL',  n:'ProShares Ultra Gold',     s:'Leveraged Gold ETF',    g:'Gold & Precious Metals' },
+  // ── ETFs & Bonds ─────────────────────────────────────────────────────────
+  { t:'SPY',  n:'SPDR S&P 500 ETF',         s:'Index ETF',             g:'ETFs & Bonds' },
+  { t:'VTI',  n:'Vanguard Total Market',    s:'Index ETF',             g:'ETFs & Bonds' },
+  { t:'VXUS', n:'Vanguard Intl Stock',      s:'Intl ETF',              g:'ETFs & Bonds' },
+  { t:'XLF',  n:'Financial Select SPDR',    s:'Financials ETF',        g:'ETFs & Bonds' },
+  { t:'XLV',  n:'Health Care Select SPDR',  s:'Healthcare ETF',        g:'ETFs & Bonds' },
+  { t:'FIG',  n:'Simplify Macro Strategy',  s:'Macro ETF',             g:'ETFs & Bonds' },
+  { t:'SGOV', n:'iShares 0-3M Treasury',    s:'T-Bill / Cash ETF',     g:'ETFs & Bonds' },
 ];
 
 // ── Portfolio & Trends view state ───────────────────────────────────────────
@@ -3756,6 +3869,7 @@ function setSortMode(mode) {
   const portfolioPnl = document.getElementById('portfolio-panel');
   const trendsPnl    = document.getElementById('trends-panel');
   const searchPnl    = document.getElementById('search-panel');
+  const aiPnl        = document.getElementById('ai-panel');
   const filterWrap   = document.querySelector('.filter-wrap');
   const loadProgress = document.getElementById('load-progress');
   const refreshBtn   = document.getElementById('refresh-btn');
@@ -3764,6 +3878,7 @@ function setSortMode(mode) {
   if (portfolioPnl) portfolioPnl.style.display = 'none';
   if (trendsPnl)    trendsPnl.style.display    = 'none';
   if (searchPnl)    searchPnl.style.display    = 'none';
+  if (aiPnl)        aiPnl.style.display        = 'none';
   if (filterWrap)   filterWrap.style.display   = 'none';
   if (loadProgress) loadProgress.style.display = 'none';
   if (refreshBtn)   refreshBtn.style.display   = 'none';
@@ -3791,6 +3906,10 @@ function setSortMode(mode) {
     if (searchPnl) searchPnl.style.display = '';
     if (label) label.textContent = '🔍 Search Stocks';
     setTimeout(() => document.getElementById('sp-q')?.focus(), 50);
+  } else if (mode === 'ai') {
+    if (aiPnl) aiPnl.style.display = '';
+    if (label) label.textContent = '🤖 AI Market Scanner';
+    loadAIScanner();
   }
 }
 
@@ -3824,20 +3943,67 @@ async function searchPanelStock() {
 // ══════════════════════════════════════════════════════════════
 //  PORTFOLIO TAB
 // ══════════════════════════════════════════════════════════════
+const _GROUP_ICONS = {
+  'Mega Cap':              '🏆',
+  'Technology & Cloud':   '☁️',
+  'Semiconductors':       '⚙️',
+  'AI Infrastructure':    '🖥️',
+  'Cybersecurity':        '🛡️',
+  'Financials':           '💰',
+  'Healthcare & Biotech': '🧬',
+  'Energy':               '⚡',
+  'Defense & Aerospace':  '🛩️',
+  'Nuclear Energy':       '⚛️',
+  'Industrials & Robotics':'🤖',
+  'Consumer & Retail':    '🛒',
+  'Gold & Precious Metals':'🥇',
+  'ETFs & Bonds':         '📊',
+};
+
+function togglePortfolioGroup(header) {
+  header.closest('.port-group').classList.toggle('open');
+}
+
 function renderPortfolio() {
   const body = document.getElementById('portfolio-body');
   if (!body) return;
-  body.innerHTML = PORTFOLIO_STOCKS.map(({ t, n, s }) => `
-    <div class="port-row" id="port-row-${t}" onclick="togglePortfolioRow('${t}')">
-      <div class="port-row-main">
-        <span class="port-ticker">${esc(t)}</span>
-        <span class="port-name">${esc(n)}</span>
-        ${s ? `<span class="port-sector">${esc(s)}</span>` : ''}
-        <span class="port-chevron">›</span>
-      </div>
-      <div class="port-detail" id="port-detail-${t}" style="display:none"></div>
-    </div>
-  `).join('');
+
+  // Group stocks by `g`
+  const groups = []; const groupMap = new Map();
+  for (const stk of PORTFOLIO_STOCKS) {
+    const g = stk.g || 'Other';
+    if (!groupMap.has(g)) { groupMap.set(g, []); groups.push(g); }
+    groupMap.get(g).push(stk);
+  }
+
+  body.innerHTML = groups.map((grpName, idx) => {
+    const stocks  = groupMap.get(grpName);
+    const icon    = _GROUP_ICONS[grpName] || '📌';
+    const isOpen  = idx < 4; // first 4 groups start expanded
+    const slugId  = grpName.replace(/[^a-z0-9]/gi, '_');
+    return `
+      <div class="port-group ${isOpen ? 'open' : ''}" id="port-group-${slugId}">
+        <div class="port-group-header" onclick="togglePortfolioGroup(this)">
+          <span class="port-group-chevron">›</span>
+          <span class="port-group-icon">${icon}</span>
+          <span class="port-group-name">${esc(grpName)}</span>
+          <span class="port-group-count">${stocks.length}</span>
+        </div>
+        <div class="port-group-body">
+          ${stocks.map(({ t, n, s }) => `
+            <div class="port-row" id="port-row-${t}" onclick="togglePortfolioRow('${t}')">
+              <div class="port-row-main">
+                <span class="port-ticker">${esc(t)}</span>
+                <span class="port-name">${esc(n)}</span>
+                ${s ? `<span class="port-sector">${esc(s)}</span>` : ''}
+                <span class="port-chevron">›</span>
+              </div>
+              <div class="port-detail" id="port-detail-${t}" style="display:none"></div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function togglePortfolioRow(ticker) {
@@ -3912,6 +4078,195 @@ async function loadTrends() {
       <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
         onclick="_trendsData=null;loadTrends()">Retry</button></div>`;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AI MARKET SCANNER
+   Fetches live screener data (most-actives, gainers, losers) from
+   Yahoo Finance via CORS proxy, groups by sector theme, and renders
+   a natural-language Market Pulse summary + grouped stock rows.
+═══════════════════════════════════════════════════════════════════ */
+let _aiScannerTimer = null;
+let _aiScannerLoaded = false;
+
+async function _fetchScreener(scrId, count = 20) {
+  const url = `https://query1.finance.yahoo.com/v1/finance/screener?formatted=true&lang=en-US&region=US&scrIds=${scrId}&count=${count}`;
+  const proxies = [
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  ];
+  for (const px of proxies) {
+    try {
+      const r = await fetch(px(url), { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const quotes = j?.finance?.result?.[0]?.quotes ?? [];
+      return quotes;
+    } catch(_) { /* try next */ }
+  }
+  return [];
+}
+
+function _themeLabel(sector) {
+  if (!sector) return { label: 'Other', cls: '' };
+  const s = sector.toLowerCase();
+  if (s.includes('tech') || s.includes('semi') || s.includes('electron')) return { label: '⚙️ Technology & Chips', cls: 'green' };
+  if (s.includes('ai') || s.includes('cloud') || s.includes('software') || s.includes('internet')) return { label: '🤖 AI & Cloud', cls: 'green' };
+  if (s.includes('health') || s.includes('bio') || s.includes('pharma') || s.includes('drug')) return { label: '🧬 Healthcare & Biotech', cls: '' };
+  if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('utility')) return { label: '⚡ Energy & Utilities', cls: 'warm' };
+  if (s.includes('financ') || s.includes('bank') || s.includes('insur') || s.includes('invest')) return { label: '💰 Financials', cls: '' };
+  if (s.includes('consumer') || s.includes('retail') || s.includes('food') || s.includes('beverage')) return { label: '🛒 Consumer & Retail', cls: '' };
+  if (s.includes('industrial') || s.includes('aero') || s.includes('defense') || s.includes('manufactur')) return { label: '🛩️ Industrials & Defense', cls: '' };
+  if (s.includes('material') || s.includes('mining') || s.includes('metal') || s.includes('gold')) return { label: '🥇 Materials & Metals', cls: '' };
+  if (s.includes('real estate') || s.includes('reit')) return { label: '🏢 Real Estate', cls: '' };
+  if (s.includes('communic') || s.includes('media') || s.includes('telecom')) return { label: '📡 Communications & Media', cls: '' };
+  if (s.includes('crypto') || s.includes('digital asset')) return { label: '₿ Crypto', cls: 'hot' };
+  return { label: '📊 Mixed / ETF', cls: '' };
+}
+
+function _aiPulseText(actives, gainers, losers) {
+  // Build short natural-language summary from top movers
+  const topGainer = gainers[0];
+  const topLoser  = losers[0];
+  const topActive = actives[0];
+
+  const gPct  = topGainer ? ((topGainer.regularMarketChangePercent?.raw ?? 0) * 100).toFixed(1) : null;
+  const lPct  = topLoser  ? ((topLoser.regularMarketChangePercent?.raw  ?? 0) * 100).toFixed(1) : null;
+  const aSym  = topActive ? topActive.symbol : null;
+
+  const totalGainers = gainers.filter(q => (q.regularMarketChangePercent?.raw ?? 0) > 0.03).length;
+  const totalLosers  = losers.filter(q  => (q.regularMarketChangePercent?.raw ?? 0) < -0.03).length;
+
+  let parts = [];
+  if (aSym) parts.push(`<strong>${esc(aSym)}</strong> is the most active stock in today's session.`);
+  if (topGainer && gPct) parts.push(`Top gainer: <strong>${esc(topGainer.symbol)}</strong> is up <span style="color:var(--green)">${gPct}%</span>${topGainer.shortName ? ' (' + esc(topGainer.shortName) + ')' : ''}.`);
+  if (topLoser  && lPct) parts.push(`Biggest decliner: <strong>${esc(topLoser.symbol)}</strong> is down <span style="color:var(--red)">${lPct}%</span>.`);
+  if (totalGainers > totalLosers) parts.push(`Broad market tone is <span style="color:var(--green)">bullish</span> — ${totalGainers} large-cap gainers vs ${totalLosers} decliners.`);
+  else if (totalLosers > totalGainers) parts.push(`Broad market tone is <span style="color:var(--red)">cautious</span> — ${totalLosers} notable decliners vs ${totalGainers} gainers.`);
+  else parts.push(`Market is mixed today — roughly even between gainers and decliners.`);
+  return parts.join(' ');
+}
+
+function _renderAIStockRow(q) {
+  const pct   = (q.regularMarketChangePercent?.raw ?? 0) * 100;
+  const price = q.regularMarketPrice?.raw ?? q.regularMarketPrice ?? 0;
+  const volRatio = q.averageDailyVolume3Month?.raw
+    ? (q.regularMarketVolume?.raw / q.averageDailyVolume3Month.raw)
+    : null;
+  const pctStr  = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+  const pctCls  = pct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+  const volLbl  = volRatio ? (volRatio >= 2 ? '🔥 ' + volRatio.toFixed(1) + 'x vol' : volRatio.toFixed(1) + 'x vol') : '';
+  const volCls  = volRatio && volRatio >= 2 ? 'high' : '';
+  return `
+    <div class="ai-stock-row" onclick="S&&(S.mode='watchlist')&&addToWatchlist&&addToWatchlist('${esc(q.symbol)}')">
+      <span class="ai-stock-ticker">${esc(q.symbol)}</span>
+      <span class="ai-stock-name">${esc(q.shortName||q.longName||'')}</span>
+      ${volLbl ? `<span class="ai-stock-vol ${volCls}">${volLbl}</span>` : ''}
+      <span class="ai-stock-change" style="${pctCls}">${pctStr}</span>
+    </div>`;
+}
+
+function renderAIScanner({ actives, gainers, losers }) {
+  const body = document.getElementById('ai-body');
+  if (!body) return;
+
+  // Merge all quotes, deduplicate by symbol
+  const seen = new Set(); const allQuotes = [];
+  for (const q of [...actives, ...gainers, ...losers]) {
+    if (!seen.has(q.symbol)) { seen.add(q.symbol); allQuotes.push(q); }
+  }
+
+  // Group by sector theme
+  const themeMap = new Map();
+  for (const q of allQuotes) {
+    const sector = q.sector ?? q.sectorDisp ?? q.quoteType ?? '';
+    const { label, cls } = _themeLabel(sector);
+    if (!themeMap.has(label)) themeMap.set(label, { cls, stocks: [] });
+    themeMap.get(label).stocks.push(q);
+  }
+
+  const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const pulse = _aiPulseText(actives, gainers, losers);
+
+  let html = `
+    <div class="ai-pulse-banner">
+      <div class="ai-pulse-title">🤖 Market Pulse · ${now}</div>
+      <div class="ai-pulse-text">${pulse}</div>
+    </div>`;
+
+  // Most Active section
+  if (actives.length) {
+    html += `<div class="ai-section-header">⚡ Most Active</div>`;
+    html += actives.slice(0, 10).map(_renderAIStockRow).join('');
+  }
+
+  // Top Gainers section
+  if (gainers.length) {
+    html += `<div class="ai-section-header" style="margin-top:14px">🟢 Top Gainers</div>`;
+    html += gainers.slice(0, 8).map(_renderAIStockRow).join('');
+  }
+
+  // Top Losers section
+  if (losers.length) {
+    html += `<div class="ai-section-header" style="margin-top:14px">🔴 Top Losers</div>`;
+    html += losers.slice(0, 8).map(_renderAIStockRow).join('');
+  }
+
+  // By sector theme
+  if (themeMap.size > 0) {
+    html += `<div class="ai-section-header" style="margin-top:14px">🗂️ By Sector Theme</div>`;
+    for (const [label, { cls, stocks }] of themeMap) {
+      if (!stocks.length) continue;
+      // sort by abs change desc
+      stocks.sort((a, b) => Math.abs((b.regularMarketChangePercent?.raw??0)) - Math.abs((a.regularMarketChangePercent?.raw??0)));
+      html += `<div class="ai-theme-group">
+        <div class="ai-theme-label ${cls}">${esc(label)} &nbsp;${stocks.length}</div>
+        ${stocks.slice(0, 5).map(_renderAIStockRow).join('')}
+      </div>`;
+    }
+  }
+
+  html += `<div class="ai-refresh-bar">Auto-refreshes every 5 min · Data via Yahoo Finance · ${now}</div>`;
+  body.innerHTML = html;
+}
+
+async function loadAIScanner(force = false) {
+  const body = document.getElementById('ai-body');
+  if (!body) return;
+
+  // Show skeletons while loading
+  if (!_aiScannerLoaded || force) {
+    body.innerHTML = Array(6).fill('<div class="ai-skeleton"></div>').join('');
+  }
+
+  // Fetch all three screeners in parallel
+  try {
+    const [actives, gainers, losers] = await Promise.all([
+      _fetchScreener('most_actives', 20),
+      _fetchScreener('day_gainers',  15),
+      _fetchScreener('day_losers',   15),
+    ]);
+    if (actives.length || gainers.length || losers.length) {
+      _aiScannerLoaded = true;
+      renderAIScanner({ actives, gainers, losers });
+    } else {
+      body.innerHTML = `<div class="empty" style="color:var(--muted)">
+        Could not load screener data — market may be closed or proxy unavailable.
+        <br><button style="margin-top:8px;padding:4px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+          onclick="loadAIScanner(true)">Retry</button></div>`;
+    }
+  } catch(e) {
+    body.innerHTML = `<div class="empty" style="color:var(--red)">Error loading AI Scanner: ${esc(String(e))}</div>`;
+  }
+
+  // Auto-refresh every 5 min while on this tab
+  if (_aiScannerTimer) clearInterval(_aiScannerTimer);
+  _aiScannerTimer = setInterval(() => {
+    const aiPnl = document.getElementById('ai-panel');
+    if (aiPnl && aiPnl.style.display !== 'none') loadAIScanner(true);
+    else clearInterval(_aiScannerTimer);
+  }, 5 * 60 * 1000);
 }
 
 function renderTrends() {
