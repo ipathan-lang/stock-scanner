@@ -446,29 +446,18 @@
     .forecast-btn:hover { background: rgba(30,99,217,.14); }
 
     /* Forecast modal */
-    .fc-modal-bg, .ai-detail-bg {
+    .fc-modal-bg {
       display: none; position: fixed; inset: 0;
       background: rgba(10,25,50,.6); z-index: 1000;
       align-items: flex-end; justify-content: center;
       backdrop-filter: blur(4px);
     }
-    .ai-detail-bg.open { display: flex; }
-    .ai-detail-sheet {
-      background: var(--bg); border-radius: 20px 20px 0 0;
-      max-width: 560px; width: 100%; max-height: 92dvh;
-      box-shadow: 0 -8px 40px rgba(10,25,50,.35);
-      overflow: hidden; display: flex; flex-direction: column;
-      animation: slideup .22s ease;
-    }
-    .ai-detail-head {
-      padding: 14px 18px; display: flex; align-items: center;
-      justify-content: space-between; border-bottom: 1px solid var(--border);
-      background: rgba(30,99,217,.07); flex-shrink: 0;
-    }
-    .ai-detail-title { font-size: .95rem; font-weight: 800; }
-    .ai-detail-sub { font-size: .72rem; color: var(--muted); margin-top: 2px; }
-    .ai-detail-body { overflow-y: auto; flex: 1; padding: 12px 14px 28px; }
     .fc-modal-bg.open { display: flex; }
+    .ai-stock-detail {
+      border: 1px solid rgba(30,99,217,.2); border-top: none;
+      border-radius: 0 0 12px 12px;
+      background: var(--surface); padding: 12px 14px;
+    }
     .fc-modal {
       background: #fff; border-radius: 20px 20px 0 0;
       max-width: 560px; width: 100%; max-height: 92dvh;
@@ -1398,20 +1387,6 @@
   </div>
 </div>
 
-<!-- AI STOCK DETAIL MODAL -->
-<div class="ai-detail-bg" id="ai-detail-modal" onclick="if(event.target===this)closeAIStockInfo()">
-  <div class="ai-detail-sheet">
-    <div class="ai-detail-head">
-      <div>
-        <div class="ai-detail-title" id="ai-detail-ticker">Loading…</div>
-        <div class="ai-detail-sub" id="ai-detail-name">AI Scanner · Live data</div>
-      </div>
-      <button class="fc-close" onclick="closeAIStockInfo()">&#x2715;</button>
-    </div>
-    <div class="ai-detail-body" id="ai-detail-body"></div>
-  </div>
-</div>
-
 <header>
   <h1>📊 IntelliMarket</h1>
   <button class="info-btn" onclick="openInfo()" title="How scoring works">i</button>
@@ -2258,6 +2233,7 @@ const PORTFOLIO_STOCKS = [
 // ── Portfolio & Trends view state ───────────────────────────────────────────
 let _portViewStock   = null;
 let _trendsViewStock = null;
+let _aiViewStock     = null;
 let _trendsData      = null; // cached trending tickers
 
 function shuffle(arr) {
@@ -4187,13 +4163,15 @@ function _renderAIStockRow(q) {
   const vr     = q.volRatio ?? 0;
   const volLbl = vr > 0 ? (vr >= 2 ? `🔥 ${vr.toFixed(1)}x vol` : `${vr.toFixed(1)}x vol`) : '';
   const volCls = vr >= 2 ? 'high' : '';
+  const sym = esc(q.symbol);
   return `
-    <div class="ai-stock-row" onclick="openAIStockInfo&&openAIStockInfo('${esc(q.symbol)}')">
-      <span class="ai-stock-ticker">${esc(q.symbol)}</span>
+    <div class="ai-stock-row" id="ai-row-${sym}" onclick="openAIStockInfo('${sym}')">
+      <span class="ai-stock-ticker">${sym}</span>
       <span class="ai-stock-name">${esc(q.name || '')}</span>
       ${volLbl ? `<span class="ai-stock-vol ${volCls}">${volLbl}</span>` : ''}
       <span class="ai-stock-change" style="${pctCls}">${pctStr}</span>
-    </div>`;
+    </div>
+    <div class="ai-stock-detail" id="ai-detail-${sym}" style="display:none"></div>`;
 }
 
 function renderAIScanner(data) {
@@ -4729,19 +4707,36 @@ function closeForecast() {
   document.getElementById('forecast-modal').classList.remove('open');
 }
 
-async function openAIStockInfo(symbol) {
-  const modal  = document.getElementById('ai-detail-modal');
-  const body   = document.getElementById('ai-detail-body');
-  const title  = document.getElementById('ai-detail-ticker');
-  const sub    = document.getElementById('ai-detail-name');
-  if (!modal || !body) return;
+function openAIStockInfo(symbol) {
+  const row    = document.getElementById(`ai-row-${symbol}`);
+  const detail = document.getElementById(`ai-detail-${symbol}`);
+  if (!row || !detail) return;
 
-  title.textContent = symbol;
-  sub.textContent   = 'Loading…';
-  body.innerHTML    = `<div class="empty" style="padding:20px">Fetching data for ${esc(symbol)}…</div>`;
-  modal.classList.add('open');
-  document.body.style.overflow = 'hidden';
+  const isOpen = detail.style.display !== 'none';
 
+  // Collapse previously open row
+  if (_aiViewStock && _aiViewStock !== symbol) {
+    document.getElementById(`ai-row-${_aiViewStock}`)?.classList.remove('expanded');
+    const prev = document.getElementById(`ai-detail-${_aiViewStock}`);
+    if (prev) prev.style.display = 'none';
+  }
+
+  if (isOpen) {
+    detail.style.display = 'none';
+    row.classList.remove('expanded');
+    _aiViewStock = null;
+  } else {
+    detail.style.display = 'block';
+    row.classList.add('expanded');
+    _aiViewStock = symbol;
+    if (!detail.dataset.loaded) {
+      detail.innerHTML = `<div class="empty" style="padding:16px 0">Loading ${esc(symbol)}…</div>`;
+      _loadAIStockDetail(symbol, detail);
+    }
+  }
+}
+
+async function _loadAIStockDetail(symbol, el) {
   try {
     if (!S.data[symbol] || S.data[symbol].err) {
       delete S.data[symbol];
@@ -4749,21 +4744,15 @@ async function openAIStockInfo(symbol) {
     }
     const d = S.data[symbol];
     if (!d || d.err) throw new Error('no data');
-    sub.textContent = d.name || 'AI Scanner · Live data';
-    body.innerHTML  = buildCard(d, 1, true);
-  } catch(_) {
-    body.innerHTML = `<div class="empty" style="color:var(--muted);padding:20px">
-      Data unavailable for ${esc(symbol)}.
-      <br><button style="margin-top:10px;padding:5px 14px;border-radius:8px;
-                         border:1px solid var(--border);cursor:pointer"
-        onclick="delete S.data['${esc(symbol)}'];openAIStockInfo('${esc(symbol)}')">Retry</button>
-    </div>`;
+    if (_aiViewStock !== symbol) return;
+    el.innerHTML = buildCard(d, 1, true);
+    el.dataset.loaded = '1';
+  } catch (_) {
+    if (_aiViewStock !== symbol) return;
+    el.innerHTML = `<div class="empty" style="color:var(--muted);padding:14px 0">Data for ${esc(symbol)} unavailable.
+      <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
+        onclick="delete S.data['${symbol}'];delete document.getElementById('ai-detail-${symbol}').dataset.loaded;_loadAIStockDetail('${symbol}',document.getElementById('ai-detail-${symbol}'))">Retry</button></div>`;
   }
-}
-
-function closeAIStockInfo() {
-  document.getElementById('ai-detail-modal')?.classList.remove('open');
-  document.body.style.overflow = '';
 }
 
 function buildForecastSVG(d) {
