@@ -25,6 +25,38 @@ PORTFOLIO = [
     'DELL','BOOT','KHC',
     # ETFs
     'SPY','VTI','XLF','XLV','GLD','VXUS','FIG',
+    # Gold / Miners
+    'GDX','GDXJ','GLDM','IAU','GOLD','KGC','PHYS','UGL',
+    # Bonds / Cash
+    'SGOV',
+    # Energy
+    'XOP','XLE',
+    # Consumer / Watchlist
+    'DIS','KO',
+    # Semiconductors (expanded)
+    'INTC','MRVL',
+    # AI Infrastructure / Data Centers
+    'SMCI','ANET','EQIX','DLR',
+    # Energy (expanded)
+    'CVX','GEV','DVN',
+    # Defense / Aerospace
+    'LMT','RTX','NOC','GD',
+    # Cybersecurity (expanded)
+    'ZS','FTNT','NET',
+    # Industrials / Robotics
+    'CAT','HON','DE','ROK','ABB',
+    # Healthcare / Biotech (expanded)
+    'NVO','AMGN','REGN',
+    # Financials (expanded)
+    'BAC','MS',
+    # Nuclear Energy
+    'OKLO','SMR',
+    # Defense (expanded)
+    'AVAV','KTOS',
+    # Cybersecurity (expanded further)
+    'S','OKTA',
+    # Industrials (expanded)
+    'F',
 ]
 
 HEADERS = {

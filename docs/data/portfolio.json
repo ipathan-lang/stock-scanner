@@ -1,4 +1,66 @@
 [
   { "ticker": "GLD",  "shares": 455.92, "buyPrice": 440.00, "note": "Gold ETF" },
-  { "ticker": "VXUS", "shares": 2780,   "buyPrice": 81.66,  "note": "Intl ETF"  }
+  { "ticker": "VXUS", "shares": 2780,   "buyPrice": 81.66,  "note": "Intl ETF" },
+  { "ticker": "WMT",  "shares": 0.00752, "buyPrice": 133.00, "note": "" },
+  { "ticker": "GS",   "shares": 0.001097, "buyPrice": 943.60, "note": "" },
+  { "ticker": "XOM",  "shares": 0,      "buyPrice": 161.18, "note": "" },
+  { "ticker": "DIS",  "shares": 0,      "buyPrice": 103.90, "note": "" },
+  { "ticker": "NFLX", "shares": 0,      "buyPrice": 90.07,  "note": "" },
+  { "ticker": "KO",   "shares": 0,      "buyPrice": 81.42,  "note": "" },
+  { "ticker": "GDXJ", "shares": 0,      "buyPrice": 114.45, "note": "Gold Miners Jr ETF" },
+  { "ticker": "KGC",  "shares": 0,      "buyPrice": 28.27,  "note": "" },
+  { "ticker": "PHYS", "shares": 0,      "buyPrice": 34.36,  "note": "Physical Gold Trust" },
+  { "ticker": "UGL",  "shares": 0,      "buyPrice": 56.83,  "note": "2x Gold ETF" },
+  { "ticker": "GLDM", "shares": 0,      "buyPrice": 89.79,  "note": "Gold ETF" },
+  { "ticker": "GDX",  "shares": 0,      "buyPrice": 86.57,  "note": "Gold Miners ETF" },
+  { "ticker": "GOLD", "shares": 0,      "buyPrice": 39.81,  "note": "Barrick Gold" },
+  { "ticker": "IAU",  "shares": 0,      "buyPrice": 85.48,  "note": "Gold ETF" },
+  { "ticker": "SGOV", "shares": 0,      "buyPrice": 100.57, "note": "T-Bill ETF" },
+  { "ticker": "XOP",  "shares": 0,      "buyPrice": 177.00, "note": "Oil & Gas ETF" },
+  { "ticker": "XLE",  "shares": 0,      "buyPrice": 60.81,  "note": "Energy ETF" },
+
+  { "ticker": "INTC", "shares": 0,      "buyPrice": 21.00,  "note": "AI / Semiconductors" },
+  { "ticker": "MRVL", "shares": 0,      "buyPrice": 75.00,  "note": "AI / Semiconductors" },
+
+  { "ticker": "SMCI", "shares": 0,      "buyPrice": 35.00,  "note": "AI Infrastructure" },
+  { "ticker": "ANET", "shares": 0,      "buyPrice": 90.00,  "note": "AI Infrastructure" },
+  { "ticker": "EQIX", "shares": 0,      "buyPrice": 800.00, "note": "Data Centers" },
+  { "ticker": "DLR",  "shares": 0,      "buyPrice": 150.00, "note": "Data Centers" },
+
+  { "ticker": "CVX",  "shares": 0,      "buyPrice": 155.00, "note": "Energy / Oil" },
+  { "ticker": "GEV",  "shares": 0,      "buyPrice": 300.00, "note": "Nuclear / Energy" },
+  { "ticker": "DVN",  "shares": 0,      "buyPrice": 30.00,  "note": "Energy / Oil" },
+
+  { "ticker": "LMT",  "shares": 0,      "buyPrice": 470.00, "note": "Defense" },
+  { "ticker": "RTX",  "shares": 0,      "buyPrice": 130.00, "note": "Defense" },
+  { "ticker": "NOC",  "shares": 0,      "buyPrice": 470.00, "note": "Defense" },
+  { "ticker": "GD",   "shares": 0,      "buyPrice": 270.00, "note": "Defense" },
+
+  { "ticker": "ZS",   "shares": 0,      "buyPrice": 185.00, "note": "Cybersecurity" },
+  { "ticker": "FTNT", "shares": 0,      "buyPrice": 87.00,  "note": "Cybersecurity" },
+  { "ticker": "NET",  "shares": 0,      "buyPrice": 115.00, "note": "Cybersecurity" },
+
+  { "ticker": "CAT",  "shares": 0,      "buyPrice": 350.00, "note": "Industrials" },
+  { "ticker": "HON",  "shares": 0,      "buyPrice": 210.00, "note": "Industrials" },
+  { "ticker": "DE",   "shares": 0,      "buyPrice": 390.00, "note": "Industrials" },
+  { "ticker": "ROK",  "shares": 0,      "buyPrice": 240.00, "note": "Robotics / Automation" },
+  { "ticker": "ABB",  "shares": 0,      "buyPrice": 50.00,  "note": "Robotics / Automation" },
+
+  { "ticker": "NVO",  "shares": 0,      "buyPrice": 73.00,  "note": "Healthcare / Biotech" },
+  { "ticker": "AMGN", "shares": 0,      "buyPrice": 295.00, "note": "Healthcare / Biotech" },
+  { "ticker": "REGN", "shares": 0,      "buyPrice": 640.00, "note": "Healthcare / Biotech" },
+
+  { "ticker": "BAC",  "shares": 0,      "buyPrice": 43.00,  "note": "Financials" },
+  { "ticker": "MS",   "shares": 0,      "buyPrice": 135.00, "note": "Financials" },
+
+  { "ticker": "OKLO", "shares": 0,      "buyPrice": 45.00,  "note": "Nuclear Energy" },
+  { "ticker": "SMR",  "shares": 0,      "buyPrice": 20.00,  "note": "Small Modular Reactors" },
+
+  { "ticker": "AVAV", "shares": 0,      "buyPrice": 195.00, "note": "Defense / Drones" },
+  { "ticker": "KTOS", "shares": 0,      "buyPrice": 28.00,  "note": "Defense" },
+
+  { "ticker": "S",    "shares": 0,      "buyPrice": 17.00,  "note": "Cybersecurity / SentinelOne" },
+  { "ticker": "OKTA", "shares": 0,      "buyPrice": 105.00, "note": "Cybersecurity" },
+
+  { "ticker": "F",    "shares": 0,      "buyPrice": 10.00,  "note": "Industrials / EV" }
 ]
