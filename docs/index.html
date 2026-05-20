@@ -1200,6 +1200,42 @@
     .ai-refresh-bar { font-size: .72rem; color: var(--muted); text-align: center; padding-top: 10px; }
     .ai-skeleton { animation: pulse 1.6s ease-in-out infinite; height: 44px;
       background: rgba(255,255,255,.05); border-radius: 10px; margin-bottom: 4px; }
+    /* Tomorrow Outlook */
+    .ai-tomorrow-card {
+      border: 1px solid rgba(99,102,241,.3); border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 16px;
+      background: linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.05));
+    }
+    .ai-tomorrow-heading {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .ai-tomorrow-label { font-size: .78rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .06em; }
+    .ai-tomorrow-sentiment {
+      font-size: .68rem; font-weight: 700; padding: 2px 10px; border-radius: 20px;
+    }
+    .ai-tomorrow-sentiment.bullish { background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3); }
+    .ai-tomorrow-sentiment.bearish { background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3); }
+    .ai-tomorrow-sentiment.neutral { background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.3); }
+    .ai-tomorrow-summary { font-size: .84rem; line-height: 1.55; color: var(--text); margin-bottom: 10px; }
+    .ai-tomorrow-drivers { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ai-tomorrow-driver {
+      font-size: .68rem; padding: 2px 9px; border-radius: 20px;
+      background: rgba(30,99,217,.1); color: var(--blue); border: 1px solid rgba(30,99,217,.2);
+    }
+    /* Tomorrow Picks */
+    .ai-pick-row {
+      display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+      border: 1px solid rgba(34,197,94,.2); border-radius: 10px; margin-bottom: 4px;
+      cursor: pointer; transition: background .15s;
+    }
+    .ai-pick-row:hover { background: rgba(34,197,94,.04); }
+    .ai-pick-reason { font-size: .75rem; color: var(--muted); flex: 1; line-height: 1.4; }
+    .ai-pick-badge {
+      font-size: .68rem; font-weight: 700; white-space: nowrap;
+      color: var(--green); padding: 2px 8px; border-radius: 20px;
+      background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25);
+    }
     .trend-hot { font-size: .72rem; font-weight: 700; color: var(--green);
       background: rgba(34,197,94,.12); padding: 1px 7px; border-radius: 20px; }
     .trends-meta { margin: 0 0 10px; font-size: .78rem; color: var(--muted); }
@@ -4100,7 +4136,7 @@ async function _callOpenAI() {
   const today = new Date().toLocaleDateString('en-US',
     { weekday:'long', year:'numeric', month:'long', day:'numeric' });
   const prompt =
-`Today is ${today}. Search the web right now and find current live US stock market data.
+`Today is ${today}. Search the web right now for current live US stock market data AND tomorrow's market outlook.
 Return ONLY a raw JSON object (no markdown, no code fences, no explanation) in this exact schema:
 
 {
@@ -4109,13 +4145,24 @@ Return ONLY a raw JSON object (no markdown, no code fences, no explanation) in t
     {"symbol":"NVDA","name":"NVIDIA Corp","sector":"Technology","price":135.50,"changePct":2.5,"volRatio":1.8}
   ],
   "gainers": [ ...same structure, top 8 biggest percentage gainers today... ],
-  "losers":  [ ...same structure, top 8 biggest percentage losers today... ]
+  "losers":  [ ...same structure, top 8 biggest percentage losers today... ],
+  "tomorrowOutlook": {
+    "sentiment": "bullish",
+    "summary": "2-3 sentence prediction for tomorrow's US market based on today's close, Fed signals, political news, macro events, earnings calendar, and geopolitical conditions",
+    "keyDrivers": ["short phrase driver 1", "short phrase driver 2", "short phrase driver 3"]
+  },
+  "tomorrowPicks": [
+    {"symbol":"NVDA","name":"NVIDIA Corp","sector":"Technology","reason":"AI chip demand + bullish momentum from earnings"}
+  ]
 }
 
 Rules:
 - actives: top 10 most traded US stocks today by dollar volume
 - changePct: a plain number — positive means up, negative means down (e.g. 2.5 = +2.5%)
 - volRatio: today's volume divided by average daily volume (1.0 = normal, 2.5 = 2.5× normal)
+- tomorrowOutlook.sentiment: exactly one of "bullish", "bearish", or "neutral"
+- tomorrowOutlook.keyDrivers: 3-5 short phrases (max 6 words each) driving tomorrow's outlook
+- tomorrowPicks: 6-10 US stocks most likely to rise tomorrow — based on catalysts, earnings, macro tailwinds, technical setup. Include the concise reason why.
 - Output must start with { and end with } — nothing else`;
 
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -4156,7 +4203,7 @@ function _themeLabel(sector) {
   return { label: '📊 Mixed / Other', cls: '' };
 }
 
-function _renderAIStockRow(q) {
+function _renderAIStockRow(q, sfx = '') {
   const pct    = q.changePct ?? 0;
   const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
   const pctCls = pct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
@@ -4164,20 +4211,35 @@ function _renderAIStockRow(q) {
   const volLbl = vr > 0 ? (vr >= 2 ? `🔥 ${vr.toFixed(1)}x vol` : `${vr.toFixed(1)}x vol`) : '';
   const volCls = vr >= 2 ? 'high' : '';
   const sym = esc(q.symbol);
+  const key = sfx ? `${sym}${sfx}` : sym;
   return `
-    <div class="ai-stock-row" id="ai-row-${sym}" onclick="openAIStockInfo('${sym}')">
+    <div class="ai-stock-row" id="ai-row-${key}" onclick="openAIStockInfo('${sym}','${sfx}')">
       <span class="ai-stock-ticker">${sym}</span>
       <span class="ai-stock-name">${esc(q.name || '')}</span>
       ${volLbl ? `<span class="ai-stock-vol ${volCls}">${volLbl}</span>` : ''}
       <span class="ai-stock-change" style="${pctCls}">${pctStr}</span>
     </div>
-    <div class="ai-stock-detail" id="ai-detail-${sym}" style="display:none"></div>`;
+    <div class="ai-stock-detail" id="ai-detail-${key}" data-symbol="${sym}" data-sfx="${sfx}" style="display:none"></div>`;
+}
+
+function _renderAIPick(q) {
+  const sym = esc(q.symbol);
+  const sfx = '-tm';
+  const key = `${sym}${sfx}`;
+  return `
+    <div class="ai-pick-row" id="ai-row-${key}" onclick="openAIStockInfo('${sym}','${sfx}')">
+      <span class="ai-stock-ticker">${sym}</span>
+      <span class="ai-pick-reason">${esc(q.reason || q.name || '')}</span>
+      <span class="ai-pick-badge">▲ Tomorrow</span>
+    </div>
+    <div class="ai-stock-detail" id="ai-detail-${key}" data-symbol="${sym}" data-sfx="${sfx}" style="display:none"></div>`;
 }
 
 function renderAIScanner(data) {
   const body = document.getElementById('ai-body');
   if (!body) return;
-  const { pulse = '', actives = [], gainers = [], losers = [] } = data;
+  const { pulse = '', actives = [], gainers = [], losers = [],
+          tomorrowOutlook = null, tomorrowPicks = [] } = data;
 
   // Merge all for sector grouping, deduplicate by symbol
   const seen = new Set(); const allQ = [];
@@ -4199,17 +4261,39 @@ function renderAIScanner(data) {
       <div style="margin-top:8px;font-size:.7rem;color:var(--muted)">Powered by OpenAI web search</div>
     </div>`;
 
+  // ── Tomorrow's Outlook ───────────────────────────────────
+  if (tomorrowOutlook) {
+    const sent   = (tomorrowOutlook.sentiment || 'neutral').toLowerCase();
+    const sentLbl = sent === 'bullish' ? '▲ Bullish' : sent === 'bearish' ? '▼ Bearish' : '◆ Neutral';
+    const drivers = (tomorrowOutlook.keyDrivers || []).map(d => `<span class="ai-tomorrow-driver">${esc(d)}</span>`).join('');
+    html += `
+      <div class="ai-tomorrow-card">
+        <div class="ai-tomorrow-heading">
+          <span class="ai-tomorrow-label">🔮 Tomorrow's Outlook</span>
+          <span class="ai-tomorrow-sentiment ${sent}">${sentLbl}</span>
+        </div>
+        <div class="ai-tomorrow-summary">${esc(tomorrowOutlook.summary || '')}</div>
+        ${drivers ? `<div class="ai-tomorrow-drivers">${drivers}</div>` : ''}
+      </div>`;
+  }
+
+  // ── Tomorrow's Picks ─────────────────────────────────────
+  if (tomorrowPicks.length) {
+    html += `<div class="ai-section-header" style="margin-top:4px">📈 Stocks to Watch Tomorrow</div>`;
+    html += tomorrowPicks.slice(0, 10).map(_renderAIPick).join('');
+  }
+
   if (actives.length) {
-    html += `<div class="ai-section-header">⚡ Most Active</div>`;
-    html += actives.slice(0, 10).map(_renderAIStockRow).join('');
+    html += `<div class="ai-section-header" style="margin-top:14px">⚡ Most Active Today</div>`;
+    html += actives.slice(0, 10).map(q => _renderAIStockRow(q)).join('');
   }
   if (gainers.length) {
-    html += `<div class="ai-section-header" style="margin-top:14px">🟢 Top Gainers</div>`;
-    html += gainers.slice(0, 8).map(_renderAIStockRow).join('');
+    html += `<div class="ai-section-header" style="margin-top:14px">🟢 Top Gainers Today</div>`;
+    html += gainers.slice(0, 8).map(q => _renderAIStockRow(q)).join('');
   }
   if (losers.length) {
-    html += `<div class="ai-section-header" style="margin-top:14px">🔴 Top Losers</div>`;
-    html += losers.slice(0, 8).map(_renderAIStockRow).join('');
+    html += `<div class="ai-section-header" style="margin-top:14px">🔴 Top Losers Today</div>`;
+    html += losers.slice(0, 8).map(q => _renderAIStockRow(q)).join('');
   }
   if (themeMap.size > 1) {
     html += `<div class="ai-section-header" style="margin-top:14px">🗂️ By Sector Theme</div>`;
@@ -4218,7 +4302,7 @@ function renderAIScanner(data) {
       stocks.sort((a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0));
       html += `<div class="ai-theme-group">
         <div class="ai-theme-label ${cls}">${esc(label)} &nbsp;${stocks.length}</div>
-        ${stocks.slice(0, 5).map(_renderAIStockRow).join('')}
+        ${stocks.slice(0, 5).map(q => _renderAIStockRow(q)).join('')}
       </div>`;
     }
   }
@@ -4707,15 +4791,17 @@ function closeForecast() {
   document.getElementById('forecast-modal').classList.remove('open');
 }
 
-function openAIStockInfo(symbol) {
-  const row    = document.getElementById(`ai-row-${symbol}`);
-  const detail = document.getElementById(`ai-detail-${symbol}`);
+function openAIStockInfo(sym, sfx) {
+  sfx = sfx || '';
+  const key    = sfx ? `${sym}${sfx}` : sym;
+  const row    = document.getElementById(`ai-row-${key}`);
+  const detail = document.getElementById(`ai-detail-${key}`);
   if (!row || !detail) return;
 
   const isOpen = detail.style.display !== 'none';
 
   // Collapse previously open row
-  if (_aiViewStock && _aiViewStock !== symbol) {
+  if (_aiViewStock && _aiViewStock !== key) {
     document.getElementById(`ai-row-${_aiViewStock}`)?.classList.remove('expanded');
     const prev = document.getElementById(`ai-detail-${_aiViewStock}`);
     if (prev) prev.style.display = 'none';
@@ -4728,30 +4814,31 @@ function openAIStockInfo(symbol) {
   } else {
     detail.style.display = 'block';
     row.classList.add('expanded');
-    _aiViewStock = symbol;
+    _aiViewStock = key;
     if (!detail.dataset.loaded) {
-      detail.innerHTML = `<div class="empty" style="padding:16px 0">Loading ${esc(symbol)}…</div>`;
-      _loadAIStockDetail(symbol, detail);
+      detail.innerHTML = `<div class="empty" style="padding:16px 0">Loading ${esc(sym)}…</div>`;
+      _loadAIStockDetail(sym, key, detail);
     }
   }
 }
 
-async function _loadAIStockDetail(symbol, el) {
+async function _loadAIStockDetail(sym, key, el) {
   try {
-    if (!S.data[symbol] || S.data[symbol].err) {
-      delete S.data[symbol];
-      await loadOne(symbol);
+    if (!S.data[sym] || S.data[sym].err) {
+      delete S.data[sym];
+      await loadOne(sym);
     }
-    const d = S.data[symbol];
+    const d = S.data[sym];
     if (!d || d.err) throw new Error('no data');
-    if (_aiViewStock !== symbol) return;
+    if (_aiViewStock !== key) return;
     el.innerHTML = buildCard(d, 1, true);
     el.dataset.loaded = '1';
   } catch (_) {
-    if (_aiViewStock !== symbol) return;
-    el.innerHTML = `<div class="empty" style="color:var(--muted);padding:14px 0">Data for ${esc(symbol)} unavailable.
+    if (_aiViewStock !== key) return;
+    const sfxVal = el.dataset.sfx || '';
+    el.innerHTML = `<div class="empty" style="color:var(--muted);padding:14px 0">Data for ${esc(sym)} unavailable.
       <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
-        onclick="delete S.data['${symbol}'];delete document.getElementById('ai-detail-${symbol}').dataset.loaded;_loadAIStockDetail('${symbol}',document.getElementById('ai-detail-${symbol}'))">Retry</button></div>`;
+        onclick="delete S.data['${sym}'];delete document.getElementById('ai-detail-${key}').dataset.loaded;openAIStockInfo('${sym}','${sfxVal}')">Retry</button></div>`;
   }
 }
 
