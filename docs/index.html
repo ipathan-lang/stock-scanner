@@ -1294,7 +1294,8 @@
       <div class="score-visual" style="flex-wrap:wrap;gap:4px">
         <div class="sv-item sv-sb" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Buy Now</span><span class="sv-range">All gates: dip + conf ≥88% + score ≥6 + pos ≤35%</span></div>
         <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Good Entry</span><span class="sv-range">Dip confirmed · conf ≥65% · score ≥4 · pos ≤50%</span></div>
-        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">📈</span><span>Momentum Buy</span><span class="sv-range">Uptrend confirmed · score ≥5 · ret20 >5% · vol ≥1.2× · MACD bullish</span></div>
+        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">📈</span><span>Momentum Buy</span><span class="sv-range">Uptrend confirmed · score ≥5 · ret20 >1% · vol ≥1.2× · strong trend</span></div>
+        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🚀</span><span>Big Move</span><span class="sv-range">2.5%+ today · 1.8×+ volume · above week mid · AMD/QCOM/MU pattern</span></div>
         <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Building</span><span class="sv-range">Score ≥4 but dip / conf not yet met</span></div>
         <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Pullback Soon</span><span class="sv-range">Score ≥4 · pos 50–70% — wait for dip</span></div>
         <div class="sv-item sv-ca" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">⏳</span><span>Wait · Overextended</span><span class="sv-range">Score ≥5 · pos ≥70% — don't chase</span></div>
@@ -1388,7 +1389,7 @@
         <code>Conviction % = 6-factor weighted score (0–99)</code><br>
         <div style="color:var(--muted);font-size:.72rem;line-height:1.6;margin-top:6px">
           <b>Bullish triggers:</b> RSI dip zone · MACD rising · price ≥ EMA20 · near week low · rel. strength vs SPY<br>
-          <b>Catalyst bonus:</b> insider buying · selling exhaustion · earnings proximity · volume breakout · market tailwind<br>
+          <b>Catalyst bonus:</b> insider buying · selling exhaustion · earnings proximity · volume breakout · mid-range momentum breakout · market tailwind<br>
           <b>Bearish triggers:</b> RSI overbought · below EMA20 · near week high · insider selling · market headwind · lagging SPY<br>
           <b>Badge is shown first</b> — stocks sorted by badge tier (🟢 Buy Now first), then by net score.
         </div>
@@ -1792,6 +1793,14 @@ function getCatalystBonus({ nextEarnings, changePct, position, volumeRatio, pric
     drivers.push('52-week high breakout on elevated volume');
   }
 
+  // Mid-range momentum breakout (AMD/QCOM/MU pattern)
+  // Stock consolidating then breaking above week mid with institutional volume.
+  // This is NOT dip-buying — it's catching a confirmed momentum move before it extends further.
+  if (position >= 0.42 && position <= 0.82 && volumeRatio != null && volumeRatio >= 1.8 && changePct >= 2.5) {
+    bonus += 2;
+    drivers.push('Mid-range breakout on strong volume — momentum continuation setup');
+  }
+
   return { bonus, drivers };
 }
 
@@ -2018,6 +2027,7 @@ function signal(d) {
   // Fires when the dip-buy gate doesn't apply but the stock is in a confirmed uptrend.
   // Uses a separate trend-confidence score: rewards net score, 20d trend, volume, RSI.
   // This catches opportunities in strong bull markets where "wait for a dip" = never.
+  // RELAXED for high-volume breakout days: MACD gate bypassed, r20 threshold lowered.
   const trendPts =
     Math.round((Math.min(s, 12) / 12) * 35) +
     Math.round((Math.min(Math.max(r20, 0), 20) / 20) * 30) +
@@ -2027,17 +2037,48 @@ function signal(d) {
     ((d.rsi ?? 50) >= 50 && (d.rsi ?? 50) <= 65 ? 15 :
      (d.rsi ?? 50) >= 45 && (d.rsi ?? 50) <= 70 ?  8 : 0);
   const trendConf = Math.min(99, Math.max(1, trendPts));
+  // High-volume breakout: relax MACD gate — MACD often lags at the very start of a breakout
+  const isHighVolBreakout = (d.volumeRatio ?? 1) >= 1.8 && (d.changePct ?? 0) >= 2.0;
   const momentumEntry =
     s >= 5 &&
-    r20 > 5 &&
-    pos >= 0.30 && pos <= 0.82 &&
-    (d.rsi     ?? 50) >= 45 && (d.rsi ?? 50) < 70 &&
+    r20 > 1 &&                                              // lowered from 5 → catches early breakouts
+    pos >= 0.30 && pos <= 0.85 &&
+    (d.rsi     ?? 50) >= 45 && (d.rsi ?? 50) < 73 &&
     (d.volumeRatio ?? 1) >= 1.2 &&
-    (d.changePct   ?? 0) > -2 &&   // allow first pullback day (was >0)
-    (d.macdDiff    ?? 0) > 0 &&
-    trendConf >= 55;
+    (d.changePct   ?? 0) > -2 &&
+    (isHighVolBreakout || (d.macdDiff ?? 0) > 0) &&        // bypass MACD on big-vol breakout day
+    trendConf >= 48;                                        // lowered from 55
 
   if (momentumEntry) return { label: `📈 Momentum Buy · ${trendConf}%`, cls: 'bg', conf: trendConf, rank: 2 };
+
+  // ── BIG MOVE BREAKOUT (AMD / QCOM / MU pattern) ──────────────────────────────────
+  // Stock is at 40–88% of week range AND making a 2.5%+ move on strong institutional
+  // volume today. This is a confirmed momentum breakout above week mid — NOT chasing.
+  // The exit point is the 5-day high (weekHighPct shows remaining upside).
+  // Score based on: magnitude of move · volume confirmation · trend · score · RSI headroom
+  const bigMovePts =
+    ((d.changePct ?? 0) >= 6  ? 28 :
+     (d.changePct ?? 0) >= 4  ? 22 :
+     (d.changePct ?? 0) >= 2.5 ? 14 : 0) +
+    ((d.volumeRatio ?? 1) >= 3.0 ? 26 :
+     (d.volumeRatio ?? 1) >= 2.0 ? 20 :
+     (d.volumeRatio ?? 1) >= 1.8 ? 13 : 0) +
+    (r20 >= 5 ? 14 : r20 >= 1 ? 9 : r20 >= -2 ? 4 : 0) +
+    (s >= 6  ? 18 : s >= 4 ? 12 : s >= 2 ? 6 : 0) +
+    ((d.rsi ?? 50) <= 62 ? 10 : (d.rsi ?? 50) <= 72 ? 5 : 0) +
+    ((d.atrRatio ?? 1) >= 1.4 ? 4 : 0);   // ATR expansion = explosive move already in progress
+  const bigMoveConf = Math.min(99, Math.max(1, bigMovePts));
+  const bigMoveBreakout =
+    (d.changePct   ?? 0) >= 2.5 &&         // up 2.5%+ today
+    (d.volumeRatio ?? 1) >= 1.8 &&         // institutional buying confirmed
+    pos >= 0.40 && pos <= 0.88 &&           // above week mid, not at extreme extension
+    s >= 3 &&                               // positive score floor
+    r20 > -5 &&                             // not in severe downtrend
+    (d.rsi ?? 50) <= 76 &&                  // not overbought (room to continue)
+    !(d.gapAndFade) &&                      // not a fake gap — still holding gains
+    bigMoveConf >= 48;
+
+  if (bigMoveBreakout) return { label: `🚀 Big Move · ${bigMoveConf}%`, cls: 'bg', conf: bigMoveConf, rank: 2 };
 
   // ── BALANCED  (conf ≥ 50%) ────────────────────────────────────────────────────────
   // Score is positive and context is neutral — neither a clear buy nor avoid.
@@ -2833,9 +2874,18 @@ async function fetchStock(ticker) {
   if (price < ind.ema20 * 0.99)  { bearishScore += 2; bearishDrivers.push('Below EMA20 trend support'); }
   // Use livePos (today's price vs historical range) — catches gap-ups beyond recent highs
   // Week range position — at week high is a BAD entry for the dip-buying strategy
-  if (livePos > 0.90)      { bearishScore += 3; bearishDrivers.push(`At 5-day high · only ${weekHighPct.toFixed(1)}% upside left — wait for pullback to buy`); }
-  else if (livePos > 0.75) { bearishScore += 2; bearishDrivers.push(`Near 5-day high · ${weekHighPct.toFixed(1)}% upside — suboptimal entry, wait for dip`); }
-  else if (livePos > 0.65) { bearishScore += 1; bearishDrivers.push(`Upper 5-day range · ${weekHighPct.toFixed(1)}% to week high — better entry on next dip`); }
+  // EXCEPTION: suppress position penalty on a genuine high-volume breakout day.
+  // AMD/QCOM/MU moving 3%+ on 2×+ volume from mid-range IS the trade — don't penalise it.
+  const isBreakoutDay = changePct >= 2.5 && volumeRatio != null && volumeRatio >= 2.0
+    && livePos >= 0.40 && livePos <= 0.90;
+  if (isBreakoutDay) {
+    if (livePos > 0.90) { bearishScore += 1; bearishDrivers.push(`Breakout extended — at range top but volume-backed move`); }
+    // livePos 0.40–0.90 on a 2.5%+/2× vol day: no position penalty — institutional breakout signal
+  } else {
+    if (livePos > 0.90)      { bearishScore += 3; bearishDrivers.push(`At 5-day high · only ${weekHighPct.toFixed(1)}% upside left — wait for pullback to buy`); }
+    else if (livePos > 0.75) { bearishScore += 2; bearishDrivers.push(`Near 5-day high · ${weekHighPct.toFixed(1)}% upside — suboptimal entry, wait for dip`); }
+    else if (livePos > 0.65) { bearishScore += 1; bearishDrivers.push(`Upper 5-day range · ${weekHighPct.toFixed(1)}% to week high — better entry on next dip`); }
+  }
   if (livePos > 1.3 && changePct > 10) { bearishScore += 2; bearishDrivers.push('Price far above recent range — gap-up, highly extended'); }
   // Daily decline penalties — POSITION-AWARE for dip-buying strategy.
   // At week low in a 20d uptrend: a −1% or −2% day is NORMAL dip continuation — the entry zone.
