@@ -154,6 +154,8 @@ Badge ordering (rank 1 = best, shown first in list):
 |------|-------|-----|---------|
 | 1 | 🟢 Buy Now · X% | `bg` | All signals aligned: dip confirmed, near week low, trend up, conf ≥ 88% |
 | 2 | 🟢 Good Entry · X% | `bg` | Good buy zone: dip detected, lower 50% range, conf ≥ 65% |
+| 2 | 📈 Momentum Buy · X% | `bg` | Confirmed uptrend: score ≥ 5, r20 > 1%, vol ≥ 1.2×, MACD or high-vol override |
+| 2 | 🚀 Big Move · X% | `bg` | AMD/QCOM/MU pattern: 2.5%+ today, 1.8×+ volume, pos 40–88%, not fading |
 | 3 | 👀 Watch · Building · X% | `by` | Score ≥ 4 but confidence/dip not yet confirmed |
 | 4 | 👀 Watch · Pullback Soon · X% | `by` | Stock at 50–70% of week range — wait for dip |
 | 5 | ⏳ Wait · Overextended · X% | `by` | Stock at top 70%+ of range — don't chase |
@@ -185,7 +187,20 @@ netScore = (bullishScore + fundBullAdj + catalystScore) − (bearishScore + fund
 5. Fundamentals score
 6. RSI level (not overbought)
 
-### Entry Gates for Strong Signals
+### Breakout Override (new 2026-05-26)
+- `isBreakoutDay` = changePct ≥ 2.5% AND volumeRatio ≥ 2.0 AND livePos 0.40–0.90
+- When true: **suppress livePos bearish penalty** (the 0.65/0.75/0.90 range penalties are skipped)
+- This prevents the scoring from downgrading AMD/QCOM/MU stocks mid-breakout
+
+### momentumEntry (relaxed 2026-05-26)
+- `r20 > 1` (was `r20 > 5`) — catches stocks just starting their uptrend
+- MACD gate bypassed when `volumeRatio ≥ 1.8 AND changePct ≥ 2.0` (MACD lags at breakout start)
+- `trendConf ≥ 48` (was ≥ 55)
+
+### bigMoveBreakout (new 2026-05-26)
+- Gates: changePct ≥ 2.5%, volumeRatio ≥ 1.8, pos 0.40–0.88, s ≥ 3, r20 > -5, RSI ≤ 76, not gapAndFade
+- Confidence score: magnitude + volume + r20 + netScore + RSI headroom + ATR expansion
+- Returns rank 2 `🚀 Big Move · X%`
 
 **Strong Bullish / 🟢 Buy Now** requires ALL:
 - `conf >= 88`
@@ -213,6 +228,7 @@ netScore = (bullishScore + fundBullAdj + catalystScore) − (bearishScore + fund
 - **Market tailwind**: SPY+QQQ mean score ≥ 6 → +1
 - **Earnings proximity**: within -1 to +5 days → +2
 - **Volume breakout**: position >80% + volume >1.5x + change >1.5% → +2
+- **Mid-range momentum breakout**: position 42–82% + volume ≥1.8x + change ≥2.5% → +2 (AMD/QCOM/MU pattern)
 
 ### Bearish Scoring (adds to `bearishScore`)
 
