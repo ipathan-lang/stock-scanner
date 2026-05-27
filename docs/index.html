@@ -1253,6 +1253,61 @@
     }
     .ec-ly { font-size: 0.68rem; color: var(--muted); }
     .ec-ly b { color: var(--ink); }
+    /* ── Morning Briefing panel ─────────────────────────────── */
+    #morning-panel { padding: 0 0 24px; }
+    .mbf-mkt-banner { border-radius: 14px; padding: 14px 18px; margin-bottom: 14px; border: 1px solid rgba(255,255,255,.1); }
+    .mbf-mkt-banner.safe    { background: linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.04)); border-color: rgba(34,197,94,.3); }
+    .mbf-mkt-banner.caution { background: linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04)); border-color: rgba(245,158,11,.3); }
+    .mbf-mkt-banner.danger  { background: linear-gradient(135deg,rgba(239,68,68,.12),rgba(239,68,68,.04)); border-color: rgba(239,68,68,.3); }
+    .mbf-mkt-title { font-size: .88rem; font-weight: 800; margin-bottom: 4px; }
+    .mbf-mkt-sub   { font-size: .78rem; color: var(--muted); line-height: 1.5; }
+    .mbf-section   { margin-bottom: 16px; }
+    .mbf-section-header {
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); padding: 10px 2px 8px;
+    }
+    .mbf-stock-row {
+      display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+      border: 1px solid var(--border); border-radius: 10px; margin-bottom: 4px;
+      background: var(--surface); transition: background .15s; cursor: pointer; flex-wrap: wrap;
+    }
+    .mbf-stock-row:hover { background: rgba(255,255,255,.05); }
+    .mbf-stock-row.buy   { border-color: rgba(34,197,94,.35); }
+    .mbf-stock-row.watch { border-color: rgba(245,158,11,.35); }
+    .mbf-stock-row.avoid { border-color: rgba(239,68,68,.35); }
+    .mbf-ticker  { font-weight: 800; font-size: .9rem; min-width: 52px; }
+    .mbf-name    { font-size: .75rem; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 80px; }
+    .mbf-change  { font-size: .82rem; font-weight: 700; min-width: 52px; text-align: right; }
+    .mbf-chips   { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+    .mbf-chip    { font-size: .62rem; font-weight: 700; padding: 1px 7px; border-radius: 20px; white-space: nowrap;
+                   background: rgba(30,99,217,.1); color: var(--blue); border: 1px solid rgba(30,99,217,.2); }
+    .mbf-chip.g  { background: rgba(34,197,94,.1); color: var(--green); border-color: rgba(34,197,94,.25); }
+    .mbf-chip.r  { background: rgba(239,68,68,.1); color: var(--red);   border-color: rgba(239,68,68,.25); }
+    .mbf-chip.y  { background: rgba(245,158,11,.1); color: var(--yellow); border-color: rgba(245,158,11,.25); }
+    .mbf-signal  { font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+    .mbf-signal.bg { background: rgba(34,197,94,.12); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+    .mbf-signal.by { background: rgba(245,158,11,.12); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); }
+    .mbf-signal.br { background: rgba(239,68,68,.12); color: var(--red);    border: 1px solid rgba(239,68,68,.3); }
+    .mbf-ai-card { border: 1px solid rgba(139,92,246,.3); border-radius: 14px; padding: 16px 18px; margin-top: 4px;
+                   background: linear-gradient(135deg,rgba(139,92,246,.08),rgba(30,99,217,.05)); }
+    .mbf-ai-title { font-size: .8rem; font-weight: 700; color: rgba(139,92,246,.9);
+                    text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+    .mbf-ai-body  { font-size: .84rem; line-height: 1.6; color: var(--text); }
+    .mbf-ai-picks { }
+    .mbf-ai-pick-row {
+      display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px;
+      border: 1px solid rgba(139,92,246,.2); border-radius: 9px; margin-bottom: 4px;
+      background: rgba(139,92,246,.04);
+    }
+    .mbf-ai-pick-sym    { font-weight: 800; font-size: .88rem; color: var(--blue); min-width: 52px; }
+    .mbf-ai-pick-reason { font-size: .76rem; color: var(--text); line-height: 1.45; flex: 1; }
+    .mbf-ai-pick-dir    { font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+    .mbf-ai-pick-dir.up { background: rgba(34,197,94,.12); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+    .mbf-ai-pick-dir.dn { background: rgba(239,68,68,.12); color: var(--red);   border: 1px solid rgba(239,68,68,.3); }
+    .mbf-ai-pick-dir.nt { background: rgba(245,158,11,.12); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); }
+    .mbf-refresh-row    { font-size: .72rem; color: var(--muted); text-align: center; padding-top: 12px; }
+    .mbf-skeleton { animation: pulse 1.6s ease-in-out infinite; height: 44px;
+                    background: rgba(255,255,255,.05); border-radius: 10px; margin-bottom: 4px; }
     /* ── Search Panel ───────────────────────────────────────── */
     #search-panel { padding: 0 0 20px; }
     .sp-wrap {
@@ -1454,6 +1509,7 @@
         <button id="sort-btn-earnings" class="sort-btn" onclick="setSortMode('earnings')">&#128197; Earnings</button>
         <button id="sort-btn-trends" class="sort-btn" onclick="setSortMode('trends')">&#128293; Trends</button>
         <button id="sort-btn-ai" class="sort-btn" onclick="setSortMode('ai')">&#129302; AI Scanner</button>
+        <button id="sort-btn-morning" class="sort-btn" onclick="setSortMode('morning')">&#127749; Morning</button>
         <button id="sort-btn-search" class="sort-btn" onclick="setSortMode('search')">&#128269; Search</button>
       </div>
       <div class="filter-wrap">
@@ -1478,6 +1534,11 @@
   <!-- AI SCANNER PANEL -->
   <div id="ai-panel" style="display:none">
     <div id="ai-body"><div class="empty">Initializing AI Market Scanner…</div></div>
+  </div>
+
+  <!-- MORNING BRIEFING PANEL -->
+  <div id="morning-panel" style="display:none">
+    <div id="morning-body"><div class="empty">Loading morning briefing…</div></div>
   </div>
 
   <!-- TRENDS PANEL -->
@@ -3962,6 +4023,7 @@ function setSortMode(mode) {
   const trendsPnl    = document.getElementById('trends-panel');
   const searchPnl    = document.getElementById('search-panel');
   const aiPnl        = document.getElementById('ai-panel');
+  const morningPnl   = document.getElementById('morning-panel');
   const filterWrap   = document.querySelector('.filter-wrap');
   const loadProgress = document.getElementById('load-progress');
   const refreshBtn   = document.getElementById('refresh-btn');
@@ -3971,6 +4033,7 @@ function setSortMode(mode) {
   if (trendsPnl)    trendsPnl.style.display    = 'none';
   if (searchPnl)    searchPnl.style.display    = 'none';
   if (aiPnl)        aiPnl.style.display        = 'none';
+  if (morningPnl)   morningPnl.style.display   = 'none';
   if (filterWrap)   filterWrap.style.display   = 'none';
   if (loadProgress) loadProgress.style.display = 'none';
   if (refreshBtn)   refreshBtn.style.display   = 'none';
@@ -4002,6 +4065,10 @@ function setSortMode(mode) {
     if (aiPnl) aiPnl.style.display = '';
     if (label) label.textContent = '🤖 AI Market Scanner';
     loadAIScanner();
+  } else if (mode === 'morning') {
+    if (morningPnl) morningPnl.style.display = '';
+    if (label) label.textContent = '🌅 Morning Briefing';
+    loadMorningBriefing();
   }
 }
 
@@ -4170,6 +4237,315 @@ async function loadTrends() {
       <br><button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer"
         onclick="_trendsData=null;loadTrends()">Retry</button></div>`;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MORNING BRIEFING  —  Daily stock watchlist + AI predictions
+   Uses portfolio scoring data + OpenAI to rank which stocks to
+   buy, watch, or avoid each morning. Updated on each tab visit.
+═══════════════════════════════════════════════════════════════════ */
+let _morningAIData = null;
+
+function loadMorningBriefing() {
+  const body = document.getElementById('morning-body');
+  if (!body) return;
+  _renderMorningSections();
+  if (!_morningAIData) {
+    _runMorningAI();
+  } else {
+    _renderMorningAISection(_morningAIData);
+  }
+}
+
+function _buildMorningPortfolioSummary() {
+  const lines = [];
+  for (const { t } of PORTFOLIO_STOCKS) {
+    const d = S.data[t];
+    if (!d || d._loading || d._error) continue;
+    const sig = signal(d);
+    lines.push(`${t}: score=${d.netScore ?? 0} rsi=${Math.round(d.rsi || 0)} vol=${(d.volumeRatio || 0).toFixed(1)}x change=${(d.changePct || 0).toFixed(1)}% signal="${sig.label}" conf=${sig.conf}%`);
+  }
+  return lines.join('\n');
+}
+
+function _renderMorningSections() {
+  const body = document.getElementById('morning-body');
+  if (!body) return;
+
+  const stocks = [];
+  for (const { t, n, s } of PORTFOLIO_STOCKS) {
+    const d = S.data[t];
+    if (!d || d._loading || d._error) continue;
+    const sig = signal(d);
+    stocks.push({ ...d, _name: n, _sector: s, _sig: sig });
+  }
+
+  if (!stocks.length) {
+    body.innerHTML = `<div class="empty" style="padding:20px 0">
+      Portfolio data not yet loaded.<br>
+      <span style="font-size:.8rem;color:var(--muted)">Switch to 📈 Portfolio tab first to load your stocks, then come back.</span>
+    </div>`;
+    return;
+  }
+
+  stocks.sort((a, b) => (a._sig.rank - b._sig.rank) || (b.netScore - a.netScore));
+
+  const buys   = stocks.filter(d => d._sig.rank <= 2);
+  const watches = stocks.filter(d => d._sig.rank >= 3 && d._sig.rank <= 5);
+  const avoids = stocks.filter(d => d._sig.rank >= 7);
+
+  const spy = S.data['SPY'];
+  const qqq = S.data['QQQ'];
+  let mktMean = 0, mktCount = 0;
+  if (spy && !spy._error) { mktMean += (spy.netScore || 0); mktCount++; }
+  if (qqq && !qqq._error) { mktMean += (qqq.netScore || 0); mktCount++; }
+  if (mktCount) mktMean /= mktCount;
+
+  const mktCls   = mktMean >= 3 ? 'safe' : mktMean >= 0 ? 'caution' : 'danger';
+  const mktIcon  = mktMean >= 3 ? '🟢' : mktMean >= 0 ? '🟡' : '🔴';
+  const mktLabel = mktMean >= 3 ? 'Market is BULLISH — Good conditions to enter positions' :
+                   mktMean >= 0 ? 'Market is MIXED — Be selective, reduce position size' :
+                                  'Market SELLOFF — Hold cash, avoid new entries today';
+  const spyPct = spy ? `SPY ${(spy.changePct || 0).toFixed(1)}%` : '';
+  const qqqPct = qqq ? ` · QQQ ${(qqq.changePct || 0).toFixed(1)}%` : '';
+  const mktSub = `${spyPct}${qqqPct}  ·  Combined score: ${mktMean.toFixed(1)}`;
+
+  const now     = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  let html = `
+    <div class="mbf-mkt-banner ${mktCls}">
+      <div class="mbf-mkt-title">${mktIcon} ${esc(mktLabel)}</div>
+      <div class="mbf-mkt-sub">${esc(mktSub)} · ${dateStr}, ${now}</div>
+    </div>
+    <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px">
+      ${stocks.length} portfolio stocks analyzed · <span style="color:var(--green)">${buys.length} buy signals</span> · <span style="color:var(--yellow)">${watches.length} on watch</span> · <span style="color:var(--red)">${avoids.length} avoid</span>
+    </div>`;
+
+  html += `<div class="mbf-section">
+    <div class="mbf-section-header">🟢 Buy / Enter Today — Strong Signals</div>`;
+  if (buys.length) {
+    for (const d of buys.slice(0, 8)) html += _mbfStockRow(d, 'buy');
+  } else {
+    html += `<div class="empty" style="padding:10px 0;font-size:.8rem">No strong buy signals right now — market may be extended or mixed.</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="mbf-section">
+    <div class="mbf-section-header">👀 Watch — Building Momentum (wait for pullback or confirmation)</div>`;
+  if (watches.length) {
+    for (const d of watches.slice(0, 8)) html += _mbfStockRow(d, 'watch');
+  } else {
+    html += `<div class="empty" style="padding:10px 0;font-size:.8rem">No stocks in watch zone.</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="mbf-section">
+    <div class="mbf-section-header">🔴 Avoid Today — Negative Signals</div>`;
+  if (avoids.length) {
+    for (const d of avoids.slice(0, 6)) html += _mbfStockRow(d, 'avoid');
+  } else {
+    html += `<div class="empty" style="padding:10px 0;font-size:.8rem">No strong avoid signals — market conditions look neutral or better.</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div id="morning-ai-section">
+    <div class="mbf-ai-card">
+      <div class="mbf-ai-title">🤖 AI Morning Brief — Powered by OpenAI</div>
+      <div>${Array(3).fill('<div class="mbf-skeleton" style="margin-bottom:6px"></div>').join('')}</div>
+      <div style="font-size:.75rem;color:var(--muted);margin-top:8px">Analyzing your portfolio + today's market news… (10–30 sec)</div>
+    </div>
+  </div>`;
+
+  body.innerHTML = html;
+}
+
+function _mbfStockRow(d, type) {
+  const sig    = d._sig;
+  const pct    = d.changePct || 0;
+  const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+  const pctCls = pct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+  const rsi    = Math.round(d.rsi || 0);
+  const rsiCls = rsi >= 70 ? 'r' : rsi <= 40 ? 'g' : '';
+  const volR   = (d.volumeRatio || 0).toFixed(1);
+  const volCls = (d.volumeRatio || 0) >= 1.8 ? 'r' : (d.volumeRatio || 0) >= 1.2 ? 'y' : 'g';
+  const ns     = d.netScore || 0;
+  const nsStr  = (ns >= 0 ? '+' : '') + ns.toFixed(0);
+  const nsCls  = ns >= 4 ? 'g' : ns >= 0 ? '' : 'r';
+  const conf   = sig.conf || 0;
+  const ticker = esc(d.ticker || '');
+  return `
+    <div class="mbf-stock-row ${type}" onclick="setSortMode('search');document.getElementById('sp-q').value='${ticker}';searchPanelStock()">
+      <span class="mbf-ticker">${ticker}</span>
+      <span class="mbf-name">${esc(d._name || '')}</span>
+      <span class="mbf-chips">
+        <span class="mbf-chip ${nsCls}">Score ${nsStr}</span>
+        <span class="mbf-chip ${rsiCls}">RSI ${rsi}</span>
+        <span class="mbf-chip ${volCls}">${volR}× vol</span>
+        <span class="mbf-chip">Conf ${conf}%</span>
+      </span>
+      <span class="mbf-signal ${sig.cls}">${esc(sig.label)}</span>
+      <span class="mbf-change" style="${pctCls}">${pctStr}</span>
+    </div>`;
+}
+
+async function _callOpenAIMorning(portfolioSummary) {
+  const today = new Date().toLocaleDateString('en-US',
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const prompt =
+`Today is ${today}. I have a US stock portfolio. Here is the current technical snapshot (scored by indicators):
+
+${portfolioSummary}
+
+Search the web for today's pre-market news, earnings, macro events, and Fed signals, then return ONLY a raw JSON object (no markdown, no code fences) in this exact schema:
+
+{
+  "morningBrief": "3-4 sentence summary of what's happening in the market this morning and key themes to focus on",
+  "marketSentiment": "bullish",
+  "keyEvents": ["event 1", "event 2", "event 3"],
+  "stockPredictions": [
+    {
+      "symbol": "NVDA",
+      "direction": "up",
+      "confidence": "high",
+      "reason": "1 concise sentence based on technicals + today's news/catalyst",
+      "action": "Buy today"
+    }
+  ],
+  "weeklyWatchlist": [
+    { "symbol": "AMD", "thesis": "1 sentence on why to watch this week" }
+  ],
+  "avoidToday": ["INTC"],
+  "avoidReasons": { "INTC": "1 sentence reason to avoid today" }
+}
+
+Rules:
+- marketSentiment: exactly "bullish", "bearish", or "neutral"
+- direction: exactly "up", "down", or "neutral"
+- confidence: exactly "high", "medium", or "low"
+- action: one of "Buy today", "Watch for entry", "Hold", "Avoid", "Exit position"
+- stockPredictions: include ALL stocks from the portfolio summary, ordered by conviction highest first
+- weeklyWatchlist: 5-8 stocks most likely to move meaningfully this week
+- avoidToday: 3-5 stocks to stay away from today
+- Output must start with { and end with } — nothing else`;
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_OAI_KEY}` },
+    body:    JSON.stringify({
+      model:    'gpt-4o-search-preview',
+      messages: [{ role: 'user', content: prompt }],
+    }),
+    signal: AbortSignal.timeout(55000),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(`OpenAI ${resp.status}: ${err?.error?.message || resp.statusText}`);
+  }
+  const data = await resp.json();
+  const text  = data.choices?.[0]?.message?.content || '';
+  const clean = text.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
+  const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+  if (s === -1 || e === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
+  return JSON.parse(clean.slice(s, e + 1));
+}
+
+async function _runMorningAI() {
+  const aiSection = document.getElementById('morning-ai-section');
+  if (!aiSection) return;
+  try {
+    const summary = _buildMorningPortfolioSummary();
+    if (!summary) {
+      aiSection.innerHTML = `<div class="mbf-ai-card">
+        <div class="mbf-ai-title">🤖 AI Morning Brief</div>
+        <div class="mbf-ai-body" style="color:var(--muted)">Load portfolio stocks first (📈 Portfolio tab), then return here for AI predictions.</div>
+      </div>`;
+      return;
+    }
+    const result = await _callOpenAIMorning(summary);
+    _morningAIData = result;
+    _renderMorningAISection(result);
+  } catch (err) {
+    if (!aiSection) return;
+    aiSection.innerHTML = `<div class="mbf-ai-card">
+      <div class="mbf-ai-title">🤖 AI Morning Brief</div>
+      <div class="mbf-ai-body" style="color:var(--red)">AI prediction failed: ${esc(err.message)}</div>
+      <button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
+        onclick="_morningAIData=null;_runMorningAI()">🔄 Retry AI</button>
+    </div>`;
+  }
+}
+
+function _renderMorningAISection(data) {
+  const aiSection = document.getElementById('morning-ai-section');
+  if (!aiSection || !data) return;
+  const { morningBrief = '', marketSentiment = 'neutral', keyEvents = [],
+          stockPredictions = [], weeklyWatchlist = [], avoidToday = [], avoidReasons = {} } = data;
+
+  const sentLbl = marketSentiment === 'bullish' ? '▲ Bullish' :
+                  marketSentiment === 'bearish' ? '▼ Bearish' : '◆ Neutral';
+  const sentCls = marketSentiment === 'bullish' ? 'g' :
+                  marketSentiment === 'bearish' ? 'r' : 'y';
+
+  let html = `<div class="mbf-ai-card">
+    <div class="mbf-ai-title">🤖 AI Morning Brief &nbsp;<span class="mbf-chip ${sentCls}" style="font-size:.68rem;vertical-align:middle">${sentLbl}</span></div>
+    <div class="mbf-ai-body">${esc(morningBrief)}</div>`;
+
+  if (keyEvents.length) {
+    html += `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px">
+      ${keyEvents.map(ev => `<span class="mbf-chip">${esc(ev)}</span>`).join('')}
+    </div>`;
+  }
+
+  if (stockPredictions.length) {
+    html += `<div class="mbf-section-header" style="margin-top:16px">📊 AI Predictions — Which Way Each Stock Goes Today</div>
+      <div class="mbf-ai-picks">`;
+    for (const p of stockPredictions.slice(0, 20)) {
+      const dirCls = p.direction === 'up' ? 'up' : p.direction === 'down' ? 'dn' : 'nt';
+      const dirLbl = p.direction === 'up' ? '▲ UP' : p.direction === 'down' ? '▼ DOWN' : '◆ NEUTRAL';
+      const conf   = p.confidence === 'high' ? '🔥 High' : p.confidence === 'medium' ? '⚡ Med' : '• Low';
+      html += `<div class="mbf-ai-pick-row">
+        <span class="mbf-ai-pick-sym">${esc(p.symbol)}</span>
+        <span class="mbf-ai-pick-reason"><b>${esc(p.action || '')}</b> · ${esc(p.reason || '')}</span>
+        <span style="font-size:.62rem;color:var(--muted);white-space:nowrap">${conf}</span>
+        <span class="mbf-ai-pick-dir ${dirCls}">${dirLbl}</span>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (weeklyWatchlist.length) {
+    html += `<div class="mbf-section-header" style="margin-top:16px">📅 Watch This Week</div><div class="mbf-ai-picks">`;
+    for (const w of weeklyWatchlist) {
+      html += `<div class="mbf-ai-pick-row">
+        <span class="mbf-ai-pick-sym">${esc(w.symbol)}</span>
+        <span class="mbf-ai-pick-reason">${esc(w.thesis || '')}</span>
+        <span class="mbf-ai-pick-dir nt">📅 Week</span>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (avoidToday.length) {
+    html += `<div class="mbf-section-header" style="margin-top:16px">🚫 AI Says Avoid Today</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">`;
+    for (const sym of avoidToday) {
+      const reason = avoidReasons[sym] || '';
+      html += `<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:7px 12px">
+        <div style="font-weight:800;font-size:.85rem;color:var(--red)">${esc(sym)}</div>
+        ${reason ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px;max-width:180px">${esc(reason)}</div>` : ''}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `<div class="mbf-refresh-row">Powered by OpenAI web search &nbsp;·&nbsp;
+    <button style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
+      onclick="_morningAIData=null;loadMorningBriefing()">🔄 Refresh AI</button>
+  </div>`;
+  html += `</div>`;
+
+  aiSection.innerHTML = html;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
