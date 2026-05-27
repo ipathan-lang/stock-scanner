@@ -4429,9 +4429,11 @@ Rules:
 - avoidToday: 3-5 stocks to stay away from today
 - Output must start with { and end with } — nothing else`;
 
+  const _key = _getOAIKey();
+  if (!_key) throw new Error('NO_KEY');
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_OAI_KEY}` },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
     body:    JSON.stringify({
       model:    'gpt-4o-search-preview',
       messages: [{ role: 'user', content: prompt }],
@@ -4466,13 +4468,23 @@ async function _runMorningAI() {
     _morningAIData = result;
     _renderMorningAISection(result);
   } catch (err) {
-    if (!aiSection) return;
-    aiSection.innerHTML = `<div class="mbf-ai-card">
-      <div class="mbf-ai-title">🤖 AI Morning Brief</div>
-      <div class="mbf-ai-body" style="color:var(--red)">AI prediction failed: ${esc(err.message)}</div>
-      <button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
-        onclick="_morningAIData=null;_runMorningAI()">🔄 Retry AI</button>
-    </div>`;
+    const msg = String(err.message || err);
+    const aiSection2 = document.getElementById('morning-ai-section');
+    if (!aiSection2) return;
+    if (msg === 'NO_KEY') {
+      _renderKeyPrompt('morning-ai-section', 'loadMorningBriefing');
+    } else {
+      aiSection2.innerHTML = `<div class="mbf-ai-card">
+        <div class="mbf-ai-title">🤖 AI Morning Brief</div>
+        <div class="mbf-ai-body" style="color:var(--red)">AI prediction failed: ${esc(msg)}</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button style="padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
+            onclick="_morningAIData=null;_runMorningAI()">🔄 Retry</button>
+          <button style="padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
+            onclick="_setOAIKey('');_morningAIData=null;_runMorningAI()">Change API Key</button>
+        </div>
+      </div>`;
+    }
   }
 }
 
@@ -4556,7 +4568,43 @@ function _renderMorningAISection(data) {
 let _aiScannerTimer  = null;
 let _aiScannerLoaded = false;
 
-const _OAI_KEY = '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';
+// Key is stored in localStorage (never committed to git)
+function _getOAIKey() { return localStorage.getItem('ss_oai_key') || ''; }
+function _setOAIKey(k) { localStorage.setItem('ss_oai_key', k.trim()); }
+
+function _renderKeyPrompt(containerId, retryFnName) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `
+    <div style="max-width:460px;margin:24px auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 20px">
+      <div style="font-size:.88rem;font-weight:700;margin-bottom:6px">🔑 OpenAI API Key Required</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Enter your OpenAI API key to enable AI features.<br>
+        Your key is saved only in <b>this browser</b> — it is never committed to GitHub.<br>
+        Get a key: <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--blue)">platform.openai.com/api-keys</a>
+      </div>
+      <div style="display:flex;gap:8px">
+        <input id="oai-key-input" type="password" placeholder="sk-proj-…"
+          style="flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);color:var(--ink);font-size:.85rem;outline:none"
+          onkeydown="if(event.key==='Enter')_saveKeyAndRun('${retryFnName}')" />
+        <button style="padding:9px 16px;border-radius:9px;background:var(--blue);color:#fff;border:none;cursor:pointer;font-size:.85rem;font-weight:700;white-space:nowrap"
+          onclick="_saveKeyAndRun('${retryFnName}')">Save &amp; Run</button>
+      </div>
+    </div>`;
+}
+
+function _saveKeyAndRun(retryFnName) {
+  const input = document.getElementById('oai-key-input');
+  const key = input ? input.value.trim() : '';
+  if (!key.startsWith('sk-')) {
+    if (input) { input.style.borderColor = 'var(--red)'; input.focus(); }
+    return;
+  }
+  _setOAIKey(key);
+  // Call the retry function by name
+  if (retryFnName === 'loadAIScanner') loadAIScanner(true);
+  else if (retryFnName === 'loadMorningBriefing') { _morningAIData = null; loadMorningBriefing(); }
+}
 
 async function _callOpenAI() {
   const today = new Date().toLocaleDateString('en-US',
@@ -4591,9 +4639,11 @@ Rules:
 - tomorrowPicks: 6-10 US stocks most likely to rise tomorrow — based on catalysts, earnings, macro tailwinds, technical setup. Include the concise reason why.
 - Output must start with { and end with } — nothing else`;
 
+  const _key = _getOAIKey();
+  if (!_key) throw new Error('NO_KEY');
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_OAI_KEY}` },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
     body:    JSON.stringify({
       model: 'gpt-4o-search-preview',
       messages: [{ role: 'user', content: prompt }],
@@ -4753,14 +4803,21 @@ async function loadAIScanner(force = false) {
     _aiScannerLoaded = true;
     renderAIScanner(data);
   } catch(e) {
-    const msg      = String(e.message || e);
-    body.innerHTML = `
-      <div class="empty" style="color:var(--red);padding:24px;text-align:center">
-        ${esc(msg)}<br>
-        <button style="margin-top:12px;padding:6px 18px;border-radius:8px;
-                       border:1px solid var(--border);cursor:pointer;font-size:.82rem"
-          onclick="loadAIScanner(true)">↺ Retry</button>
-      </div>`;
+    const msg = String(e.message || e);
+    if (msg === 'NO_KEY') {
+      _renderKeyPrompt('ai-body', 'loadAIScanner');
+    } else {
+      body.innerHTML = `
+        <div class="empty" style="color:var(--red);padding:24px;text-align:center">
+          ${esc(msg)}<br>
+          <button style="margin-top:12px;padding:6px 18px;border-radius:8px;
+                         border:1px solid var(--border);cursor:pointer;font-size:.82rem"
+            onclick="loadAIScanner(true)">&#8635; Retry</button>
+          <br><button style="margin-top:8px;padding:4px 14px;border-radius:8px;
+            border:1px solid var(--border);cursor:pointer;font-size:.76rem;color:var(--muted)"
+            onclick="_setOAIKey('');loadAIScanner(true)">Change API Key</button>
+        </div>`;
+    }
   }
 
   if (_aiScannerTimer) clearInterval(_aiScannerTimer);
