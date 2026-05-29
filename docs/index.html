@@ -1565,12 +1565,12 @@
   <div id="search-panel" style="display:none">
     <div class="sp-wrap">
       <div class="sp-input-row">
-        <input id="sp-q" type="text" class="sp-input" placeholder="Enter ticker (e.g. NVDA, AAPL)" maxlength="12"
+        <input id="sp-q" type="text" class="sp-input" placeholder="Type ticker or plain English (e.g. highly profitable AI stocks near week low)" maxlength="140"
                onkeydown="if(event.key==='Enter') searchPanelStock()" autocomplete="off" autocorrect="off"
                autocapitalize="characters" spellcheck="false" />
         <button class="btn-p sp-btn" onclick="searchPanelStock()">&#128269; Analyze</button>
       </div>
-      <p class="sp-hint">Enter any stock ticker to load its analysis card. Portfolio stocks load instantly from cache.</p>
+      <p class="sp-hint">Search by ticker or plain English. Example: highly profitable stocks, best week-low entries, high-volume movers.</p>
     </div>
     <div id="sp-result"></div>
   </div>
@@ -4079,24 +4079,204 @@ async function searchPanelStock() {
   const input  = document.getElementById('sp-q');
   const result = document.getElementById('sp-result');
   if (!input || !result) return;
-  const ticker = input.value.trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, '');
-  if (!ticker) return;
+  const raw = input.value.trim();
+  if (!raw) return;
 
-  result.innerHTML = `<div class="empty" style="padding:24px 0">Loading ${esc(ticker)}…</div>`;
+  const compactTicker = raw.toUpperCase().replace(/[^A-Z0-9.\-]/g, '');
+  const tickerOnly = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(compactTicker) && !/\s/.test(raw);
 
-  // Clear any cached error so a fresh fetch is attempted
-  if (S.data[ticker]?.err) delete S.data[ticker];
+  if (tickerOnly) {
+    result.innerHTML = `<div class="empty" style="padding:24px 0">Loading ${esc(compactTicker)}…</div>`;
 
-  await loadOne(ticker);
-  const d = S.data[ticker];
-  if (!d || d.err) {
-    result.innerHTML = `<div class="empty" style="color:var(--red);padding:24px 0">
-      Could not load <strong>${esc(ticker)}</strong>. Check the ticker symbol and try again.
-      <br><small>Portfolio &amp; trending stocks load from cache; others require a live proxy.</small></div>`;
+    // Clear any cached error so a fresh fetch is attempted
+    if (S.data[compactTicker]?.err) delete S.data[compactTicker];
+
+    await loadOne(compactTicker);
+    const d = S.data[compactTicker];
+    if (!d || d.err) {
+      result.innerHTML = `<div class="empty" style="color:var(--red);padding:24px 0">
+        Could not load <strong>${esc(compactTicker)}</strong>. Check the ticker symbol and try again.
+        <br><small>Portfolio &amp; trending stocks load from cache; others require a live proxy.</small></div>`;
+      return;
+    }
+    input.dataset.lastTicker = compactTicker;
+    result.innerHTML = buildCard(d, 1, true);
     return;
   }
-  input.dataset.lastTicker = ticker; // track so live refresh can update card in-place
-  result.innerHTML = buildCard(d, 1, true);
+
+  await searchPanelNatural(raw, result, input);
+}
+
+const _SEARCH_STOPWORDS = new Set([
+  'A','AN','AND','ARE','AS','AT','BE','BEST','BY','DO','FOR','FROM','GET','GIVE','HAS','HAVE','HOW','I',
+  'IN','INFO','INFORMATION','IS','IT','LIKE','ME','MY','NEED','OF','ON','OR','PLEASE','SHOW','STOCK','STOCKS',
+  'TELL','THAT','THE','THESE','THIS','TO','WHAT','WHICH','WITH','YOU','YOUR'
+]);
+
+const _SEARCH_THEME_KEYWORDS = {
+  technology: ['ai','tech','software','cloud','internet'],
+  semiconductors: ['semi','semiconductor','chip','chips'],
+  financials: ['bank','banks','financial','finance','credit'],
+  energy: ['energy','oil','gas','utility','utilities'],
+  healthcare: ['health','healthcare','biotech','pharma','drug'],
+  consumer: ['consumer','retail','ecommerce','shopping'],
+  defense: ['defense','aerospace','military'],
+  crypto: ['crypto','bitcoin','btc','ethereum','eth']
+};
+
+function _searchUniverseTickers(query) {
+  const q = query.toUpperCase();
+  const set = new Set(PORTFOLIO_STOCKS.map(x => x.t));
+  (S.watchlist || []).forEach(t => set.add(String(t || '').toUpperCase()));
+
+  const tokens = q.match(/[A-Z][A-Z0-9.\-]{0,9}/g) || [];
+  for (const t of tokens) {
+    if (!_SEARCH_STOPWORDS.has(t) && /[A-Z]/.test(t)) set.add(t);
+  }
+
+  const ql = query.toLowerCase();
+  for (const { t, n, s, g } of PORTFOLIO_STOCKS) {
+    const hay = `${n} ${s} ${g || ''}`.toLowerCase();
+    if (ql.includes(n.toLowerCase()) || ql.includes(String(s || '').toLowerCase()) || ql.includes(String(g || '').toLowerCase())) {
+      set.add(t);
+      continue;
+    }
+    const words = ql.match(/[a-z]{4,}/g) || [];
+    if (words.some(w => !_SEARCH_STOPWORDS.has(w.toUpperCase()) && hay.includes(w))) set.add(t);
+  }
+
+  return [...set].filter(Boolean);
+}
+
+async function _loadSearchUniverse(tickers) {
+  const pending = tickers.filter(t => !S.data[t] || S.data[t].err);
+  const chunkSize = 10;
+  for (let i = 0; i < pending.length; i += chunkSize) {
+    const chunk = pending.slice(i, i + chunkSize);
+    await Promise.all(chunk.map(async t => {
+      if (S.data[t]?.err) delete S.data[t];
+      await loadOne(t);
+    }));
+  }
+}
+
+function _scoreSearchMatch(d, query) {
+  const q = query.toLowerCase();
+  const ticker = String(d.ticker || '').toUpperCase();
+  const meta = PORTFOLIO_STOCKS.find(x => x.t === ticker) || {};
+  const hay = `${ticker} ${meta.n || ''} ${meta.s || ''} ${meta.g || ''}`.toLowerCase();
+
+  const rawWords = q.match(/[a-z0-9.+-]{2,}/g) || [];
+  const words = rawWords.filter(w => !_SEARCH_STOPWORDS.has(w.toUpperCase()));
+  const explicitTicker = (query.toUpperCase().match(/[A-Z][A-Z0-9.\-]{0,9}/g) || []).includes(ticker);
+
+  let score = 0;
+  const reasons = [];
+
+  if (explicitTicker) { score += 300; reasons.push('Ticker match'); }
+
+  const bullishIntent = /(highly profitable|profitable|best|bullish|strong|winner|buy|upside|outperform|quality)/.test(q);
+  const dipIntent = /(week low|52 week low|near low|week-low|dip|pullback|cheap|oversold|value)/.test(q);
+  const momentumIntent = /(momentum|breakout|surge|gainer|moving up|up today|high volume|volume)/.test(q);
+  const bearishIntent = /(avoid|weak|loser|down today|bearish|sell|overbought)/.test(q);
+
+  if (bullishIntent) {
+    score += Math.max(0, d.netScore || 0) * 14;
+    score += (d.conviction || 0) * 1.2;
+    score += Math.max(0, d.ret20 || 0) * 3;
+    reasons.push('Strong bullish profile');
+  }
+
+  if (dipIntent) {
+    const pos = d.position == null ? 0.5 : d.position;
+    score += Math.max(0, (0.55 - pos) * 220);
+    score += Math.max(0, 45 - (d.rsi || 50)) * 1.2;
+    reasons.push('Near lower range zone');
+  }
+
+  if (momentumIntent) {
+    score += Math.max(0, d.changePct || 0) * 8;
+    score += Math.max(0, (d.volumeRatio || 1) - 1) * 20;
+    reasons.push('Momentum / volume confirmation');
+  }
+
+  if (bearishIntent) {
+    score += Math.max(0, -(d.netScore || 0)) * 10;
+    score += Math.max(0, -(d.changePct || 0)) * 8;
+    if ((d.rsi || 0) >= 70) score += 35;
+    reasons.push('Bearish / avoid characteristics');
+  }
+
+  for (const [theme, keys] of Object.entries(_SEARCH_THEME_KEYWORDS)) {
+    if (keys.some(k => words.includes(k))) {
+      if (hay.includes(theme) || keys.some(k => hay.includes(k))) {
+        score += 55;
+        reasons.push(`Theme match: ${theme}`);
+      } else {
+        score -= 8;
+      }
+    }
+  }
+
+  let tokenHits = 0;
+  for (const w of words) {
+    if (hay.includes(w)) tokenHits += 1;
+  }
+  if (tokenHits) {
+    score += tokenHits * 20;
+    reasons.push('Keyword match');
+  }
+
+  if (!bullishIntent && !dipIntent && !momentumIntent && !bearishIntent && !explicitTicker) {
+    score += Math.abs(d.netScore || 0) * 4 + (d.conviction || 0) * 0.8 + Math.abs(d.changePct || 0) * 2;
+  }
+
+  return { score, reasons: [...new Set(reasons)] };
+}
+
+async function searchPanelNatural(query, result, input) {
+  result.innerHTML = `<div class="empty" style="padding:24px 0">Understanding query and scanning matching stocks…</div>`;
+
+  const universe = _searchUniverseTickers(query);
+  if (!universe.length) {
+    result.innerHTML = `<div class="empty" style="padding:24px 0;color:var(--red)">No stock universe available for this query yet.</div>`;
+    return;
+  }
+
+  await _loadSearchUniverse(universe);
+
+  const scored = [];
+  for (const t of universe) {
+    const d = S.data[t];
+    if (!d || d.err) continue;
+    const s = _scoreSearchMatch(d, query);
+    if (s.score > 0) scored.push({ d, score: s.score, reasons: s.reasons });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored.slice(0, 12);
+  if (!top.length) {
+    result.innerHTML = `<div class="empty" style="color:var(--red);padding:24px 0">
+      No strong matches found for <strong>${esc(query)}</strong>.
+      <br><small>Try: "highly profitable AI stocks" or "best week low entries".</small></div>`;
+    return;
+  }
+
+  input.dataset.lastTicker = top[0].d.ticker;
+
+  let html = `<div class="empty" style="padding:10px 0 16px 0;text-align:left">
+    <strong>Query:</strong> ${esc(query)}<br>
+    <small style="color:var(--muted)">Showing top ${top.length} matches ranked by signal strength, trend, range position, and keyword fit.</small>
+  </div>`;
+
+  top.forEach((x, i) => {
+    html += `<div style="margin:8px 0 5px 0;font-size:.74rem;color:var(--muted)">
+      Match score ${x.score.toFixed(0)} · ${esc(x.reasons.slice(0, 3).join(' · ') || 'General match')}
+    </div>`;
+    html += buildCard(x.d, i + 1, false);
+  });
+
+  result.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -4429,8 +4609,8 @@ Rules:
 - avoidToday: 3-5 stocks to stay away from today
 - Output must start with { and end with } — nothing else`;
 
-  const _key = _getOAIKey();
-  if (!_key) throw new Error('NO_KEY');
+  const _key = _OAI_KEY;
+  if (!_key || _key === 'PASTE_YOUR_OPENAI_KEY_HERE') throw new Error('NO_KEY');
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
@@ -4472,7 +4652,12 @@ async function _runMorningAI() {
     const aiSection2 = document.getElementById('morning-ai-section');
     if (!aiSection2) return;
     if (msg === 'NO_KEY') {
-      _renderKeyPrompt('morning-ai-section', 'loadMorningBriefing');
+      aiSection2.innerHTML = `<div class="mbf-ai-card">
+        <div class="mbf-ai-title">🤖 AI Morning Brief</div>
+        <div class="mbf-ai-body" style="color:var(--red)">
+          OpenAI key missing in code. Edit <strong>docs/index.html</strong> and set <code>const _OAI_KEY</code>.
+        </div>
+      </div>`;
     } else {
       aiSection2.innerHTML = `<div class="mbf-ai-card">
         <div class="mbf-ai-title">🤖 AI Morning Brief</div>
@@ -4480,8 +4665,6 @@ async function _runMorningAI() {
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
           <button style="padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
             onclick="_morningAIData=null;_runMorningAI()">🔄 Retry</button>
-          <button style="padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
-            onclick="_setOAIKey('');_morningAIData=null;_runMorningAI()">Change API Key</button>
         </div>
       </div>`;
     }
@@ -4568,43 +4751,7 @@ function _renderMorningAISection(data) {
 let _aiScannerTimer  = null;
 let _aiScannerLoaded = false;
 
-// Key is stored in localStorage (never committed to git)
-function _getOAIKey() { return localStorage.getItem('ss_oai_key') || ''; }
-function _setOAIKey(k) { localStorage.setItem('ss_oai_key', k.trim()); }
-
-function _renderKeyPrompt(containerId, retryFnName) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  el.innerHTML = `
-    <div style="max-width:460px;margin:24px auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 20px">
-      <div style="font-size:.88rem;font-weight:700;margin-bottom:6px">🔑 OpenAI API Key Required</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Enter your OpenAI API key to enable AI features.<br>
-        Your key is saved only in <b>this browser</b> — it is never committed to GitHub.<br>
-        Get a key: <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--blue)">platform.openai.com/api-keys</a>
-      </div>
-      <div style="display:flex;gap:8px">
-        <input id="oai-key-input" type="password" placeholder="sk-proj-…"
-          style="flex:1;padding:9px 12px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg);color:var(--ink);font-size:.85rem;outline:none"
-          onkeydown="if(event.key==='Enter')_saveKeyAndRun('${retryFnName}')" />
-        <button style="padding:9px 16px;border-radius:9px;background:var(--blue);color:#fff;border:none;cursor:pointer;font-size:.85rem;font-weight:700;white-space:nowrap"
-          onclick="_saveKeyAndRun('${retryFnName}')">Save &amp; Run</button>
-      </div>
-    </div>`;
-}
-
-function _saveKeyAndRun(retryFnName) {
-  const input = document.getElementById('oai-key-input');
-  const key = input ? input.value.trim() : '';
-  if (!key.startsWith('sk-')) {
-    if (input) { input.style.borderColor = 'var(--red)'; input.focus(); }
-    return;
-  }
-  _setOAIKey(key);
-  // Call the retry function by name
-  if (retryFnName === 'loadAIScanner') loadAIScanner(true);
-  else if (retryFnName === 'loadMorningBriefing') { _morningAIData = null; loadMorningBriefing(); }
-}
+const _OAI_KEY = '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';
 
 async function _callOpenAI() {
   const today = new Date().toLocaleDateString('en-US',
@@ -4639,8 +4786,8 @@ Rules:
 - tomorrowPicks: 6-10 US stocks most likely to rise tomorrow — based on catalysts, earnings, macro tailwinds, technical setup. Include the concise reason why.
 - Output must start with { and end with } — nothing else`;
 
-  const _key = _getOAIKey();
-  if (!_key) throw new Error('NO_KEY');
+  const _key = _OAI_KEY;
+  if (!_key || _key === 'PASTE_YOUR_OPENAI_KEY_HERE') throw new Error('NO_KEY');
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
@@ -4805,7 +4952,11 @@ async function loadAIScanner(force = false) {
   } catch(e) {
     const msg = String(e.message || e);
     if (msg === 'NO_KEY') {
-      _renderKeyPrompt('ai-body', 'loadAIScanner');
+      body.innerHTML = `
+        <div class="empty" style="color:var(--red);padding:24px;text-align:center">
+          OpenAI key missing in code.<br>
+          <small>Edit <strong>docs/index.html</strong> and set <code>const _OAI_KEY</code>.</small>
+        </div>`;
     } else {
       body.innerHTML = `
         <div class="empty" style="color:var(--red);padding:24px;text-align:center">
@@ -4813,9 +4964,6 @@ async function loadAIScanner(force = false) {
           <button style="margin-top:12px;padding:6px 18px;border-radius:8px;
                          border:1px solid var(--border);cursor:pointer;font-size:.82rem"
             onclick="loadAIScanner(true)">&#8635; Retry</button>
-          <br><button style="margin-top:8px;padding:4px 14px;border-radius:8px;
-            border:1px solid var(--border);cursor:pointer;font-size:.76rem;color:var(--muted)"
-            onclick="_setOAIKey('');loadAIScanner(true)">Change API Key</button>
         </div>`;
     }
   }
