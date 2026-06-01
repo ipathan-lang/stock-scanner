@@ -1166,6 +1166,60 @@
     .port-group.open > .port-group-body { display: block; }
     /* ── AI Scanner panel ───────────────────────────────── */
     #ai-panel { padding: 0 0 24px; }
+    /* AI Key form */
+    .ai-key-form {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3);
+      border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+    }
+    .ai-key-form label { font-size: .78rem; color: var(--yellow); font-weight: 700; white-space: nowrap; }
+    .ai-key-form input {
+      flex: 1; min-width: 220px; font-size: .8rem; padding: 6px 10px;
+      border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); outline: none;
+    }
+    .ai-key-form input:focus { border-color: rgba(139,92,246,.5); }
+    .ai-key-form button {
+      font-size: .78rem; font-weight: 700; padding: 6px 14px;
+      border-radius: 8px; border: none; cursor: pointer;
+      background: rgba(139,92,246,.8); color: #fff;
+    }
+    .ai-key-form .ai-key-change {
+      font-size: .68rem; color: var(--muted); cursor: pointer; margin-left: 4px; text-decoration: underline;
+    }
+    /* AI Ask box */
+    .ai-ask-box {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid rgba(139,92,246,.3);
+      border-radius: 12px; padding: 10px 12px; margin-bottom: 16px;
+    }
+    .ai-ask-box input {
+      flex: 1; font-size: .84rem; padding: 6px 8px;
+      border: none; outline: none; background: transparent; color: var(--text);
+    }
+    .ai-ask-box input::placeholder { color: var(--muted); }
+    .ai-ask-box button {
+      font-size: .8rem; font-weight: 700; padding: 6px 16px;
+      border-radius: 8px; border: none; cursor: pointer;
+      background: linear-gradient(135deg,rgba(30,99,217,.85),rgba(139,92,246,.85));
+      color: #fff; white-space: nowrap;
+    }
+    .ai-ask-box button:disabled { opacity: .55; cursor: default; }
+    /* AI Ask result panel */
+    .ai-ask-result {
+      border: 1px solid rgba(139,92,246,.25); border-radius: 14px;
+      padding: 0; margin-bottom: 16px; overflow: hidden;
+    }
+    .ai-ask-answer {
+      padding: 14px 16px;
+      background: linear-gradient(135deg,rgba(139,92,246,.07),rgba(30,99,217,.04));
+      font-size: .84rem; line-height: 1.6; color: var(--text);
+    }
+    .ai-ask-answer-title {
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: rgba(139,92,246,.9); margin-bottom: 8px;
+    }
+    .ai-stock-detail { background: var(--bg); }
     .ai-pulse-banner {
       background: linear-gradient(135deg,rgba(30,99,217,.12),rgba(139,92,246,.08));
       border: 1px solid rgba(139,92,246,.25); border-radius: 14px;
@@ -1533,6 +1587,21 @@
 
   <!-- AI SCANNER PANEL -->
   <div id="ai-panel" style="display:none">
+    <!-- Key entry form (shown when no key saved) -->
+    <div id="ai-key-form" class="ai-key-form" style="display:none">
+      <label>🔑 OpenAI API Key</label>
+      <input id="ai-key-input" type="password" placeholder="sk-proj-…  (paste your key here)" autocomplete="off" onkeydown="if(event.key==='Enter')saveAIKey()">
+      <button onclick="saveAIKey()">Save &amp; Enable AI</button>
+      <a class="ai-key-change" onclick="saveAIKey()" style="display:none" id="ai-key-change-link">change key</a>
+    </div>
+    <!-- English question input -->
+    <div class="ai-ask-box">
+      <input id="ai-ask-input" type="text" placeholder='💬 Ask about any stock… e.g. "Is NVDA a good buy?" or "Tell me about Apple"'
+        onkeydown="if(event.key==='Enter')askAIAboutStock()">
+      <button id="ai-ask-btn" onclick="askAIAboutStock()">Ask →</button>
+    </div>
+    <!-- Ask result (stock card + AI answer) -->
+    <div id="ai-ask-result" style="display:none"></div>
     <div id="ai-body"><div class="empty">Initializing AI Market Scanner…</div></div>
   </div>
 
@@ -4609,7 +4678,7 @@ Rules:
 - avoidToday: 3-5 stocks to stay away from today
 - Output must start with { and end with } — nothing else`;
 
-  const _key = _OAI_KEY;
+  const _key = _getOAIKey();
   if (!_key || _key === 'PASTE_YOUR_OPENAI_KEY_HERE') throw new Error('NO_KEY');
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
@@ -4622,7 +4691,26 @@ Rules:
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(`OpenAI ${resp.status}: ${err?.error?.message || resp.statusText}`);
+    const msg = err?.error?.message || resp.statusText;
+    if (resp.status === 404 || (msg && msg.toLowerCase().includes('model'))) {
+      const resp2 = await fetch('https://api.openai.com/v1/chat/completions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
+        body:    JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }] }),
+        signal:  AbortSignal.timeout(55000),
+      });
+      if (!resp2.ok) {
+        const err2 = await resp2.json().catch(() => ({}));
+        throw new Error(`OpenAI ${resp2.status}: ${err2?.error?.message || resp2.statusText}`);
+      }
+      const data2 = await resp2.json();
+      const text2  = data2.choices?.[0]?.message?.content || '';
+      const clean2 = text2.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
+      const s2 = clean2.indexOf('{'), e2 = clean2.lastIndexOf('}');
+      if (s2 === -1 || e2 === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
+      return JSON.parse(clean2.slice(s2, e2 + 1));
+    }
+    throw new Error(`OpenAI ${resp.status}: ${msg}`);
   }
   const data = await resp.json();
   const text  = data.choices?.[0]?.message?.content || '';
@@ -4655,7 +4743,7 @@ async function _runMorningAI() {
       aiSection2.innerHTML = `<div class="mbf-ai-card">
         <div class="mbf-ai-title">🤖 AI Morning Brief</div>
         <div class="mbf-ai-body" style="color:var(--red)">
-          OpenAI key missing in code. Edit <strong>docs/index.html</strong> and set <code>const _OAI_KEY</code>.
+          OpenAI key not set. Go to the <a href="#" onclick="setSortMode('ai');return false" style="color:var(--blue)">🤖 AI Scanner tab</a> to enter your API key.
         </div>
       </div>`;
     } else {
@@ -4751,7 +4839,13 @@ function _renderMorningAISection(data) {
 let _aiScannerTimer  = null;
 let _aiScannerLoaded = false;
 
-const _OAI_KEY = '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';
+/* ── API Key helpers (stored in localStorage so user can enter via UI) ── */
+function _getOAIKey() {
+  return (localStorage.getItem('ss_oai_key') || '').trim();
+}
+function _saveOAIKey(k) {
+  localStorage.setItem('ss_oai_key', (k || '').trim());
+}
 
 async function _callOpenAI() {
   const today = new Date().toLocaleDateString('en-US',
@@ -4786,7 +4880,7 @@ Rules:
 - tomorrowPicks: 6-10 US stocks most likely to rise tomorrow — based on catalysts, earnings, macro tailwinds, technical setup. Include the concise reason why.
 - Output must start with { and end with } — nothing else`;
 
-  const _key = _OAI_KEY;
+  const _key = _getOAIKey();
   if (!_key || _key === 'PASTE_YOUR_OPENAI_KEY_HERE') throw new Error('NO_KEY');
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
@@ -4799,7 +4893,27 @@ Rules:
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(`OpenAI ${resp.status}: ${err?.error?.message || resp.statusText}`);
+    const msg = err?.error?.message || resp.statusText;
+    // If the search-preview model isn't on this key, fall back to gpt-4o
+    if (resp.status === 404 || (msg && msg.toLowerCase().includes('model'))) {
+      const resp2 = await fetch('https://api.openai.com/v1/chat/completions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
+        body:    JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }] }),
+        signal:  AbortSignal.timeout(40000),
+      });
+      if (!resp2.ok) {
+        const err2 = await resp2.json().catch(() => ({}));
+        throw new Error(`OpenAI ${resp2.status}: ${err2?.error?.message || resp2.statusText}`);
+      }
+      const data2 = await resp2.json();
+      const text2 = data2.choices?.[0]?.message?.content || '';
+      const clean2 = text2.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
+      const s2 = clean2.indexOf('{'), e2 = clean2.lastIndexOf('}');
+      if (s2 === -1 || e2 === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
+      return JSON.parse(clean2.slice(s2, e2 + 1));
+    }
+    throw new Error(`OpenAI ${resp.status}: ${msg}`);
   }
   const data = await resp.json();
   const text = data.choices?.[0]?.message?.content || '';
@@ -4933,9 +5047,206 @@ function renderAIScanner(data) {
   body.innerHTML = html;
 }
 
+/* ─────────────────────────────────────────────────────────
+   KEY MANAGEMENT UI
+───────────────────────────────────────────────────────── */
+function _renderAIKeyForm(forceShow = false) {
+  const form = document.getElementById('ai-key-form');
+  if (!form) return;
+  const hasKey = !!_getOAIKey();
+  if (hasKey && !forceShow) {
+    // Key already saved — show a tiny "change key" link instead
+    form.style.display = '';
+    form.innerHTML = `<label style="color:var(--muted)">🔑 API Key: <span style="color:var(--green)">●</span> Saved</label>
+      <a class="ai-key-change" onclick="_showKeyInput()">change key</a>`;
+  } else {
+    form.style.display = '';
+    form.innerHTML = `<label>🔑 OpenAI API Key</label>
+      <input id="ai-key-input" type="password" placeholder="sk-proj-… (paste your key and press Save)"
+        autocomplete="off" onkeydown="if(event.key==='Enter')saveAIKey()">
+      <button onclick="saveAIKey()">Save &amp; Enable AI</button>`;
+  }
+}
+
+function _showKeyInput() {
+  const form = document.getElementById('ai-key-form');
+  if (!form) return;
+  form.innerHTML = `<label>🔑 OpenAI API Key</label>
+    <input id="ai-key-input" type="password" placeholder="sk-proj-… (paste your key and press Save)"
+      autocomplete="off" onkeydown="if(event.key==='Enter')saveAIKey()">
+    <button onclick="saveAIKey()">Save &amp; Enable AI</button>`;
+}
+
+function saveAIKey() {
+  const inp = document.getElementById('ai-key-input');
+  const key = (inp?.value || '').trim();
+  if (!key || !key.startsWith('sk-')) {
+    if (inp) { inp.style.borderColor = 'var(--red)'; inp.focus(); }
+    return;
+  }
+  _saveOAIKey(key);
+  _aiScannerLoaded = false; // force reload
+  _renderAIKeyForm(false);
+  loadAIScanner(true);
+}
+
+/* ─────────────────────────────────────────────────────────
+   ASK AI ABOUT A STOCK (plain-English question → AI answer + stock card)
+───────────────────────────────────────────────────────── */
+let _askBusy = false;
+
+async function askAIAboutStock() {
+  if (_askBusy) return;
+  const inp   = document.getElementById('ai-ask-input');
+  const btn   = document.getElementById('ai-ask-btn');
+  const box   = document.getElementById('ai-ask-result');
+  const q     = (inp?.value || '').trim();
+  if (!q) { inp?.focus(); return; }
+
+  const key = _getOAIKey();
+  if (!key) {
+    _renderAIKeyForm(true);
+    box.style.display = '';
+    box.innerHTML = `<div class="ai-ask-result"><div class="ai-ask-answer">
+      <div class="ai-ask-answer-title">⚠️ No API Key</div>
+      Please save your OpenAI API key above first.</div></div>`;
+    return;
+  }
+
+  _askBusy = true;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  box.style.display = '';
+  box.innerHTML = `<div class="ai-ask-result">
+    <div class="ai-ask-answer"><div class="ai-ask-answer-title">🤖 Thinking…</div>
+    <div class="ai-skeleton" style="height:18px;margin:6px 0"></div>
+    <div class="ai-skeleton" style="height:14px;margin:4px 0;width:75%"></div></div></div>`;
+
+  try {
+    // Step 1: Ask AI to identify ticker + answer the question
+    const today = new Date().toLocaleDateString('en-US',
+      { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const sysPrompt = `You are a stock market analyst assistant. Today is ${today}.
+The user will ask a question in plain English about one or more stocks.
+Reply ONLY with a raw JSON object (no markdown, no code fences):
+{
+  "ticker": "PRIMARY_TICKER_SYMBOL",
+  "name": "Company Name",
+  "answer": "2-4 sentence direct answer to the user's question covering current price action, key signals, analyst sentiment, and what an investor should know right now",
+  "keyPoints": ["bullet point 1", "bullet point 2", "bullet point 3"],
+  "sentiment": "bullish|bearish|neutral",
+  "action": "Buy|Watch|Hold|Avoid"
+}
+If multiple tickers are asked about, pick the primary one for ticker/name and cover all in the answer.
+Output must start with { and end with }.`;
+
+    const aiResp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({
+        model:    'gpt-4o',
+        messages: [
+          { role: 'system', content: sysPrompt },
+          { role: 'user',   content: q }
+        ],
+        max_tokens: 500,
+      }),
+      signal: AbortSignal.timeout(25000),
+    });
+
+    let aiData = null;
+    if (aiResp.ok) {
+      const raw = await aiResp.json();
+      const txt = raw.choices?.[0]?.message?.content || '';
+      const clean = txt.replace(/```json?\n?/gi,'').replace(/```/g,'').trim();
+      const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+      if (s !== -1 && e !== -1) {
+        try { aiData = JSON.parse(clean.slice(s, e+1)); } catch(_) {}
+      }
+    }
+
+    const ticker   = (aiData?.ticker || '').toUpperCase().trim();
+    const answer   = aiData?.answer   || 'Could not generate an AI answer. Try again.';
+    const points   = aiData?.keyPoints || [];
+    const sent     = (aiData?.sentiment || 'neutral').toLowerCase();
+    const action   = aiData?.action    || '';
+    const name     = aiData?.name      || ticker;
+
+    const sentColor = sent === 'bullish' ? 'var(--green)' : sent === 'bearish' ? 'var(--red)' : 'var(--yellow)';
+    const actionCls = action === 'Buy' ? 'bg' : action === 'Avoid' ? 'br' : 'by';
+    const ptHtml = points.length
+      ? '<ul style="margin:6px 0 0 14px;padding:0;font-size:.8rem;line-height:1.7">' +
+        points.map(p => `<li>${esc(p)}</li>`).join('') + '</ul>' : '';
+
+    // Render AI answer card
+    let html = `<div class="ai-ask-result">
+      <div class="ai-ask-answer">
+        <div class="ai-ask-answer-title" style="display:flex;align-items:center;gap:8px">
+          🤖 AI Answer
+          ${action ? `<span class="mbf-signal ${actionCls}" style="margin-left:4px">${esc(action)}</span>` : ''}
+          ${sent   ? `<span style="font-size:.68rem;color:${sentColor};font-weight:700">${sent.charAt(0).toUpperCase()+sent.slice(1)}</span>` : ''}
+        </div>
+        <div style="font-size:.85rem;line-height:1.6;margin-bottom:4px">${esc(answer)}</div>
+        ${ptHtml}
+      </div>`;
+
+    // Step 2: Load stock card for the ticker
+    if (ticker) {
+      html += `<div id="ai-ask-card-${esc(ticker)}" style="padding:4px 0">
+        <div class="empty" style="padding:12px;font-size:.8rem">Loading ${esc(ticker)} data…</div></div>`;
+    }
+    html += `</div>`;
+    box.innerHTML = html;
+
+    // Load stock data card asynchronously
+    if (ticker) {
+      try {
+        if (!S.data[ticker] || S.data[ticker].err) {
+          delete S.data[ticker];
+          await loadOne(ticker);
+        }
+        const d = S.data[ticker];
+        const cardEl = document.getElementById(`ai-ask-card-${ticker}`);
+        if (cardEl) {
+          if (d && !d.err) {
+            cardEl.innerHTML = buildCard(d, 1, true);
+          } else {
+            cardEl.innerHTML = `<div class="empty" style="padding:10px;color:var(--muted);font-size:.8rem">
+              Could not load live data for ${esc(ticker)}.</div>`;
+          }
+        }
+      } catch(_) {
+        const cardEl = document.getElementById(`ai-ask-card-${ticker}`);
+        if (cardEl) cardEl.innerHTML = `<div class="empty" style="padding:10px;color:var(--muted);font-size:.8rem">
+          Could not load live data for ${esc(ticker)}.</div>`;
+      }
+    }
+
+  } catch(err) {
+    const msg = String(err.message || err);
+    box.innerHTML = `<div class="ai-ask-result"><div class="ai-ask-answer">
+      <div class="ai-ask-answer-title" style="color:var(--red)">⚠️ Error</div>
+      ${esc(msg)}<br>
+      <button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:.78rem"
+        onclick="askAIAboutStock()">Retry</button></div></div>`;
+  } finally {
+    _askBusy = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Ask →'; }
+  }
+}
+
 async function loadAIScanner(force = false) {
   const body = document.getElementById('ai-body');
   if (!body) return;
+
+  // Show key form if no key saved
+  _renderAIKeyForm();
+
+  if (!_getOAIKey()) {
+    body.innerHTML = `<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">
+      Enter your OpenAI API key above to load the AI Market Scanner.</div>`;
+    return;
+  }
+
   if (!_aiScannerLoaded || force) {
     body.innerHTML = `
       <div class="ai-pulse-banner" style="text-align:center;padding:20px">
@@ -4952,11 +5263,9 @@ async function loadAIScanner(force = false) {
   } catch(e) {
     const msg = String(e.message || e);
     if (msg === 'NO_KEY') {
-      body.innerHTML = `
-        <div class="empty" style="color:var(--red);padding:24px;text-align:center">
-          OpenAI key missing in code.<br>
-          <small>Edit <strong>docs/index.html</strong> and set <code>const _OAI_KEY</code>.</small>
-        </div>`;
+      _renderAIKeyForm(true);
+      body.innerHTML = `<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">
+        Enter your OpenAI API key above to enable the AI Market Scanner.</div>`;
     } else {
       body.innerHTML = `
         <div class="empty" style="color:var(--red);padding:24px;text-align:center">
