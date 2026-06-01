@@ -4825,96 +4825,127 @@ function _renderMorningAISection(data) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   AI MARKET SCANNER  —  powered by OpenAI web search (no proxies)
-   Uses OpenAI Responses API with gpt-4o-search-preview which has
-   real-time web search built-in.
+   AI MARKET SCANNER  —  powered by the app's own scoring engine
+   No external API key needed. Uses the same Yahoo Finance static cache
+   already loaded by Portfolio/Trends tabs.
 ═══════════════════════════════════════════════════════════════════ */
 let _aiScannerTimer  = null;
 let _aiScannerLoaded = false;
 
-/* ── API Key (localStorage override → hardcoded fallback) ── */
-const _OAI_DEFAULT = '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';
+/* ── OpenAI key helpers (only used for the Ask box) ── */
 function _getOAIKey() {
-  return (localStorage.getItem('ss_oai_key') || _OAI_DEFAULT).trim();
+  return (localStorage.getItem('ss_oai_key') || '').trim();
 }
 function _saveOAIKey(k) {
   localStorage.setItem('ss_oai_key', (k || '').trim());
 }
 
-async function _callOpenAI() {
-  const today = new Date().toLocaleDateString('en-US',
-    { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-  const prompt =
-`Today is ${today}. Search the web right now for current live US stock market data AND tomorrow's market outlook.
-Return ONLY a raw JSON object (no markdown, no code fences, no explanation) in this exact schema:
+/* ── Build scanner data from app's own S.data (no API call needed) ── */
+async function _buildAIScannerData() {
+  // Collect stocks to scan: start from S.data, fill gaps from static cache
+  const portTickers = PORTFOLIO_STOCKS.map(x => x.t);
+  const metaMap = Object.fromEntries(PORTFOLIO_STOCKS.map(x => [x.t, x]));
 
-{
-  "pulse": "2-3 sentence plain-English summary of today's market activity and dominant themes",
-  "actives": [
-    {"symbol":"NVDA","name":"NVIDIA Corp","sector":"Technology","price":135.50,"changePct":2.5,"volRatio":1.8}
-  ],
-  "gainers": [ ...same structure, top 8 biggest percentage gainers today... ],
-  "losers":  [ ...same structure, top 8 biggest percentage losers today... ],
-  "tomorrowOutlook": {
-    "sentiment": "bullish",
-    "summary": "2-3 sentence prediction for tomorrow's US market based on today's close, Fed signals, political news, macro events, earnings calendar, and geopolitical conditions",
-    "keyDrivers": ["short phrase driver 1", "short phrase driver 2", "short phrase driver 3"]
-  },
-  "tomorrowPicks": [
-    {"symbol":"NVDA","name":"NVIDIA Corp","sector":"Technology","reason":"AI chip demand + bullish momentum from earnings"}
-  ]
-}
-
-Rules:
-- actives: top 10 most traded US stocks today by dollar volume
-- changePct: a plain number — positive means up, negative means down (e.g. 2.5 = +2.5%)
-- volRatio: today's volume divided by average daily volume (1.0 = normal, 2.5 = 2.5× normal)
-- tomorrowOutlook.sentiment: exactly one of "bullish", "bearish", or "neutral"
-- tomorrowOutlook.keyDrivers: 3-5 short phrases (max 6 words each) driving tomorrow's outlook
-- tomorrowPicks: 6-10 US stocks most likely to rise tomorrow — based on catalysts, earnings, macro tailwinds, technical setup. Include the concise reason why.
-- Output must start with { and end with } — nothing else`;
-
-  const _key = _getOAIKey();
-  if (!_key || _key === 'PASTE_YOUR_OPENAI_KEY_HERE') throw new Error('NO_KEY');
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
-    body:    JSON.stringify({
-      model: 'gpt-4o-search-preview',
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    signal:  AbortSignal.timeout(40000),
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    const msg = err?.error?.message || resp.statusText;
-    // If the search-preview model isn't on this key, fall back to gpt-4o
-    if (resp.status === 404 || (msg && msg.toLowerCase().includes('model'))) {
-      const resp2 = await fetch('https://api.openai.com/v1/chat/completions', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
-        body:    JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }] }),
-        signal:  AbortSignal.timeout(40000),
-      });
-      if (!resp2.ok) {
-        const err2 = await resp2.json().catch(() => ({}));
-        throw new Error(`OpenAI ${resp2.status}: ${err2?.error?.message || resp2.statusText}`);
+  // Ensure we have at least portfolio stocks loaded
+  const missing = portTickers.filter(t => !S.data[t] || S.data[t].err);
+  if (missing.length > portTickers.length * 0.6) {
+    // Most data missing — load key stocks from static cache in parallel
+    const toLoad = portTickers.slice(0, 30);
+    await Promise.allSettled(toLoad.map(async t => {
+      if (!S.data[t] || S.data[t].err) {
+        try {
+          const r = await fetch(`./data/stocks/${t}.json`);
+          if (r.ok) {
+            const sf = await r.json();
+            if (sf?.chart?.price) {
+              delete S.data[t]; // clear any error state
+              await loadOne(t);
+            }
+          }
+        } catch(_) {}
       }
-      const data2 = await resp2.json();
-      const text2 = data2.choices?.[0]?.message?.content || '';
-      const clean2 = text2.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
-      const s2 = clean2.indexOf('{'), e2 = clean2.lastIndexOf('}');
-      if (s2 === -1 || e2 === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
-      return JSON.parse(clean2.slice(s2, e2 + 1));
-    }
-    throw new Error(`OpenAI ${resp.status}: ${msg}`);
+    }));
   }
-  const data = await resp.json();
-  const text = data.choices?.[0]?.message?.content || '';
-  const clean = text.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
-  const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
-  if (s === -1 || e === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
-  return JSON.parse(clean.slice(s, e + 1));
+
+  // Also try any trending stocks already in S.data
+  const allTickers = [...new Set([...portTickers, ...Object.keys(S.data)])];
+  const stocks = allTickers
+    .map(t => S.data[t])
+    .filter(d => d && !d.err && d.price && d.changePct !== undefined);
+
+  if (!stocks.length) throw new Error('No stock data available yet. Load Portfolio tab first, then return here.');
+
+  // ── Gainers / Losers / Actives ───────────────────────────
+  const sorted = [...stocks].sort((a, b) => b.changePct - a.changePct);
+  const gainers = sorted.filter(d => d.changePct > 0).slice(0, 8).map(d => ({
+    symbol: d.ticker, name: metaMap[d.ticker]?.n || d.ticker,
+    sector: metaMap[d.ticker]?.s || '', price: d.price,
+    changePct: +d.changePct.toFixed(2), volRatio: +(d.volumeRatio || 0).toFixed(2),
+  }));
+  const losers = sorted.filter(d => d.changePct < 0).reverse().slice(0, 8).map(d => ({
+    symbol: d.ticker, name: metaMap[d.ticker]?.n || d.ticker,
+    sector: metaMap[d.ticker]?.s || '', price: d.price,
+    changePct: +d.changePct.toFixed(2), volRatio: +(d.volumeRatio || 0).toFixed(2),
+  }));
+  const actives = [...stocks]
+    .sort((a, b) => (b.volumeRatio || 0) - (a.volumeRatio || 0))
+    .slice(0, 10).map(d => ({
+      symbol: d.ticker, name: metaMap[d.ticker]?.n || d.ticker,
+      sector: metaMap[d.ticker]?.s || '', price: d.price,
+      changePct: +d.changePct.toFixed(2), volRatio: +(d.volumeRatio || 0).toFixed(2),
+    }));
+
+  // ── Market Pulse (from SPY/QQQ + overall stats) ──────────
+  const spy = S.data['SPY'], qqq = S.data['QQQ'];
+  const up = stocks.filter(d => d.changePct > 0).length;
+  const dn = stocks.filter(d => d.changePct < 0).length;
+  const topGainer = gainers[0], topLoser = losers[losers.length - 1] || losers[0];
+  const spyChg = spy ? spy.changePct.toFixed(2) : null;
+  const qqqChg = qqq ? qqq.changePct.toFixed(2) : null;
+  const mktDir = spy ? (spy.changePct > 0.5 ? 'rallying' : spy.changePct < -0.5 ? 'under pressure' : 'mixed') : 'mixed';
+
+  let pulse = `Market is ${mktDir} today with ${up} stocks up and ${dn} down across tracked names.`;
+  if (spyChg !== null) pulse += ` S&P 500 ${+spyChg >= 0 ? '+' : ''}${spyChg}%`;
+  if (qqqChg !== null) pulse += `, Nasdaq ${+qqqChg >= 0 ? '+' : ''}${qqqChg}%.`;
+  if (topGainer) pulse += ` ${topGainer.symbol} leads gains at +${topGainer.changePct}%.`;
+
+  // ── Tomorrow's Picks (Best-rated Buy signals) ─────────────
+  const buys = stocks
+    .map(d => ({ d, sig: signal(d), conf: computeConfidence(d) }))
+    .filter(x => x.sig.rank <= 2)
+    .sort((a, b) => a.sig.rank - b.sig.rank || b.conf - a.conf)
+    .slice(0, 10);
+
+  const tomorrowPicks = buys.map(({ d, sig }) => ({
+    symbol: d.ticker,
+    name: metaMap[d.ticker]?.n || d.ticker,
+    sector: metaMap[d.ticker]?.s || '',
+    reason: sig.label.replace(/[🟢📈🚀]/u,'').trim() + ` · RSI ${d.rsi ?? '–'} · Score ${d.netScore ?? '–'}`,
+  }));
+
+  // ── Tomorrow's Outlook (from market scores) ──────────────
+  const spyScore = spy?.netScore ?? 0;
+  const qqqScore = qqq?.netScore ?? 0;
+  const mktMean  = (spyScore + qqqScore) / 2;
+  const sentiment = mktMean >= 2 ? 'bullish' : mktMean <= -1 ? 'bearish' : 'neutral';
+  const sentText  = sentiment === 'bullish' ? 'positive momentum into tomorrow'
+                  : sentiment === 'bearish' ? 'continued caution tomorrow'
+                  : 'a mixed outlook for tomorrow';
+  const keyDrivers = [];
+  if (spy)  keyDrivers.push(`SPY score ${spyScore > 0 ? '+' : ''}${spyScore}`);
+  if (qqq)  keyDrivers.push(`QQQ score ${qqqScore > 0 ? '+' : ''}${qqqScore}`);
+  if (buys.length) keyDrivers.push(`${buys.length} buy-rated stocks`);
+  const highVol = stocks.filter(d => (d.volumeRatio || 0) >= 2);
+  if (highVol.length) keyDrivers.push(`${highVol.length} stocks at 2×+ volume`);
+  keyDrivers.push(`${up} advancing · ${dn} declining`);
+
+  const tomorrowOutlook = {
+    sentiment,
+    summary: `Based on today's close, indicators suggest ${sentText}. ${buys.length} stocks show buy-grade signals with strong volume confirmation. Watch ${tomorrowPicks[0]?.symbol || 'top picks'} for early momentum.`,
+    keyDrivers,
+  };
+
+  return { pulse, actives, gainers, losers, tomorrowOutlook, tomorrowPicks };
 }
 
 function _themeLabel(sector) {
@@ -4989,7 +5020,7 @@ function renderAIScanner(data) {
     <div class="ai-pulse-banner">
       <div class="ai-pulse-title">🤖 Market Pulse · ${now}</div>
       <div class="ai-pulse-text">${esc(pulse)}</div>
-      <div style="margin-top:8px;font-size:.7rem;color:var(--muted)">Powered by OpenAI web search</div>
+      <div style="margin-top:8px;font-size:.7rem;color:var(--muted)">Powered by IntelliMarket · Live Scoring Engine</div>
     </div>`;
 
   // ── Tomorrow's Outlook ───────────────────────────────────
@@ -5037,7 +5068,7 @@ function renderAIScanner(data) {
       </div>`;
     }
   }
-  html += `<div class="ai-refresh-bar">Auto-refreshes every 5 min · ${now} · Powered by OpenAI</div>`;
+  html += `<div class="ai-refresh-bar">Auto-refreshes every 5 min · ${now} · IntelliMarket Scoring Engine</div>`;
   body.innerHTML = html;
 }
 
@@ -5072,28 +5103,33 @@ async function askAIAboutStock() {
   const q     = (inp?.value || '').trim();
   if (!q) { inp?.focus(); return; }
 
-  const key = _getOAIKey();
-  if (!key) {
-    box.style.display = '';
-    box.innerHTML = `<div class="ai-ask-result"><div class="ai-ask-answer">
-      <div class="ai-ask-answer-title" style="color:var(--red)">⚠️ API Key Missing</div>
-      No OpenAI key configured.</div></div>`;
-    return;
-  }
-
   _askBusy = true;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   box.style.display = '';
   box.innerHTML = `<div class="ai-ask-result">
-    <div class="ai-ask-answer"><div class="ai-ask-answer-title">🤖 Thinking…</div>
+    <div class="ai-ask-answer"><div class="ai-ask-answer-title">🔍 Looking up…</div>
     <div class="ai-skeleton" style="height:18px;margin:6px 0"></div>
     <div class="ai-skeleton" style="height:14px;margin:4px 0;width:75%"></div></div></div>`;
 
-  try {
-    // Step 1: Ask AI to identify ticker + answer the question
-    const today = new Date().toLocaleDateString('en-US',
-      { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-    const sysPrompt = `You are a stock market analyst assistant. Today is ${today}.
+  // Extract ticker from the question (uppercase word 1-5 chars, or user typed just the ticker)
+  function _extractTicker(text) {
+    const upper = text.toUpperCase().trim();
+    // Direct ticker match (user typed "NVDA" or "AAPL" etc.)
+    if (/^[A-Z]{1,5}$/.test(upper)) return upper;
+    // "about NVDA", "what is AAPL", "show MSFT"
+    const m = upper.match(/\b([A-Z]{2,5})\b/);
+    return m ? m[1] : null;
+  }
+  const guessedTicker = _extractTicker(q);
+
+  let aiData = null;
+  const key = _getOAIKey();
+
+  if (key) {
+    try {
+      const today = new Date().toLocaleDateString('en-US',
+        { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+      const sysPrompt = `You are a stock market analyst assistant. Today is ${today}.
 The user will ask a question in plain English about one or more stocks.
 Reply ONLY with a raw JSON object (no markdown, no code fences):
 {
@@ -5107,47 +5143,52 @@ Reply ONLY with a raw JSON object (no markdown, no code fences):
 If multiple tickers are asked about, pick the primary one for ticker/name and cover all in the answer.
 Output must start with { and end with }.`;
 
-    const aiResp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify({
-        model:    'gpt-4o',
-        messages: [
-          { role: 'system', content: sysPrompt },
-          { role: 'user',   content: q }
-        ],
-        max_tokens: 500,
-      }),
-      signal: AbortSignal.timeout(25000),
-    });
+      const aiResp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model:    'gpt-4o',
+          messages: [
+            { role: 'system', content: sysPrompt },
+            { role: 'user',   content: q }
+          ],
+          max_tokens: 500,
+        }),
+        signal: AbortSignal.timeout(25000),
+      });
 
-    let aiData = null;
-    if (aiResp.ok) {
-      const raw = await aiResp.json();
-      const txt = raw.choices?.[0]?.message?.content || '';
-      const clean = txt.replace(/```json?\n?/gi,'').replace(/```/g,'').trim();
-      const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
-      if (s !== -1 && e !== -1) {
-        try { aiData = JSON.parse(clean.slice(s, e+1)); } catch(_) {}
+      if (aiResp.ok) {
+        const raw = await aiResp.json();
+        const txt = raw.choices?.[0]?.message?.content || '';
+        const clean = txt.replace(/```json?\n?/gi,'').replace(/```/g,'').trim();
+        const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+        if (s !== -1 && e !== -1) {
+          try { aiData = JSON.parse(clean.slice(s, e+1)); } catch(_) {}
+        }
       }
+    } catch(_) {
+      // OpenAI unavailable — will show app scoring data below
     }
+  }
 
-    const ticker   = (aiData?.ticker || '').toUpperCase().trim();
-    const answer   = aiData?.answer   || 'Could not generate an AI answer. Try again.';
+  try {
+    const ticker   = ((aiData?.ticker || guessedTicker || '')).toUpperCase().trim();
+    const hasAI    = !!aiData;
+    const answer   = aiData?.answer   || null;
     const points   = aiData?.keyPoints || [];
     const sent     = (aiData?.sentiment || 'neutral').toLowerCase();
     const action   = aiData?.action    || '';
     const name     = aiData?.name      || ticker;
 
-    const sentColor = sent === 'bullish' ? 'var(--green)' : sent === 'bearish' ? 'var(--red)' : 'var(--yellow)';
-    const actionCls = action === 'Buy' ? 'bg' : action === 'Avoid' ? 'br' : 'by';
-    const ptHtml = points.length
-      ? '<ul style="margin:6px 0 0 14px;padding:0;font-size:.8rem;line-height:1.7">' +
-        points.map(p => `<li>${esc(p)}</li>`).join('') + '</ul>' : '';
+    let html = `<div class="ai-ask-result">`;
 
-    // Render AI answer card
-    let html = `<div class="ai-ask-result">
-      <div class="ai-ask-answer">
+    if (hasAI) {
+      const sentColor = sent === 'bullish' ? 'var(--green)' : sent === 'bearish' ? 'var(--red)' : 'var(--yellow)';
+      const actionCls = action === 'Buy' ? 'bg' : action === 'Avoid' ? 'br' : 'by';
+      const ptHtml = points.length
+        ? '<ul style="margin:6px 0 0 14px;padding:0;font-size:.8rem;line-height:1.7">' +
+          points.map(p => `<li>${esc(p)}</li>`).join('') + '</ul>' : '';
+      html += `<div class="ai-ask-answer">
         <div class="ai-ask-answer-title" style="display:flex;align-items:center;gap:8px">
           🤖 AI Answer
           ${action ? `<span class="mbf-signal ${actionCls}" style="margin-left:4px">${esc(action)}</span>` : ''}
@@ -5156,8 +5197,18 @@ Output must start with { and end with }.`;
         <div style="font-size:.85rem;line-height:1.6;margin-bottom:4px">${esc(answer)}</div>
         ${ptHtml}
       </div>`;
+    } else {
+      html += `<div class="ai-ask-answer">
+        <div class="ai-ask-answer-title" style="color:var(--yellow)">📊 IntelliMarket Analysis</div>
+        <div style="font-size:.8rem;color:var(--muted)">
+          ${ticker ? `Showing live scoring data for <strong>${esc(ticker)}</strong>.` : 'Type a stock ticker or company name.'}
+          To enable AI text answers, add your OpenAI key:<br>
+          <code style="font-size:.72rem">localStorage.setItem('ss_oai_key','sk-...')</code>
+        </div>
+      </div>`;
+    }
 
-    // Step 2: Load stock card for the ticker
+    // Load stock card
     if (ticker) {
       html += `<div id="ai-ask-card-${esc(ticker)}" style="padding:4px 0">
         <div class="empty" style="padding:12px;font-size:.8rem">Loading ${esc(ticker)} data…</div></div>`;
@@ -5179,13 +5230,13 @@ Output must start with { and end with }.`;
             cardEl.innerHTML = buildCard(d, 1, true);
           } else {
             cardEl.innerHTML = `<div class="empty" style="padding:10px;color:var(--muted);font-size:.8rem">
-              Could not load live data for ${esc(ticker)}.</div>`;
+              Could not load data for ${esc(ticker)}. Check the ticker symbol.</div>`;
           }
         }
       } catch(_) {
         const cardEl = document.getElementById(`ai-ask-card-${ticker}`);
         if (cardEl) cardEl.innerHTML = `<div class="empty" style="padding:10px;color:var(--muted);font-size:.8rem">
-          Could not load live data for ${esc(ticker)}.</div>`;
+          Could not load data for ${esc(ticker)}.</div>`;
       }
     }
 
@@ -5209,14 +5260,14 @@ async function loadAIScanner(force = false) {
   if (!_aiScannerLoaded || force) {
     body.innerHTML = `
       <div class="ai-pulse-banner" style="text-align:center;padding:20px">
-        <div class="ai-pulse-title" style="animation:pulse 1.5s ease-in-out infinite">🔍 Scanning live market data…</div>
-        <div class="ai-pulse-text" style="margin-top:6px">OpenAI is searching the web for today's active stocks</div>
+        <div class="ai-pulse-title" style="animation:pulse 1.5s ease-in-out infinite">� Building market scan…</div>
+        <div class="ai-pulse-text" style="margin-top:6px">Reading live scores from IntelliMarket engine</div>
       </div>
       ${Array(5).fill('<div class="ai-skeleton"></div>').join('')}`;
   }
 
   try {
-    const data = await _callOpenAI();
+    const data = await _buildAIScannerData();
     _aiScannerLoaded = true;
     renderAIScanner(data);
   } catch(e) {
