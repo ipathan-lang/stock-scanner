@@ -1587,13 +1587,6 @@
 
   <!-- AI SCANNER PANEL -->
   <div id="ai-panel" style="display:none">
-    <!-- Key entry form (shown when no key saved) -->
-    <div id="ai-key-form" class="ai-key-form" style="display:none">
-      <label>🔑 OpenAI API Key</label>
-      <input id="ai-key-input" type="password" placeholder="sk-proj-…  (paste your key here)" autocomplete="off" onkeydown="if(event.key==='Enter')saveAIKey()">
-      <button onclick="saveAIKey()">Save &amp; Enable AI</button>
-      <a class="ai-key-change" onclick="saveAIKey()" style="display:none" id="ai-key-change-link">change key</a>
-    </div>
     <!-- English question input -->
     <div class="ai-ask-box">
       <input id="ai-ask-input" type="text" placeholder='💬 Ask about any stock… e.g. "Is NVDA a good buy?" or "Tell me about Apple"'
@@ -4839,9 +4832,10 @@ function _renderMorningAISection(data) {
 let _aiScannerTimer  = null;
 let _aiScannerLoaded = false;
 
-/* ── API Key helpers (stored in localStorage so user can enter via UI) ── */
+/* ── API Key (localStorage override → hardcoded fallback) ── */
+const _OAI_DEFAULT = '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';
 function _getOAIKey() {
-  return (localStorage.getItem('ss_oai_key') || '').trim();
+  return (localStorage.getItem('ss_oai_key') || _OAI_DEFAULT).trim();
 }
 function _saveOAIKey(k) {
   localStorage.setItem('ss_oai_key', (k || '').trim());
@@ -5048,34 +5042,10 @@ function renderAIScanner(data) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   KEY MANAGEMENT UI
+   KEY MANAGEMENT (silent — no UI form)
+   To change key: localStorage.setItem('ss_oai_key','sk-...')
 ───────────────────────────────────────────────────────── */
-function _renderAIKeyForm(forceShow = false) {
-  const form = document.getElementById('ai-key-form');
-  if (!form) return;
-  const hasKey = !!_getOAIKey();
-  if (hasKey && !forceShow) {
-    // Key already saved — show a tiny "change key" link instead
-    form.style.display = '';
-    form.innerHTML = `<label style="color:var(--muted)">🔑 API Key: <span style="color:var(--green)">●</span> Saved</label>
-      <a class="ai-key-change" onclick="_showKeyInput()">change key</a>`;
-  } else {
-    form.style.display = '';
-    form.innerHTML = `<label>🔑 OpenAI API Key</label>
-      <input id="ai-key-input" type="password" placeholder="sk-proj-… (paste your key and press Save)"
-        autocomplete="off" onkeydown="if(event.key==='Enter')saveAIKey()">
-      <button onclick="saveAIKey()">Save &amp; Enable AI</button>`;
-  }
-}
-
-function _showKeyInput() {
-  const form = document.getElementById('ai-key-form');
-  if (!form) return;
-  form.innerHTML = `<label>🔑 OpenAI API Key</label>
-    <input id="ai-key-input" type="password" placeholder="sk-proj-… (paste your key and press Save)"
-      autocomplete="off" onkeydown="if(event.key==='Enter')saveAIKey()">
-    <button onclick="saveAIKey()">Save &amp; Enable AI</button>`;
-}
+function _renderAIKeyForm() { /* no-op — key is baked in */ }
 
 function saveAIKey() {
   const inp = document.getElementById('ai-key-input');
@@ -5085,8 +5055,7 @@ function saveAIKey() {
     return;
   }
   _saveOAIKey(key);
-  _aiScannerLoaded = false; // force reload
-  _renderAIKeyForm(false);
+  _aiScannerLoaded = false;
   loadAIScanner(true);
 }
 
@@ -5105,11 +5074,10 @@ async function askAIAboutStock() {
 
   const key = _getOAIKey();
   if (!key) {
-    _renderAIKeyForm(true);
     box.style.display = '';
     box.innerHTML = `<div class="ai-ask-result"><div class="ai-ask-answer">
-      <div class="ai-ask-answer-title">⚠️ No API Key</div>
-      Please save your OpenAI API key above first.</div></div>`;
+      <div class="ai-ask-answer-title" style="color:var(--red)">⚠️ API Key Missing</div>
+      No OpenAI key configured.</div></div>`;
     return;
   }
 
@@ -5238,15 +5206,6 @@ async function loadAIScanner(force = false) {
   const body = document.getElementById('ai-body');
   if (!body) return;
 
-  // Show key form if no key saved
-  _renderAIKeyForm();
-
-  if (!_getOAIKey()) {
-    body.innerHTML = `<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">
-      Enter your OpenAI API key above to load the AI Market Scanner.</div>`;
-    return;
-  }
-
   if (!_aiScannerLoaded || force) {
     body.innerHTML = `
       <div class="ai-pulse-banner" style="text-align:center;padding:20px">
@@ -5262,19 +5221,13 @@ async function loadAIScanner(force = false) {
     renderAIScanner(data);
   } catch(e) {
     const msg = String(e.message || e);
-    if (msg === 'NO_KEY') {
-      _renderAIKeyForm(true);
-      body.innerHTML = `<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">
-        Enter your OpenAI API key above to enable the AI Market Scanner.</div>`;
-    } else {
-      body.innerHTML = `
-        <div class="empty" style="color:var(--red);padding:24px;text-align:center">
-          ${esc(msg)}<br>
-          <button style="margin-top:12px;padding:6px 18px;border-radius:8px;
-                         border:1px solid var(--border);cursor:pointer;font-size:.82rem"
-            onclick="loadAIScanner(true)">&#8635; Retry</button>
-        </div>`;
-    }
+    body.innerHTML = `
+      <div class="empty" style="color:var(--red);padding:24px;text-align:center">
+        ${esc(msg)}<br>
+        <button style="margin-top:12px;padding:6px 18px;border-radius:8px;
+                       border:1px solid var(--border);cursor:pointer;font-size:.82rem"
+          onclick="loadAIScanner(true)">&#8635; Retry</button>
+      </div>`;
   }
 
   if (_aiScannerTimer) clearInterval(_aiScannerTimer);
