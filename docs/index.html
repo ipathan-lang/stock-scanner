@@ -4848,23 +4848,9 @@ async function _buildAIScannerData() {
 
   // Ensure we have at least portfolio stocks loaded
   const missing = portTickers.filter(t => !S.data[t] || S.data[t].err);
-  if (missing.length > portTickers.length * 0.6) {
-    // Most data missing — load key stocks from static cache in parallel
-    const toLoad = portTickers.slice(0, 30);
-    await Promise.allSettled(toLoad.map(async t => {
-      if (!S.data[t] || S.data[t].err) {
-        try {
-          const r = await fetch(`./data/stocks/${t}.json`);
-          if (r.ok) {
-            const sf = await r.json();
-            if (sf?.chart?.price) {
-              delete S.data[t]; // clear any error state
-              await loadOne(t);
-            }
-          }
-        } catch(_) {}
-      }
-    }));
+  if (missing.length > 0) {
+    // Load all missing stocks directly via loadOne (reads static cache)
+    await Promise.allSettled(missing.map(t => loadOne(t)));
   }
 
   // Also try any trending stocks already in S.data
@@ -5111,13 +5097,57 @@ async function askAIAboutStock() {
     <div class="ai-skeleton" style="height:18px;margin:6px 0"></div>
     <div class="ai-skeleton" style="height:14px;margin:4px 0;width:75%"></div></div></div>`;
 
-  // Extract ticker from the question (uppercase word 1-5 chars, or user typed just the ticker)
+  // Smart ticker extraction: company name → ticker lookup first, then known-ticker scan
   function _extractTicker(text) {
-    const upper = text.toUpperCase().trim();
-    // Direct ticker match (user typed "NVDA" or "AAPL" etc.)
-    if (/^[A-Z]{1,5}$/.test(upper)) return upper;
-    // "about NVDA", "what is AAPL", "show MSFT"
-    const m = upper.match(/\b([A-Z]{2,5})\b/);
+    const lower = text.toLowerCase();
+    const upper = text.toUpperCase();
+
+    // Build name→ticker map from PORTFOLIO_STOCKS
+    const nameMap = {};
+    for (const { t, n } of PORTFOLIO_STOCKS) {
+      // full name match and first word of company name
+      nameMap[n.toLowerCase()] = t;
+      const firstWord = n.split(/[\s\/]/)[0].toLowerCase();
+      if (firstWord.length >= 3) nameMap[firstWord] = t;
+    }
+    // Extra common aliases
+    Object.assign(nameMap, {
+      'tesla': 'TSLA', 'apple': 'AAPL', 'nvidia': 'NVDA', 'google': 'GOOGL',
+      'alphabet': 'GOOGL', 'amazon': 'AMZN', 'microsoft': 'MSFT', 'meta': 'META',
+      'facebook': 'META', 'netflix': 'NFLX', 'walmart': 'WMT', 'costco': 'COST',
+      'palantir': 'PLTR', 'shopify': 'SHOP', 'crowdstrike': 'CRWD',
+      'cloudflare': 'NET', 'salesforce': 'CRM', 'oracle': 'ORCL',
+      'broadcom': 'AVGO', 'qualcomm': 'QCOM', 'intel': 'INTC',
+      'micron': 'MU', 'amd': 'AMD', 'arm': 'ARM', 'uber': 'UBER',
+      'intuit': 'INTU', 'servicenow': 'NOW', 'accenture': 'ACN',
+      'jpmorgan': 'JPM', 'visa': 'V', 'mastercard': 'MA',
+      'exxon': 'XOM', 'abbvie': 'ABBV', 'eli': 'LLY', 'lilly': 'LLY',
+      'unitedhealth': 'UNH', 'novo': 'NVO', 'amgen': 'AMGN',
+      'taiwan': 'TSM', 'tsmc': 'TSM', 'asml': 'ASML',
+      'goldman': 'GS', 'morgan': 'MS', 'bofa': 'BAC',
+    });
+
+    // 1. Check whole input is a known ticker
+    const portSet = new Set(PORTFOLIO_STOCKS.map(x => x.t));
+    if (/^[A-Z]{1,5}$/.test(upper.trim()) && portSet.has(upper.trim())) return upper.trim();
+
+    // 2. Check words against name map (longest match wins)
+    const words = lower.split(/\s+/);
+    for (let len = 3; len >= 1; len--) {
+      for (let i = 0; i <= words.length - len; i++) {
+        const phrase = words.slice(i, i + len).join(' ');
+        if (nameMap[phrase]) return nameMap[phrase];
+      }
+    }
+
+    // 3. Scan for a known portfolio ticker mentioned verbatim in the text
+    for (const t of portSet) {
+      const re = new RegExp(`\\b${t}\\b`, 'i');
+      if (re.test(text)) return t;
+    }
+
+    // 4. Last resort: first uppercase word 2-5 chars that looks like a ticker
+    const m = text.match(/\b([A-Z]{2,5})\b/);
     return m ? m[1] : null;
   }
   const guessedTicker = _extractTicker(q);
