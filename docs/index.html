@@ -2921,13 +2921,20 @@ async function fetchStock(ticker) {
 
   const price     = meta.regularMarketPrice ?? closes[closes.length - 1];
   // regularMarketPreviousClose is Yahoo's canonical unadjusted prev-day close.
-  // meta.previousClose can be adjusted/stale (causes fake +50-100% readings on earnings days).
-  const prevClose = meta.regularMarketPreviousClose ?? meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length - 2] ?? price;
+  // NEVER use meta.chartPreviousClose — it is the split/dividend-adjusted 2-year baseline
+  // price (e.g. $109 for NVDA when current price is $224) and causes fake +50-200% readings.
+  // closes[-2] is the actual previous trading day's close from the OHLCV array.
+  const prevClose = meta.regularMarketPreviousClose ?? meta.previousClose ?? closes[closes.length - 2] ?? price;
   const change    = meta.regularMarketChange ?? (price - prevClose);
   // Use Yahoo's own calculated changePercent when available (decimal → ×100)
-  const changePct = meta.regularMarketChangePercent != null
+  // Extra guard: if computed changePct is absurdly large (>50% daily swing) and we had to
+  // fall back to closes[-2], recompute directly so bad meta data never poisons the display.
+  const _rawPct = meta.regularMarketChangePercent != null
     ? meta.regularMarketChangePercent * 100
     : (prevClose > 0 ? (change / prevClose) * 100 : 0);
+  const changePct = (meta.regularMarketChangePercent == null && Math.abs(_rawPct) > 50 && closes.length >= 2)
+    ? ((price - closes[closes.length - 2]) / closes[closes.length - 2]) * 100
+    : _rawPct;
 
   // 52-week range and 20-day return (base for relative strength vs SPY)
   const yearHigh = highs.length ? Math.max(...highs) : null;

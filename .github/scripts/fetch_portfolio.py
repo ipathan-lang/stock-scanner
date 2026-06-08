@@ -87,6 +87,32 @@ def fetch_ticker(ticker):
     chart = fetch_json(chart_url)
     time.sleep(0.6)
 
+    # Inject regularMarketPreviousClose + regularMarketChangePercent into chart meta.
+    # v8/chart only returns chartPreviousClose (split-adjusted 2-yr baseline) which is
+    # completely wrong for daily % change. v7/quote has the correct unadjusted prev close.
+    try:
+        quote_url = (
+            f'https://query1.finance.yahoo.com/v7/finance/quote?symbols={ticker}'
+            f'&fields=regularMarketPreviousClose,regularMarketChange,'
+            f'regularMarketChangePercent&formatted=false'
+        )
+        qdata = fetch_json(quote_url)
+        qresult = (qdata.get('quoteResponse') or {}).get('result') or []
+        if qresult:
+            q = qresult[0]
+            meta = chart.get('chart', {}).get('result', [{}])[0].get('meta', {})
+            if q.get('regularMarketPreviousClose'):
+                meta['regularMarketPreviousClose'] = q['regularMarketPreviousClose']
+            if q.get('regularMarketChange') is not None:
+                meta['regularMarketChange'] = q['regularMarketChange']
+            if q.get('regularMarketChangePercent') is not None:
+                # v7 returns % as a plain number (e.g. 2.1 = +2.1%). Convert to decimal
+                # (÷100) so fetchStock's ×100 multiplication gives the right result.
+                meta['regularMarketChangePercent'] = q['regularMarketChangePercent'] / 100
+        time.sleep(0.4)
+    except Exception as e:
+        print(f'  quote WARN: {e}')
+
     combo = None
     try:
         combo = fetch_json(combo_url)

@@ -66,6 +66,29 @@ def fetch_stock(ticker):
     chart = fetch_url(chart_url, YAHOO_HEADERS)
     time.sleep(0.5)
 
+    # Inject regularMarketPreviousClose into chart meta (v8/chart only has chartPreviousClose
+    # which is split-adjusted and wrong for daily % change display).
+    try:
+        quote_url = (
+            f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={ticker}"
+            f"&fields=regularMarketPreviousClose,regularMarketChange,"
+            f"regularMarketChangePercent&formatted=false"
+        )
+        qdata = fetch_url(quote_url, YAHOO_HEADERS)
+        qresult = (qdata.get("quoteResponse") or {}).get("result") or []
+        if qresult:
+            q = qresult[0]
+            meta = chart.get("chart", {}).get("result", [{}])[0].get("meta", {})
+            if q.get("regularMarketPreviousClose"):
+                meta["regularMarketPreviousClose"] = q["regularMarketPreviousClose"]
+            if q.get("regularMarketChange") is not None:
+                meta["regularMarketChange"] = q["regularMarketChange"]
+            if q.get("regularMarketChangePercent") is not None:
+                meta["regularMarketChangePercent"] = q["regularMarketChangePercent"] / 100
+        time.sleep(0.4)
+    except Exception as e:
+        print(f"    quote WARN: {e}")
+
     news = None
     try:
         news = fetch_url(news_url, YAHOO_HEADERS)
