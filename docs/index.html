@@ -1290,6 +1290,110 @@
       color: var(--green); padding: 2px 8px; border-radius: 20px;
       background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25);
     }
+    /* ── AI Chat UI ─────────────────────────────────────────── */
+    .ai-chat-wrap {
+      border: 1px solid rgba(139,92,246,.25); border-radius: 16px;
+      background: var(--surface); overflow: hidden; margin-bottom: 18px;
+    }
+    .ai-chat-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      background: linear-gradient(135deg,rgba(30,99,217,.12),rgba(139,92,246,.08));
+      border-bottom: 1px solid rgba(139,92,246,.18);
+    }
+    .ai-chat-hdr-title { font-size: .82rem; font-weight: 800; letter-spacing: .02em; }
+    .ai-chat-status {
+      font-size: .68rem; color: var(--green); font-weight: 700; white-space: nowrap;
+    }
+    .ai-chat-status.busy { color: var(--yellow); }
+    .ai-chat-msgs {
+      min-height: 180px; max-height: 460px; overflow-y: auto;
+      padding: 14px 14px 6px; display: flex; flex-direction: column; gap: 10px;
+      scroll-behavior: smooth;
+    }
+    .ai-msg-row { display: flex; max-width: 100%; }
+    .ai-msg-row.user { justify-content: flex-end; }
+    .ai-msg-row.ai   { justify-content: flex-start; }
+    .ai-msg-bubble {
+      max-width: 88%; border-radius: 14px; padding: 10px 14px;
+      font-size: .82rem; line-height: 1.6; word-break: break-word;
+    }
+    .ai-msg-bubble.user {
+      background: linear-gradient(135deg,rgba(30,99,217,.8),rgba(139,92,246,.75));
+      color: #fff; border-bottom-right-radius: 4px;
+    }
+    .ai-msg-bubble.ai {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(139,92,246,.18);
+      color: var(--text); border-bottom-left-radius: 4px;
+    }
+    .ai-msg-sender {
+      font-size: .64rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: rgba(139,92,246,.8); margin-bottom: 5px;
+    }
+    .ai-msg-body p { margin: 0 0 6px; }
+    .ai-msg-body p:last-child { margin-bottom: 0; }
+    .ai-msg-body ul { margin: 4px 0 4px 16px; padding: 0; }
+    .ai-msg-body li { margin-bottom: 2px; }
+    /* Typing indicator */
+    .ai-typing { display: flex; gap: 4px; align-items: center; padding: 2px 0; }
+    .ai-typing span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(139,92,246,.6);
+      animation: aiTyping 1.2s ease-in-out infinite;
+    }
+    .ai-typing span:nth-child(2) { animation-delay: .2s; }
+    .ai-typing span:nth-child(3) { animation-delay: .4s; }
+    @keyframes aiTyping { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-6px);opacity:1} }
+    /* Quick chip bar */
+    .ai-chip-bar {
+      display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 14px 10px;
+      border-top: 1px solid rgba(255,255,255,.05);
+    }
+    .ai-chip {
+      font-size: .72rem; font-weight: 600; padding: 5px 12px; border-radius: 20px;
+      border: 1px solid rgba(139,92,246,.3); cursor: pointer;
+      background: rgba(139,92,246,.08); color: var(--text);
+      transition: background .15s, border-color .15s; white-space: nowrap;
+    }
+    .ai-chip:hover { background: rgba(139,92,246,.18); border-color: rgba(139,92,246,.5); }
+    /* Chat input bar */
+    .ai-chat-input-bar {
+      display: flex; align-items: flex-end; gap: 8px;
+      padding: 10px 12px; border-top: 1px solid rgba(139,92,246,.15);
+    }
+    .ai-chat-input-bar textarea {
+      flex: 1; resize: none; overflow: hidden; min-height: 36px; max-height: 120px;
+      font-size: .84rem; padding: 8px 12px; border-radius: 12px;
+      border: 1px solid rgba(139,92,246,.3); background: var(--bg);
+      color: var(--text); outline: none; font-family: inherit; line-height: 1.5;
+      transition: border-color .15s;
+    }
+    .ai-chat-input-bar textarea:focus { border-color: rgba(139,92,246,.65); }
+    .ai-chat-input-bar textarea::placeholder { color: var(--muted); }
+    .ai-chat-input-bar button {
+      width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0;
+      background: linear-gradient(135deg,rgba(30,99,217,.9),rgba(139,92,246,.9));
+      color: #fff; font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      transition: opacity .15s;
+    }
+    .ai-chat-input-bar button:disabled { opacity: .45; cursor: default; }
+    /* Footer */
+    .ai-chat-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 14px 10px; font-size: .72rem; gap: 8px;
+    }
+    .ai-port-tag {
+      font-size: .7rem; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ai-port-tag a, .ai-port-tag span[onclick] { color: var(--blue); cursor: pointer; }
+    .ai-clear-btn {
+      font-size: .7rem; padding: 3px 10px; border-radius: 8px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    }
+    .ai-clear-btn:hover { color: var(--red); border-color: var(--red); }
+    /* AI body scanner dashboard gap */
+    #ai-body { margin-top: 4px; }
     .trend-hot { font-size: .72rem; font-weight: 700; color: var(--green);
       background: rgba(34,197,94,.12); padding: 1px 7px; border-radius: 20px; }
     .trends-meta { margin: 0 0 10px; font-size: .78rem; color: var(--muted); }
@@ -1587,15 +1691,28 @@
 
   <!-- AI SCANNER PANEL -->
   <div id="ai-panel" style="display:none">
-    <!-- English question input -->
-    <div class="ai-ask-box">
-      <input id="ai-ask-input" type="text" placeholder='💬 Ask about any stock… e.g. "Is NVDA a good buy?" or "Tell me about Apple"'
-        onkeydown="if(event.key==='Enter')askAIAboutStock()">
-      <button id="ai-ask-btn" onclick="askAIAboutStock()">Ask →</button>
+    <!-- Chat interface -->
+    <div class="ai-chat-wrap">
+      <div class="ai-chat-hdr">
+        <span class="ai-chat-hdr-title">🤖 IntelliMarket AI Advisor</span>
+        <span class="ai-chat-status" id="ai-chat-status">● Ready</span>
+      </div>
+      <div class="ai-chat-msgs" id="ai-chat-msgs"></div>
+      <div class="ai-chip-bar" id="ai-chip-bar"></div>
+      <div class="ai-chat-input-bar">
+        <textarea id="ai-chat-input" rows="1"
+          placeholder="Ask about stocks, strategies, your portfolio…"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIChat()}"
+          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+        <button id="ai-chat-send" onclick="sendAIChat()" title="Send (Enter)">&#8593;</button>
+      </div>
+      <div class="ai-chat-foot">
+        <span class="ai-port-tag" id="ai-port-tag"></span>
+        <button class="ai-clear-btn" onclick="clearAIChat()">&#128465; Clear</button>
+      </div>
     </div>
-    <!-- Ask result (stock card + AI answer) -->
-    <div id="ai-ask-result" style="display:none"></div>
-    <div id="ai-body"><div class="empty">Initializing AI Market Scanner…</div></div>
+    <!-- Market scanner dashboard below chat -->
+    <div id="ai-body"></div>
   </div>
 
   <!-- MORNING BRIEFING PANEL -->
@@ -5067,240 +5184,535 @@ function renderAIScanner(data) {
 
 /* ─────────────────────────────────────────────────────────
    KEY MANAGEMENT (silent — no UI form)
-   To change key: localStorage.setItem('ss_oai_key','sk-...')
+   To set key: localStorage.setItem('ss_oai_key','sk-...')
 ───────────────────────────────────────────────────────── */
-function _renderAIKeyForm() { /* no-op — key is baked in */ }
-
+function _renderAIKeyForm() { /* no-op */ }
 function saveAIKey() {
   const inp = document.getElementById('ai-key-input');
   const key = (inp?.value || '').trim();
-  if (!key || !key.startsWith('sk-')) {
-    if (inp) { inp.style.borderColor = 'var(--red)'; inp.focus(); }
-    return;
-  }
-  _saveOAIKey(key);
-  _aiScannerLoaded = false;
-  loadAIScanner(true);
+  if (!key || !key.startsWith('sk-')) { if (inp) { inp.style.borderColor='var(--red)'; inp.focus(); } return; }
+  _saveOAIKey(key); _aiScannerLoaded = false; loadAIScanner(true);
 }
 
-/* ─────────────────────────────────────────────────────────
-   ASK AI ABOUT A STOCK (plain-English question → AI answer + stock card)
-───────────────────────────────────────────────────────── */
-let _askBusy = false;
+/* ═══════════════════════════════════════════════════════════
+   AI CHAT — state + helpers
+═══════════════════════════════════════════════════════════ */
+const _aiChat = {
+  history:      [],   // [{role, content}] last 16 items kept
+  portfolioCtx: localStorage.getItem('ss_portfolio_ctx') || null,
+  busy:         false,
+  initialized:  false,
+};
 
-async function askAIAboutStock() {
-  if (_askBusy) return;
-  const inp   = document.getElementById('ai-ask-input');
-  const btn   = document.getElementById('ai-ask-btn');
-  const box   = document.getElementById('ai-ask-result');
-  const q     = (inp?.value || '').trim();
+const _AI_CHIPS = [
+  { label: '📊 Market pulse today',         q: 'What is the market doing today?' },
+  { label: '🏆 Best stocks to watch',        q: 'Which stocks look best to buy right now?' },
+  { label: '⚡ High volume movers',          q: 'Show me stocks with unusually high volume today' },
+  { label: '🔮 Tomorrow\'s outlook',         q: 'What is the market outlook for tomorrow?' },
+  { label: '💼 Review my portfolio',         q: 'Review my portfolio and give me suggestions' },
+  { label: '📉 Dip buying strategy',         q: 'Explain the dip buying strategy and when to use it' },
+  { label: '🧠 How to use RSI',              q: 'How do I use RSI to time stock entries?' },
+  { label: '⚙️ How IntelliMarket scores work', q: 'How does the IntelliMarket scoring system work?' },
+];
+
+// ── Ticker extractor (module-scope so chat + other functions can use it) ──
+function _extractTicker(text) {
+  const lower = text.toLowerCase();
+  const upper = text.toUpperCase();
+  const nameMap = {};
+  for (const { t, n } of PORTFOLIO_STOCKS) {
+    nameMap[n.toLowerCase()] = t;
+    const fw = n.split(/[\s\/]/)[0].toLowerCase();
+    if (fw.length >= 3) nameMap[fw] = t;
+  }
+  Object.assign(nameMap, {
+    'tesla':'TSLA','apple':'AAPL','nvidia':'NVDA','google':'GOOGL','alphabet':'GOOGL',
+    'amazon':'AMZN','microsoft':'MSFT','meta':'META','facebook':'META','netflix':'NFLX',
+    'walmart':'WMT','costco':'COST','palantir':'PLTR','shopify':'SHOP','crowdstrike':'CRWD',
+    'cloudflare':'NET','salesforce':'CRM','oracle':'ORCL','broadcom':'AVGO','qualcomm':'QCOM',
+    'intel':'INTC','micron':'MU','amd':'AMD','arm':'ARM','uber':'UBER','intuit':'INTU',
+    'servicenow':'NOW','accenture':'ACN','jpmorgan':'JPM','visa':'V','mastercard':'MA',
+    'exxon':'XOM','abbvie':'ABBV','lilly':'LLY','unitedhealth':'UNH','novo':'NVO',
+    'amgen':'AMGN','taiwan':'TSM','tsmc':'TSM','asml':'ASML','goldman':'GS',
+    'morgan stanley':'MS','bofa':'BAC','bank of america':'BAC',
+  });
+  const portSet = new Set(PORTFOLIO_STOCKS.map(x => x.t));
+  if (/^[A-Z]{1,5}$/.test(upper.trim()) && portSet.has(upper.trim())) return upper.trim();
+  const words = lower.split(/\s+/);
+  for (let len = 3; len >= 1; len--) {
+    for (let i = 0; i <= words.length - len; i++) {
+      const phrase = words.slice(i, i + len).join(' ');
+      if (nameMap[phrase]) return nameMap[phrase];
+    }
+  }
+  for (const t of portSet) { if (new RegExp(`\\b${t}\\b`, 'i').test(text)) return t; }
+  const m = text.match(/\b([A-Z]{2,5})\b/);
+  return m ? m[1] : null;
+}
+
+// ── Add a message bubble to the chat ──
+function _addAIChatMsg(role, htmlContent) {
+  const msgs = document.getElementById('ai-chat-msgs');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.className = `ai-msg-row ${role}`;
+  div.innerHTML = role === 'user'
+    ? `<div class="ai-msg-bubble user"><div class="ai-msg-body">${htmlContent}</div></div>`
+    : `<div class="ai-msg-bubble ai"><div class="ai-msg-sender">🤖 IntelliMarket AI</div><div class="ai-msg-body">${htmlContent}</div></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function _showTyping() {
+  const msgs = document.getElementById('ai-chat-msgs');
+  if (!msgs || document.getElementById('ai-typing')) return;
+  const div = document.createElement('div');
+  div.className = 'ai-msg-row ai'; div.id = 'ai-typing';
+  div.innerHTML = `<div class="ai-msg-bubble ai"><div class="ai-typing"><span></span><span></span><span></span></div></div>`;
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
+}
+function _hideTyping() { document.getElementById('ai-typing')?.remove(); }
+
+function _setChatStatus(text, busy) {
+  const el = document.getElementById('ai-chat-status');
+  if (!el) return;
+  el.textContent = (busy ? '⟳' : '●') + '\u00a0' + text;
+  el.className = 'ai-chat-status' + (busy ? ' busy' : '');
+}
+
+// ── Portfolio tag display ──
+function _updatePortfolioTag() {
+  const tag = document.getElementById('ai-port-tag');
+  if (!tag) return;
+  if (_aiChat.portfolioCtx) {
+    const preview = _aiChat.portfolioCtx.replace(/^my portfolio[:\s]*/i,'').slice(0,55);
+    tag.innerHTML = `<span title="Click to update" onclick="promptAIPortfolio()" style="cursor:pointer">📂 ${esc(preview)}…</span>`;
+  } else {
+    tag.innerHTML = `<span onclick="promptAIPortfolio()" style="cursor:pointer;color:var(--blue)">📂 Set portfolio context</span>`;
+  }
+}
+
+// ── Build market context summary for prompts ──
+function _buildMarketContext() {
+  const stocks = Object.values(S.data).filter(d => d && !d.err && d.price);
+  const spy = S.data['SPY'], qqq = S.data['QQQ'];
+  const up  = stocks.filter(d => d.changePct > 0).length;
+  const dn  = stocks.filter(d => d.changePct < 0).length;
+  const topBuys = stocks
+    .map(d => ({ d, sig: signal(d), c: computeConfidence(d) }))
+    .filter(x => x.sig.rank <= 2)
+    .sort((a,b) => a.sig.rank - b.sig.rank || b.c - a.c)
+    .slice(0,6)
+    .map(x => `${x.d.ticker}(score:${x.d.netScore},RSI:${Math.round(x.d.rsi||0)},conf:${x.c}%)`);
+  const highVol = stocks
+    .filter(d => (d.volumeRatio||0) >= 2)
+    .sort((a,b) => (b.volumeRatio||0)-(a.volumeRatio||0))
+    .slice(0,5).map(d => `${d.ticker}(${(d.volumeRatio||0).toFixed(1)}×)`);
+  const sorted  = [...stocks].sort((a,b) => b.changePct - a.changePct);
+  const gainers = sorted.slice(0,5).map(d => `${d.ticker}(${d.changePct>=0?'+':''}${d.changePct.toFixed(1)}%)`);
+  const losers  = sorted.slice(-5).reverse().map(d => `${d.ticker}(${d.changePct.toFixed(1)}%)`);
+  return {
+    date:   new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}),
+    spyChg: spy ? `${spy.changePct>=0?'+':''}${spy.changePct.toFixed(2)}%` : 'N/A',
+    qqqChg: qqq ? `${qqq.changePct>=0?'+':''}${qqq.changePct.toFixed(2)}%` : 'N/A',
+    spyScore: spy?.netScore ?? 'N/A', qqqScore: qqq?.netScore ?? 'N/A',
+    up, dn, total: stocks.length,
+    topBuys: topBuys.join(', ') || 'none', highVol: highVol.join(', ') || 'none',
+    gainers: gainers.join(', '), losers: losers.join(', '),
+  };
+}
+
+// ── Rule-based responses (no API key needed) ──
+function _ruleBasedResponse(q, ctx) {
+  const lower = q.toLowerCase();
+  const ticker = _extractTicker(q);
+
+  // Portfolio review
+  if (lower.match(/my portfolio|my holdings|my positions|review.*portfolio|portfolio.*review|what.*hold|should.*sell/)) {
+    if (_aiChat.portfolioCtx) return _analyzePortfolioCtx(ctx);
+    return `<strong>💼 Portfolio Review</strong><br>Share your portfolio first and I'll analyze it in detail.<br><br>Just type something like:<br><em>"My portfolio: AAPL 50 shares, NVDA 30, MSFT 100, AMD 40"</em><br><br>I'll then review: signal strength, risk per position, overexposure, and what to add, hold, or trim based on live market data.`;
+  }
+
+  // Market pulse / overview
+  if (lower.match(/market|today|how.*doing|what.*happening|overall|overview|pulse|breadth/)) {
+    const trend = ctx.spyScore >= 2 ? '🟢 Bullish — buyers in control'
+                : ctx.spyScore <= -1 ? '🔴 Bearish — sellers leading'
+                : '🟡 Mixed — no clear edge';
+    return `<strong>📊 Market Pulse — ${ctx.date}</strong><br><br>` +
+      `<strong>Overall:</strong> ${trend}<br>` +
+      `<strong>S&P 500 (SPY):</strong> ${ctx.spyChg} · Score ${ctx.spyScore>0?'+':''}${ctx.spyScore}<br>` +
+      `<strong>Nasdaq (QQQ):</strong> ${ctx.qqqChg} · Score ${ctx.qqqScore>0?'+':''}${ctx.qqqScore}<br>` +
+      `<strong>Breadth:</strong> ${ctx.up} up · ${ctx.dn} down (${ctx.total} tracked)<br><br>` +
+      `<strong>🏆 Top Buy Signals:</strong><br>${ctx.topBuys || 'None confirmed right now'}<br><br>` +
+      `<strong>⚡ Unusual Volume:</strong><br>${ctx.highVol || 'Volume near average'}<br><br>` +
+      (ctx.spyScore <= -1 ? `<em>⚠️ Market under pressure. Reduce size, tighten stops to -1.5%, watch for capitulation volume as reversal signal.</em>`
+        : ctx.spyScore >= 2 ? `<em>✅ Good backdrop for momentum entries. Focus on stocks at week lows with confirmed buy signals.</em>`
+        : `<em>◆ Selective market. Only enter setups with score ≥5 and confirmed volume. Avoid chasing extended names.</em>`);
+  }
+
+  // Best picks / buy now
+  if (lower.match(/best|top pick|good buy|what.*buy|buy.*right now|strong.*stock|recommend/)) {
+    const stocks = Object.values(S.data).filter(d => d && !d.err && d.price);
+    const buys = stocks.map(d => ({d, sig:signal(d), conf:computeConfidence(d)}))
+      .filter(x => x.sig.rank <= 2).sort((a,b) => a.sig.rank-b.sig.rank || b.conf-a.conf).slice(0,6);
+    if (!buys.length) return `<strong>🔍 No Strong Buy Signals Right Now</strong><br>The market isn't showing confirmed buy-grade setups. This is common when most stocks are extended near week highs, or volume is below average.<br><br><em>Strategy: Wait for 1-3 days of calm pullback on strong names. The best entries come after healthy digestion, not during momentum peaks. Check back after next market session.</em>`;
+    let html = `<strong>🏆 Best Stocks to Watch Right Now</strong><br><br>`;
+    for (const {d, sig, conf} of buys) {
+      const pos = Math.round((d.livePos||0)*100);
+      html += `<strong>${d.ticker}</strong> — ${sig.label.replace(/[\u{1F7E2}\u{1F4C8}\u{1F680}]/u,'').trim()}<br>&nbsp;&nbsp;Score: ${d.netScore>0?'+':''}${d.netScore} · RSI ${Math.round(d.rsi||0)} · Conf ${conf}% · Week pos ${pos}%<br>`;
+    }
+    return html + `<br><em>💡 Enter in small lots. Set -2% stop-loss. Target: 5-day high (+3-5% average). Exit before earnings if within 5 days.</em>`;
+  }
+
+  // High volume movers
+  if (lower.match(/volume|active|unusual|mover|spike/)) {
+    const stocks = Object.values(S.data).filter(d => d && !d.err && d.price && (d.volumeRatio||0) >= 1.5);
+    stocks.sort((a,b) => (b.volumeRatio||0)-(a.volumeRatio||0));
+    if (!stocks.length) return `<strong>📊 Volume Activity</strong><br>No unusual volume detected. All tracked stocks are trading near average volume levels — typical of low-conviction sessions.`;
+    let html = `<strong>⚡ High Volume Movers (1.5×+ average)</strong><br><br>`;
+    for (const d of stocks.slice(0,7)) {
+      const vr=(d.volumeRatio||0).toFixed(1), pct=(d.changePct>=0?'+':'')+d.changePct.toFixed(2)+'%';
+      const col=d.changePct>=0?'color:var(--green)':'color:var(--red)';
+      const vcol=d.volumeRatio>=3?'color:var(--red)':d.volumeRatio>=2?'color:var(--yellow)':'color:var(--muted)';
+      html += `<strong>${d.ticker}</strong> — <span style="${col}">${pct}</span> · <span style="${vcol}">${vr}× volume</span><br>`;
+    }
+    return html + `<br><em>💡 High volume = institutional activity. Up-moves on 2×+ volume are more sustainable than low-volume pumps. Down-moves on 3×+ volume = potential capitulation (buying opportunity).</em>`;
+  }
+
+  // Tomorrow / outlook / forecast
+  if (lower.match(/tomorrow|next.*day|outlook|forecast|predict/)) {
+    const spy = S.data['SPY'], qqq = S.data['QQQ'];
+    const ss = spy?.netScore??0, qs = qqq?.netScore??0, mean = (ss+qs)/2;
+    const sent = mean>=2?'🟢 Bullish':mean<=-1?'🔴 Bearish':'🟡 Neutral';
+    const stocks = Object.values(S.data).filter(d=>d&&!d.err&&d.price);
+    const buys   = stocks.filter(d=>signal(d).rank<=2).length;
+    const hvol   = stocks.filter(d=>(d.volumeRatio||0)>=2).length;
+    const strat  = mean>=2 ? '✅ <strong>Approach:</strong> Momentum longs at week lows. Hold with trailing stop at -2%. Scale into strength.'
+                 : mean<=-1? '⚠️ <strong>Approach:</strong> Defensive. No new longs unless score ≥6. Tighten existing stops to -1.5%. Watch for 3×+ volume as capitulation signal.'
+                 : '◆ <strong>Approach:</strong> Selective. Only high-conviction setups (score ≥5, conf ≥70%). Half normal position size.';
+    return `<strong>🔮 Tomorrow's Outlook</strong><br><br><strong>Sentiment:</strong> ${sent}<br><strong>SPY Score:</strong> ${ss>0?'+':''}${ss} | <strong>QQQ Score:</strong> ${qs>0?'+':''}${qs}<br><strong>Buy-grade signals:</strong> ${buys} stocks<br><strong>High-volume activity today:</strong> ${hvol} stocks<br><br>${strat}`;
+  }
+
+  // RSI explanation
+  if (lower.includes('rsi')) {
+    return `<strong>📈 RSI (Relative Strength Index) Guide</strong><br><br>RSI measures price momentum on a 0–100 scale:<br><br>• <strong>&lt;30 — Oversold:</strong> Potential bounce, but confirm with volume<br>• <strong>30–50 — Recovering:</strong> Best dip-buy zone for IntelliMarket entries<br>• <strong>50–65 — Healthy momentum:</strong> Momentum entries work here<br>• <strong>65–70 — Extended:</strong> Caution, reduce position size<br>• <strong>&gt;70 — Overbought:</strong> Avoid new longs, consider trimming<br><br><strong>In IntelliMarket:</strong> RSI below 65 is required for buy signals. RSI above 65 adds a bearish point to the score.<br><br><em>💡 Best combo: RSI 35–55 + bottom 35% of week range + score ≥4 = ideal entry zone with low risk.</em>`;
+  }
+
+  // MACD
+  if (lower.includes('macd')) {
+    return `<strong>📊 MACD Guide</strong><br><br>MACD = 12-day EMA minus 26-day EMA. Shows momentum direction and strength:<br><br>• <strong>MACD above 0:</strong> Bullish momentum<br>• <strong>MACD below 0:</strong> Bearish momentum<br>• <strong>Crosses above signal line:</strong> Buy signal<br>• <strong>Crosses below signal line:</strong> Sell signal<br><br><strong>In IntelliMarket:</strong> MACD above signal line is needed for Momentum Buy signals — unless volume is 1.8×+ average (breakout override). This prevents MACD lag from missing fast gap-ups like NVDA or AMD.<br><br><em>💡 Use MACD for direction confirmation, not entry timing. RSI + week position are better for exact entries.</em>`;
+  }
+
+  // Breakout strategy
+  if (lower.match(/breakout|break out|gap up/)) {
+    return `<strong>🚀 Breakout Trading Strategy</strong><br><br>A breakout = stock moves above resistance with high volume (institutional confirmation).<br><br><strong>IntelliMarket Breakout Criteria:</strong><br>• Change ≥ 2.5% today<br>• Volume ≥ 1.8× normal<br>• Week position 40–88% (not at extremes)<br>• RSI below 76 (room to run)<br>• Score ≥3<br><br><strong>How to trade:</strong><br>1. Enter same day on volume confirmation (not the next day)<br>2. Stop-loss at -2% from entry (tight)<br>3. Target: previous resistance or 5-day high<br>4. Exit if volume fades days 2-3 (distribution)<br><br><em>💡 70% of breakouts fail without volume. The 1.8×+ filter dramatically improves win rate. Never buy a breakout on low volume — it's a trap.</em>`;
+  }
+
+  // Dip buying
+  if (lower.match(/dip|pullback|buy.*low|selling exhaustion/)) {
+    return `<strong>📉 Dip Buying Strategy</strong><br><br>Dip buying = entering strong stocks during temporary pullbacks within an uptrend.<br><br><strong>IntelliMarket Dip Criteria:</strong><br>• 2+ consecutive down-closing days<br>• Week position ≤ 35% (bottom third of 5-day range)<br>• 20-day trend still positive (uptrend intact)<br>• Volume <em>declining</em> on down days (healthy selloff, not panic)<br><br><strong>How to trade:</strong><br>1. Wait for app to show "Buy Now" or "Good Entry" signal<br>2. Enter in 2 parts: 50% at signal, 50% if it dips further intraday<br>3. Stop-loss: below week low (-2 to -2.5%)<br>4. Target: week high (+3–5% average hold)<br><br><em>💡 The key is <strong>selling exhaustion</strong> — red candles getting smaller + volume shrinking. That's institutional hands absorbing supply before the bounce.</em>`;
+  }
+
+  // IntelliMarket scoring system
+  if (lower.match(/score|intellimarket|scoring system|how.*work|signal.*mean/)) {
+    return `<strong>⚙️ IntelliMarket Scoring System</strong><br><br>Every stock gets a <strong>Net Score from -15 to +15</strong>:<br><br><strong>✅ Bullish factors (add points):</strong><br>• Near 5-day low (best entry zone) · Strong 20d uptrend<br>• High-volume breakout · Insider buying<br>• Selling exhaustion · Earnings beat · Good fundamentals (P/E, growth)<br><br><strong>❌ Bearish factors (subtract points):</strong><br>• Near 5-day high (extended) · Below EMA20<br>• RSI above 65 · MACD below signal · Insider selling<br>• High-volume selloff<br><br><strong>Signal Thresholds:</strong><br>• Score ≥6 + conf ≥88% → 🟢 Buy Now (strongest)<br>• Score ≥4 + conf ≥65% → 🟢 Good Entry<br>• Score ≥5 + volume + uptrend → 📈 Momentum Buy<br>• Score ≤-2 → 🟠 Caution · Score ≤-4 → 🔴 Avoid<br><br><em>Week Position 0–100%: lower is better entry. 0% = at 5-day low (ideal). 100% = at 5-day high (avoid).</em>`;
+  }
+
+  // Position sizing
+  if (lower.match(/position size|how much|risk management|how many shares|allocat/)) {
+    return `<strong>⚖️ Position Sizing & Risk Management</strong><br><br><strong>General Rule: Never risk more than 1-2% of total portfolio on a single trade.</strong><br><br>Formula: <em>Position Size = (Portfolio × Risk%) ÷ Stop-Loss%</em><br><br>Example — $10,000 portfolio, 1% risk, -2% stop:<br>→ $10,000 × 1% = $100 max loss<br>→ $100 ÷ 2% = $5,000 position size<br>→ Buy $5,000 worth of shares<br><br><strong>IntelliMarket guidelines:</strong><br>• Buy Now signal, conf ≥80%: up to full size<br>• Good Entry, conf 65-80%: 75% of normal size<br>• Mixed/neutral market: 50% of normal size<br>• Score 4-5 only: 50% of normal, add if confirmed next day<br><br><em>💡 The biggest mistake investors make: full-size entries on low-conviction signals. Half size + confirmed entry = same profit potential, half the risk.</em>`;
+  }
+
+  // Specific ticker analysis
+  if (ticker) return _tickerAnalysisHTML(ticker);
+
+  // Generic fallback
+  return `I'm your IntelliMarket AI Advisor — trained on technical analysis, trading strategies, and live market scoring data.<br><br>Try asking:<br>• <em>"What's the market doing today?"</em><br>• <em>"Which stocks look best to buy?"</em><br>• <em>"Explain the breakout strategy"</em><br>• <em>"Analyze NVDA"</em><br>• <em>"My portfolio: AAPL 50, NVDA 30"</em> — share your holdings for a full review<br><br>${!_getOAIKey() ? '<span style="color:var(--muted);font-size:.78rem">💡 For free-text AI answers add your OpenAI key: <code>localStorage.setItem(\'ss_oai_key\',\'sk-...\')</code></span>' : ''}`;
+}
+
+// ── Ticker-specific analysis card ──
+function _tickerAnalysisHTML(ticker) {
+  const d = S.data[ticker];
+  if (!d || d.err) {
+    return `Let me pull up <strong>${esc(ticker)}</strong> for you.
+      <div id="ai-inline-${esc(ticker)}" style="margin-top:10px">
+        <button class="ai-chip" onclick="_loadAIChatCard('${esc(ticker)}',this)">📊 Load ${esc(ticker)} data</button>
+      </div>`;
+  }
+  const sig  = signal(d), conf = computeConfidence(d);
+  const pos  = Math.round((d.livePos||0)*100);
+  const pct  = (d.changePct>=0?'+':'')+d.changePct.toFixed(2)+'%';
+  const col  = d.changePct>=0?'color:var(--green)':'color:var(--red)';
+  const trendStr = d.ret20>=3?'📈 Strong uptrend':d.ret20>0?'📈 Uptrend':d.ret20>=-3?'➡️ Sideways':'📉 Downtrend';
+  const riskLbl  = pos>80?'⚠️ High — near week high, wait for pullback'
+                 : pos>60?'🟡 Moderate-high — upper half, be cautious'
+                 : pos<30?'🟢 Low — near week low, good entry zone'
+                 : '🟢 Moderate — mid-range';
+  const actionStr = sig.rank<=2 ? `✅ <strong>Action:</strong> ${sig.label.replace(/[\u{1F7E2}\u{1F4C8}\u{1F680}]/u,'').trim()}`
+                  : sig.rank<=4 ? `👀 <strong>Action:</strong> Watch — building but not fully confirmed`
+                  : `⏳ <strong>Action:</strong> Wait — not a good entry right now`;
+  let html = `<strong>📊 ${esc(ticker)} Analysis</strong><br><br>` +
+    `<strong>Price:</strong> $${d.price?.toFixed(2)} &nbsp;<span style="${col}">${pct}</span><br>` +
+    `<strong>Signal:</strong> ${sig.label}<br>` +
+    `<strong>Net Score:</strong> ${d.netScore>0?'+':''}${d.netScore} · <strong>Confidence:</strong> ${conf}%<br>` +
+    `<strong>RSI (14):</strong> ${Math.round(d.rsi||0)} · <strong>MACD:</strong> ${(d.macdDiff||0)>=0?'▲':'▼'} ${Math.abs(d.macdDiff||0).toFixed(3)}<br>` +
+    `<strong>Week Position:</strong> ${pos}% · <strong>20d Trend:</strong> ${trendStr} (${(d.ret20||0)>0?'+':''}${(d.ret20||0).toFixed(1)}%)<br>` +
+    `<strong>Volume:</strong> ${(d.volumeRatio||0).toFixed(1)}× avg · <strong>EMA20:</strong> $${(d.ema20||0).toFixed(2)}<br><br>` +
+    `<strong>Risk:</strong> ${riskLbl}<br>${actionStr}<br>`;
+  if (d.nextEarnings) {
+    const days = Math.round((d.nextEarnings - new Date()) / 86400000);
+    html += `<strong>Earnings:</strong> ${days>0?`in ${days} day${days===1?'':'s'}`:'imminent'} ${days<=5&&days>=-1?'⚠️ — reduce size, high risk':'— plan exit before earnings date'}<br>`;
+  }
+  html += `<div id="ai-inline-${esc(ticker)}" style="margin-top:10px"><button class="ai-chip" onclick="_loadAIChatCard('${esc(ticker)}',this)">📊 Open full ${esc(ticker)} card</button></div>`;
+  return html;
+}
+
+// ── Portfolio context analysis ──
+function _analyzePortfolioCtx(ctx) {
+  const portText = _aiChat.portfolioCtx;
+  const tickers = [...portText.matchAll(/\b([A-Z]{1,5})\b/g)]
+    .map(m=>m[1]).filter(t=>!['MY','I','HAVE','OWN','THE','AND','IN','AT','A','TO','FOR'].includes(t));
+  if (!tickers.length) return `I couldn't parse tickers from your portfolio. Try: <em>"AAPL 50, NVDA 30, MSFT 100"</em>`;
+
+  const signals = tickers.map(t => {
+    const d = S.data[t]; if (!d||d.err) return {t,status:'unknown'};
+    const sig=signal(d), conf=computeConfidence(d), pos=Math.round((d.livePos||0)*100);
+    return {t, d, sig, conf, pos, score:d.netScore, rsi:Math.round(d.rsi||0)};
+  });
+  const loaded = signals.filter(s=>s.d);
+  const holds  = loaded.filter(s=>s.sig.rank<=3);
+  const reduce = loaded.filter(s=>s.sig.rank>=7||s.pos>82);
+  const watch  = loaded.filter(s=>s.sig.rank>=4&&s.sig.rank<=6&&!reduce.includes(s));
+
+  let html = `<strong>💼 Portfolio Review</strong><br><br><strong>Positions:</strong> ${tickers.join(', ')}<br><br>`;
+  if (holds.length) {
+    html += `<strong>✅ Hold / Consider Adding:</strong><br>`;
+    holds.forEach(s => { html += `&nbsp;&nbsp;<strong>${s.t}</strong> — ${s.sig.label.replace(/[\u{1F7E2}\u{1F4C8}\u{1F680}👀⏳🟡🟠🔴]/u,'').trim()} · Score ${s.score>0?'+':''}${s.score} · RSI ${s.rsi}<br>`; });
+    html += '<br>';
+  }
+  if (watch.length) {
+    html += `<strong>👀 Hold / Watch:</strong><br>`;
+    watch.forEach(s => { html += `&nbsp;&nbsp;<strong>${s.t}</strong> — signals building, not fully confirmed (Score ${s.score>0?'+':''}${s.score})<br>`; });
+    html += '<br>';
+  }
+  if (reduce.length) {
+    html += `<strong>⚠️ Consider Reducing / Tightening Stop:</strong><br>`;
+    reduce.forEach(s => { html += `&nbsp;&nbsp;<strong>${s.t}</strong> — ${s.pos>82?'extended near week high':'weak signals'} · Score ${s.score>0?'+':''}${s.score}<br>`; });
+    html += '<br>';
+  }
+  const unknown = signals.filter(s=>s.status==='unknown');
+  if (unknown.length) html += `<span style="color:var(--muted);font-size:.78rem">⚠️ Data not loaded for: ${unknown.map(s=>s.t).join(', ')} — open Portfolio tab first</span><br><br>`;
+  const ss = S.data['SPY']?.netScore??0;
+  html += ss>=2 ? `<em>📈 Market backdrop is supportive (SPY score +${ss}). Conditions favor holding momentum positions.</em>`
+         : ss<=-1 ? `<em>⚠️ Market under pressure (SPY score ${ss}). Tighten stops across portfolio, especially overextended names.</em>`
+         : `<em>◆ Market mixed. Hold high-conviction positions; reduce or avoid adding to names at week highs.</em>`;
+  return html;
+}
+
+// ── Load a stock card inline in chat ──
+async function _loadAIChatCard(ticker, btn) {
+  const container = document.getElementById(`ai-inline-${ticker}`);
+  if (!container) return;
+  if (btn) { btn.disabled=true; btn.textContent=`Loading…`; }
+  try {
+    if (!S.data[ticker]||S.data[ticker].err) { delete S.data[ticker]; await loadOne(ticker); }
+    const d = S.data[ticker];
+    container.innerHTML = d&&!d.err ? buildCard(d,1,true)
+      : `<div class="empty" style="padding:8px;font-size:.78rem">Could not load ${esc(ticker)}</div>`;
+  } catch { container.innerHTML=`<div class="empty" style="padding:8px;font-size:.78rem">Error loading ${esc(ticker)}</div>`; }
+}
+
+// ── OpenAI call with full conversation history ──
+async function _callOpenAI(q, ctx, key) {
+  const sysPrompt = `You are IntelliMarket AI — a professional stock market advisor built into the IntelliMarket Analyst platform. Today is ${ctx.date}.
+
+EXPERTISE: Technical analysis (RSI, MACD, EMA, volume, support/resistance, week-range positioning), fundamental analysis (P/E, PEG, debt-to-equity, revenue & earnings growth), trading strategies (momentum, dip-buying, breakout, swing trading), risk management (stop-loss placement, position sizing, diversification, sector rotation).
+
+INTELLIMARKET SCORING SYSTEM:
+- Net Score: -15 to +15 (bullish factors minus bearish factors)
+- 🟢 Buy Now: score ≥6, confidence ≥88%, week-position ≤35%, RSI 25–65, confirmed dip
+- 🟢 Good Entry: score ≥4, confidence ≥65%, lower half of week range
+- 📈 Momentum Buy: score ≥5, 20d uptrend positive, volume ≥1.2× average
+- 🚀 Big Move: change ≥2.5%, volume ≥1.8×, mid-range position, not fading
+- 🟠 Caution: score ≤−2 | 🔴 Avoid: score ≤−4
+- Week Position 0–100%: 0% = at 5-day low (best entry), 100% = at 5-day high (avoid)
+- Confidence 0–99%: weighted by week position, selling exhaustion, volume character, 20d trend, RSI, fundamentals
+
+LIVE MARKET DATA (${ctx.date}):
+- S&P 500 (SPY): ${ctx.spyChg} | Score: ${ctx.spyScore}
+- Nasdaq (QQQ): ${ctx.qqqChg} | Score: ${ctx.qqqScore}
+- Market breadth: ${ctx.up} advancing · ${ctx.dn} declining (${ctx.total} tracked)
+- Top buy signals: ${ctx.topBuys}
+- Unusual volume (2×+): ${ctx.highVol}
+- Today's top gainers: ${ctx.gainers}
+- Today's notable losers: ${ctx.losers}
+${_aiChat.portfolioCtx ? `\nUSER PORTFOLIO CONTEXT: ${_aiChat.portfolioCtx}` : ''}
+
+RESPONSE RULES:
+- Be conversational, direct, and always actionable
+- Reference the live data above when relevant (scores, RSI, volume)
+- For stock questions: cover signal, score, RSI, week-position, and key risk
+- For portfolio questions: assess diversification, concentration, timing, what to add/hold/trim
+- For strategy questions: be specific, give real examples using the live data above
+- Keep responses under 220 words, use plain line breaks for readability
+- Do NOT use markdown ** bold or code fences — use plain text formatting`;
+
+  const messages = [
+    { role: 'system', content: sysPrompt },
+    ..._aiChat.history.slice(-10),
+    { role: 'user', content: q },
+  ];
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({ model: 'gpt-4o', messages, max_tokens: 420 }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error('Invalid OpenAI API key.');
+    return null;
+  }
+  const json = await resp.json();
+  return json.choices?.[0]?.message?.content || null;
+}
+
+// ── Format OpenAI plain-text response into HTML ──
+function _formatAIText(text, q) {
+  const portSet = new Set(PORTFOLIO_STOCKS.map(x => x.t));
+  let html = esc(text)
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  if (!html.startsWith('<p>')) html = `<p>${html}</p>`;
+  // Make known tickers clickable
+  html = html.replace(/\b([A-Z]{2,5})\b/g, (m) =>
+    portSet.has(m) ? `<a href="#" style="color:var(--blue);font-weight:700" onclick="sendAIChat('Tell me about ${m}');return false">${m}</a>` : m);
+  // Offer inline stock card for primary ticker
+  const ticker = _extractTicker(q);
+  if (ticker) {
+    html += `<div id="ai-inline-${esc(ticker)}" style="margin-top:10px"><button class="ai-chip" onclick="_loadAIChatCard('${esc(ticker)}',this)">📊 Open ${esc(ticker)} card</button></div>`;
+  }
+  return html;
+}
+
+// ── Main send function ──
+async function sendAIChat(presetQ) {
+  if (_aiChat.busy) return;
+  const inp = document.getElementById('ai-chat-input');
+  const btn = document.getElementById('ai-chat-send');
+  const q   = (presetQ || (inp?.value || '')).trim();
   if (!q) { inp?.focus(); return; }
+  if (!presetQ && inp) { inp.value = ''; inp.style.height = 'auto'; }
 
-  _askBusy = true;
-  if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  box.style.display = '';
-  box.innerHTML = `<div class="ai-ask-result">
-    <div class="ai-ask-answer"><div class="ai-ask-answer-title">🔍 Looking up…</div>
-    <div class="ai-skeleton" style="height:18px;margin:6px 0"></div>
-    <div class="ai-skeleton" style="height:14px;margin:4px 0;width:75%"></div></div></div>`;
+  // Hide chips after first interaction
+  const chipBar = document.getElementById('ai-chip-bar');
+  if (chipBar) chipBar.style.display = 'none';
 
-  // Smart ticker extraction: company name → ticker lookup first, then known-ticker scan
-  function _extractTicker(text) {
-    const lower = text.toLowerCase();
-    const upper = text.toUpperCase();
+  // Show user message
+  _addAIChatMsg('user', esc(q));
 
-    // Build name→ticker map from PORTFOLIO_STOCKS
-    const nameMap = {};
-    for (const { t, n } of PORTFOLIO_STOCKS) {
-      // full name match and first word of company name
-      nameMap[n.toLowerCase()] = t;
-      const firstWord = n.split(/[\s\/]/)[0].toLowerCase();
-      if (firstWord.length >= 3) nameMap[firstWord] = t;
-    }
-    // Extra common aliases
-    Object.assign(nameMap, {
-      'tesla': 'TSLA', 'apple': 'AAPL', 'nvidia': 'NVDA', 'google': 'GOOGL',
-      'alphabet': 'GOOGL', 'amazon': 'AMZN', 'microsoft': 'MSFT', 'meta': 'META',
-      'facebook': 'META', 'netflix': 'NFLX', 'walmart': 'WMT', 'costco': 'COST',
-      'palantir': 'PLTR', 'shopify': 'SHOP', 'crowdstrike': 'CRWD',
-      'cloudflare': 'NET', 'salesforce': 'CRM', 'oracle': 'ORCL',
-      'broadcom': 'AVGO', 'qualcomm': 'QCOM', 'intel': 'INTC',
-      'micron': 'MU', 'amd': 'AMD', 'arm': 'ARM', 'uber': 'UBER',
-      'intuit': 'INTU', 'servicenow': 'NOW', 'accenture': 'ACN',
-      'jpmorgan': 'JPM', 'visa': 'V', 'mastercard': 'MA',
-      'exxon': 'XOM', 'abbvie': 'ABBV', 'eli': 'LLY', 'lilly': 'LLY',
-      'unitedhealth': 'UNH', 'novo': 'NVO', 'amgen': 'AMGN',
-      'taiwan': 'TSM', 'tsmc': 'TSM', 'asml': 'ASML',
-      'goldman': 'GS', 'morgan': 'MS', 'bofa': 'BAC',
-    });
-
-    // 1. Check whole input is a known ticker
-    const portSet = new Set(PORTFOLIO_STOCKS.map(x => x.t));
-    if (/^[A-Z]{1,5}$/.test(upper.trim()) && portSet.has(upper.trim())) return upper.trim();
-
-    // 2. Check words against name map (longest match wins)
-    const words = lower.split(/\s+/);
-    for (let len = 3; len >= 1; len--) {
-      for (let i = 0; i <= words.length - len; i++) {
-        const phrase = words.slice(i, i + len).join(' ');
-        if (nameMap[phrase]) return nameMap[phrase];
-      }
-    }
-
-    // 3. Scan for a known portfolio ticker mentioned verbatim in the text
-    for (const t of portSet) {
-      const re = new RegExp(`\\b${t}\\b`, 'i');
-      if (re.test(text)) return t;
-    }
-
-    // 4. Last resort: first uppercase word 2-5 chars that looks like a ticker
-    const m = text.match(/\b([A-Z]{2,5})\b/);
-    return m ? m[1] : null;
+  // Detect portfolio context being shared
+  if (/(?:my portfolio|i (?:have|own)|my holdings|my positions)[:\s]+/i.test(q)) {
+    _aiChat.portfolioCtx = q;
+    localStorage.setItem('ss_portfolio_ctx', q);
+    _updatePortfolioTag();
   }
-  const guessedTicker = _extractTicker(q);
 
-  let aiData = null;
-  const key = _getOAIKey();
+  _aiChat.busy = true;
+  if (btn) btn.disabled = true;
+  _setChatStatus('Thinking…', true);
+  _showTyping();
 
-  if (key) {
-    try {
-      const today = new Date().toLocaleDateString('en-US',
-        { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-      const sysPrompt = `You are a stock market analyst assistant. Today is ${today}.
-The user will ask a question in plain English about one or more stocks.
-Reply ONLY with a raw JSON object (no markdown, no code fences):
-{
-  "ticker": "PRIMARY_TICKER_SYMBOL",
-  "name": "Company Name",
-  "answer": "2-4 sentence direct answer to the user's question covering current price action, key signals, analyst sentiment, and what an investor should know right now",
-  "keyPoints": ["bullet point 1", "bullet point 2", "bullet point 3"],
-  "sentiment": "bullish|bearish|neutral",
-  "action": "Buy|Watch|Hold|Avoid"
-}
-If multiple tickers are asked about, pick the primary one for ticker/name and cover all in the answer.
-Output must start with { and end with }.`;
-
-      const aiResp = await fetch('https://api.openai.com/v1/chat/completions', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({
-          model:    'gpt-4o',
-          messages: [
-            { role: 'system', content: sysPrompt },
-            { role: 'user',   content: q }
-          ],
-          max_tokens: 500,
-        }),
-        signal: AbortSignal.timeout(25000),
-      });
-
-      if (aiResp.ok) {
-        const raw = await aiResp.json();
-        const txt = raw.choices?.[0]?.message?.content || '';
-        const clean = txt.replace(/```json?\n?/gi,'').replace(/```/g,'').trim();
-        const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
-        if (s !== -1 && e !== -1) {
-          try { aiData = JSON.parse(clean.slice(s, e+1)); } catch(_) {}
-        }
-      }
-    } catch(_) {
-      // OpenAI unavailable — will show app scoring data below
-    }
-  }
+  _aiChat.history.push({ role: 'user', content: q });
+  if (_aiChat.history.length > 16) _aiChat.history.splice(0, 2);
 
   try {
-    const ticker   = ((aiData?.ticker || guessedTicker || '')).toUpperCase().trim();
-    const hasAI    = !!aiData;
-    const answer   = aiData?.answer   || null;
-    const points   = aiData?.keyPoints || [];
-    const sent     = (aiData?.sentiment || 'neutral').toLowerCase();
-    const action   = aiData?.action    || '';
-    const name     = aiData?.name      || ticker;
+    const ctx = _buildMarketContext();
+    const key = _getOAIKey();
+    let responseHtml;
 
-    let html = `<div class="ai-ask-result">`;
-
-    if (hasAI) {
-      const sentColor = sent === 'bullish' ? 'var(--green)' : sent === 'bearish' ? 'var(--red)' : 'var(--yellow)';
-      const actionCls = action === 'Buy' ? 'bg' : action === 'Avoid' ? 'br' : 'by';
-      const ptHtml = points.length
-        ? '<ul style="margin:6px 0 0 14px;padding:0;font-size:.8rem;line-height:1.7">' +
-          points.map(p => `<li>${esc(p)}</li>`).join('') + '</ul>' : '';
-      html += `<div class="ai-ask-answer">
-        <div class="ai-ask-answer-title" style="display:flex;align-items:center;gap:8px">
-          🤖 AI Answer
-          ${action ? `<span class="mbf-signal ${actionCls}" style="margin-left:4px">${esc(action)}</span>` : ''}
-          ${sent   ? `<span style="font-size:.68rem;color:${sentColor};font-weight:700">${sent.charAt(0).toUpperCase()+sent.slice(1)}</span>` : ''}
-        </div>
-        <div style="font-size:.85rem;line-height:1.6;margin-bottom:4px">${esc(answer)}</div>
-        ${ptHtml}
-      </div>`;
-    } else {
-      html += `<div class="ai-ask-answer">
-        <div class="ai-ask-answer-title" style="color:var(--yellow)">📊 IntelliMarket Analysis</div>
-        <div style="font-size:.8rem;color:var(--muted)">
-          ${ticker ? `Showing live scoring data for <strong>${esc(ticker)}</strong>.` : 'Type a stock ticker or company name.'}
-          To enable AI text answers, add your OpenAI key:<br>
-          <code style="font-size:.72rem">localStorage.setItem('ss_oai_key','sk-...')</code>
-        </div>
-      </div>`;
-    }
-
-    // Load stock card
-    if (ticker) {
-      html += `<div id="ai-ask-card-${esc(ticker)}" style="padding:4px 0">
-        <div class="empty" style="padding:12px;font-size:.8rem">Loading ${esc(ticker)} data…</div></div>`;
-    }
-    html += `</div>`;
-    box.innerHTML = html;
-
-    // Load stock data card asynchronously
-    if (ticker) {
+    if (key) {
       try {
-        if (!S.data[ticker] || S.data[ticker].err) {
-          delete S.data[ticker];
-          await loadOne(ticker);
-        }
-        const d = S.data[ticker];
-        const cardEl = document.getElementById(`ai-ask-card-${ticker}`);
-        if (cardEl) {
-          if (d && !d.err) {
-            cardEl.innerHTML = buildCard(d, 1, true);
-          } else {
-            cardEl.innerHTML = `<div class="empty" style="padding:10px;color:var(--muted);font-size:.8rem">
-              Could not load data for ${esc(ticker)}. Check the ticker symbol.</div>`;
-          }
-        }
-      } catch(_) {
-        const cardEl = document.getElementById(`ai-ask-card-${ticker}`);
-        if (cardEl) cardEl.innerHTML = `<div class="empty" style="padding:10px;color:var(--muted);font-size:.8rem">
-          Could not load data for ${esc(ticker)}.</div>`;
+        const aiText = await _callOpenAI(q, ctx, key);
+        responseHtml = aiText ? _formatAIText(aiText, q) : _ruleBasedResponse(q, ctx);
+      } catch (e) {
+        responseHtml = _ruleBasedResponse(q, ctx) +
+          `<br><span style="color:var(--muted);font-size:.72rem">(OpenAI: ${esc(String(e.message||e))})</span>`;
       }
+    } else {
+      responseHtml = _ruleBasedResponse(q, ctx);
     }
 
-  } catch(err) {
-    const msg = String(err.message || err);
-    box.innerHTML = `<div class="ai-ask-result"><div class="ai-ask-answer">
-      <div class="ai-ask-answer-title" style="color:var(--red)">⚠️ Error</div>
-      ${esc(msg)}<br>
-      <button style="margin-top:8px;padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:.78rem"
-        onclick="askAIAboutStock()">Retry</button></div></div>`;
+    _hideTyping();
+    _addAIChatMsg('ai', responseHtml);
+
+    const plain = responseHtml.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,400);
+    _aiChat.history.push({ role: 'assistant', content: plain });
+    if (_aiChat.history.length > 16) _aiChat.history.splice(0, 2);
+
+  } catch (err) {
+    _hideTyping();
+    _addAIChatMsg('ai', `<span style="color:var(--red)">⚠️ ${esc(String(err.message||err))}</span>`);
   } finally {
-    _askBusy = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Ask →'; }
+    _aiChat.busy = false;
+    if (btn) btn.disabled = false;
+    _setChatStatus('Ready', false);
   }
 }
+
+// ── Initialize chat with welcome message + chips ──
+function initAIChat() {
+  const msgs = document.getElementById('ai-chat-msgs');
+  if (!msgs) return;
+  msgs.innerHTML = '';
+
+  const hasKey = !!_getOAIKey();
+  const portHint = _aiChat.portfolioCtx
+    ? `📂 <em>Portfolio context loaded. Ask me to "review my portfolio" anytime.</em>`
+    : `💡 Share your portfolio: type <em>"My portfolio: AAPL 50, NVDA 30, MSFT 100"</em> for personalized advice.`;
+  const keyHint = hasKey ? '' : `<br><span style="font-size:.75rem;color:var(--muted)">For free-text AI responses: <code>localStorage.setItem('ss_oai_key','sk-...')</code></span>`;
+
+  _addAIChatMsg('ai', `<strong>Welcome to IntelliMarket AI Advisor</strong><br>I'm your intelligent stock market assistant — powered by live IntelliMarket scoring data and market analysis.<br><br>I can help with:<ul><li>📊 Stock analysis — signals, RSI, entry timing, risk</li><li>💼 Portfolio review — what to hold, add, or trim</li><li>📈 Market outlook — today's trends + tomorrow's picks</li><li>🧠 Strategy coaching — RSI, MACD, breakouts, dip buying</li></ul>${portHint}${keyHint}`);
+
+  // Render quick chips
+  const chipBar = document.getElementById('ai-chip-bar');
+  if (chipBar) {
+    chipBar.style.display = '';
+    chipBar.innerHTML = _AI_CHIPS.map(c =>
+      `<button class="ai-chip" onclick="sendAIChat(${JSON.stringify(c.q)})">${esc(c.label)}</button>`
+    ).join('');
+  }
+
+  _updatePortfolioTag();
+  _aiChat.initialized = true;
+}
+
+function clearAIChat() {
+  _aiChat.history = [];
+  initAIChat();
+}
+
+function promptAIPortfolio() {
+  const inp = document.getElementById('ai-chat-input');
+  if (inp) { inp.value = 'My portfolio: '; inp.focus(); inp.style.height = 'auto'; inp.style.height = inp.scrollHeight + 'px'; }
+}
+
+// Keep backward-compat reference
+function askAIAboutStock() { const inp = document.getElementById('ai-chat-input'); if (inp?.value) sendAIChat(); }
 
 async function loadAIScanner(force = false) {
   const body = document.getElementById('ai-body');
   if (!body) return;
 
+  // Initialize chat on first open (only once per session)
+  if (!_aiChat.initialized) initAIChat();
+
   if (!_aiScannerLoaded || force) {
     body.innerHTML = `
-      <div class="ai-pulse-banner" style="text-align:center;padding:20px">
-        <div class="ai-pulse-title" style="animation:pulse 1.5s ease-in-out infinite">� Building market scan…</div>
-        <div class="ai-pulse-text" style="margin-top:6px">Reading live scores from IntelliMarket engine</div>
+      <div class="ai-pulse-banner" style="text-align:center;padding:14px">
+        <div class="ai-pulse-title" style="animation:pulse 1.5s ease-in-out infinite">📡 Building market scan…</div>
+        <div class="ai-pulse-text" style="margin-top:4px">Reading live scores from IntelliMarket engine</div>
       </div>
-      ${Array(5).fill('<div class="ai-skeleton"></div>').join('')}`;
+      ${Array(4).fill('<div class="ai-skeleton"></div>').join('')}`;
   }
 
   try {
