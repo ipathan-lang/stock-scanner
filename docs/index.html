@@ -5427,7 +5427,7 @@ function _ruleBasedResponse(q, ctx) {
   if (ticker) return _tickerAnalysisHTML(ticker);
 
   // Generic fallback
-  return `I'm your IntelliMarket AI Advisor — trained on technical analysis, trading strategies, and live market scoring data.<br><br>Try asking:<br>• <em>"What's the market doing today?"</em><br>• <em>"Which stocks look best to buy?"</em><br>• <em>"Explain the breakout strategy"</em><br>• <em>"Analyze NVDA"</em><br>• <em>"My portfolio: AAPL 50, NVDA 30"</em> — share your holdings for a full review<br><br>${!_getOAIKey() ? '<span style="color:var(--muted);font-size:.78rem">💡 For free-text AI answers add your OpenAI key: <code>localStorage.setItem(\'ss_oai_key\',\'sk-...\')</code></span>' : ''}`;
+  return `I'm your IntelliMarket AI Advisor — trained on technical analysis, trading strategies, and live market scoring data.<br><br>Try asking:<br>• <em>"What's the market doing today?"</em><br>• <em>"Which stocks look best to buy?"</em><br>• <em>"Explain the breakout strategy"</em><br>• <em>"Analyze NVDA"</em><br>• <em>"My portfolio: AAPL 50, NVDA 30"</em> — share your holdings for a full review`;
 }
 
 // ── Ticker-specific analysis card ──
@@ -5665,13 +5665,10 @@ function initAIChat() {
   if (!msgs) return;
   msgs.innerHTML = '';
 
-  const hasKey = !!_getOAIKey();
   const portHint = _aiChat.portfolioCtx
     ? `📂 <em>Portfolio context loaded. Ask me to "review my portfolio" anytime.</em>`
     : `💡 Share your portfolio: type <em>"My portfolio: AAPL 50, NVDA 30, MSFT 100"</em> for personalized advice.`;
-  const keyHint = hasKey ? '' : `<br><span style="font-size:.75rem;color:var(--muted)">For free-text AI responses: <code>localStorage.setItem('ss_oai_key','sk-...')</code></span>`;
-
-  _addAIChatMsg('ai', `<strong>Welcome to IntelliMarket AI Advisor</strong><br>I'm your intelligent stock market assistant — powered by live IntelliMarket scoring data and market analysis.<br><br>I can help with:<ul><li>📊 Stock analysis — signals, RSI, entry timing, risk</li><li>💼 Portfolio review — what to hold, add, or trim</li><li>📈 Market outlook — today's trends + tomorrow's picks</li><li>🧠 Strategy coaching — RSI, MACD, breakouts, dip buying</li></ul>${portHint}${keyHint}`);
+  _addAIChatMsg('ai', `<strong>Welcome to IntelliMarket AI Advisor</strong><br>I'm your intelligent stock market assistant — powered by live IntelliMarket scoring data and market analysis.<br><br>I can help with:<ul><li>📊 Stock analysis — signals, RSI, entry timing, risk</li><li>💼 Portfolio review — what to hold, add, or trim</li><li>📈 Market outlook — today's trends + tomorrow's picks</li><li>🧠 Strategy coaching — RSI, MACD, breakouts, dip buying</li></ul>${portHint}`);
 
   // Render quick chips
   const chipBar = document.getElementById('ai-chip-bar');
