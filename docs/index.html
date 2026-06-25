@@ -3156,22 +3156,33 @@ async function fetchStock(ticker) {
     : null;
   const volumeRatio = (currentVol && avgVol && avgVol > 0) ? currentVol / avgVol : null;
 
-  const price     = meta.regularMarketPrice ?? closes[closes.length - 1];
+  let price     = meta.regularMarketPrice ?? closes[closes.length - 1];
   // regularMarketPreviousClose is Yahoo's canonical unadjusted prev-day close.
   // NEVER use meta.chartPreviousClose — it is the split/dividend-adjusted 2-year baseline
   // price (e.g. $109 for NVDA when current price is $224) and causes fake +50-200% readings.
   // closes[-2] is the actual previous trading day's close from the OHLCV array.
   const prevClose = meta.regularMarketPreviousClose ?? meta.previousClose ?? closes[closes.length - 2] ?? price;
-  const change    = meta.regularMarketChange ?? (price - prevClose);
+  let change    = meta.regularMarketChange ?? (price - prevClose);
   // Use Yahoo's own calculated changePercent when available (decimal → ×100)
   // Extra guard: if computed changePct is absurdly large (>50% daily swing) and we had to
   // fall back to closes[-2], recompute directly so bad meta data never poisons the display.
   const _rawPct = meta.regularMarketChangePercent != null
     ? meta.regularMarketChangePercent * 100
     : (prevClose > 0 ? (change / prevClose) * 100 : 0);
-  const changePct = (meta.regularMarketChangePercent == null && Math.abs(_rawPct) > 50 && closes.length >= 2)
+  let changePct = (meta.regularMarketChangePercent == null && Math.abs(_rawPct) > 50 && closes.length >= 2)
     ? ((price - closes[closes.length - 2]) / closes[closes.length - 2]) * 100
     : _rawPct;
+
+  // ── Real-time price override ─────────────────────────────────────────────────────────
+  // Fetch Finnhub live quote immediately so ALL scoring uses the actual current market price,
+  // not the stale cached value (which can be 2h old from GitHub Actions).
+  // Historical OHLCV (closes/highs/lows) still comes from cache — needed for RSI/MACD/ATR.
+  const _fhLive = await _fhRestQuote(ticker).catch(() => null);
+  if (_fhLive) {
+    price     = _fhLive.c;
+    change    = _fhLive.d  ?? (price - prevClose);
+    changePct = _fhLive.dp ?? changePct;
+  }
 
   // 52-week range and 20-day return (base for relative strength vs SPY)
   const yearHigh = highs.length ? Math.max(...highs) : null;
@@ -3223,9 +3234,9 @@ async function fetchStock(ticker) {
   // % upside remaining to the 5-day high — the natural profit target for week-range trading
   const weekHighPct = wHigh5 > price ? ((wHigh5 - price) / price * 100) : 0;
 
-  // Intraday direction signals using open + day-high from Yahoo meta
-  const marketOpen  = meta.regularMarketOpen  ?? price;
-  const marketDayHigh = meta.regularMarketDayHigh ?? null;
+  // Intraday direction signals — prefer Finnhub live values (real-time) over cached Yahoo meta
+  const marketOpen    = (_fhLive?.o  > 0) ? _fhLive.o  : (meta.regularMarketOpen    ?? price);
+  const marketDayHigh = (_fhLive?.h  > 0) ? _fhLive.h  : (meta.regularMarketDayHigh ?? null);
   const openChangePct    = marketOpen > 0 ? ((price - marketOpen)    / marketOpen)    * 100 : 0;
   const dayHighRevertPct = (marketDayHigh && marketDayHigh > price)
     ? ((price - marketDayHigh) / marketDayHigh) * 100 : 0;
@@ -3511,7 +3522,7 @@ async function fetchStock(ticker) {
   // 3-factor confirmation: Volume spike + ATR breach + intraday VWAP deviation
   // A genuine sudden move needs at least 2 of 3 factors — eliminates low-liquidity noise.
   // VWAP approximation: (open + dayHigh + dayLow + price) / 4  (Typical Price variant)
-  const marketDayLow  = meta.regularMarketDayLow ?? price;
+  const marketDayLow  = (_fhLive?.l  > 0) ? _fhLive.l  : (meta.regularMarketDayLow  ?? price);
   const vwapApprox    = (marketOpen + (marketDayHigh ?? price) + marketDayLow + price) / 4;
   const vwapDevPct    = vwapApprox > 0 ? ((price - vwapApprox) / vwapApprox * 100) : 0;
 
