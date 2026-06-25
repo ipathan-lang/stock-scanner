@@ -7275,15 +7275,18 @@ async function refreshLivePrices() {
   const fields = 'regularMarketPrice,regularMarketChangePercent,regularMarketVolume,' +
                  'regularMarketDayHigh,regularMarketDayLow,regularMarketOpen,' +
                  'regularMarketPreviousClose,' +
-                 'postMarketPrice,postMarketChangePercent,' +
-                 'preMarketPrice,preMarketChangePercent';
+                 'postMarketPrice,postMarketChangePercent,postMarketTime,' +
+                 'preMarketPrice,preMarketChangePercent,preMarketTime';
 
   for (let i = 0; i < loaded.length; i += BATCH) {
     const batch   = loaded.slice(i, i + BATCH);
     const symbols = batch.join(',');
-    const url     = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=${fields}&formatted=false`;
+    // query2 is more reliable via CORS proxies than query1 (fewer 401s)
+    const url     = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=${fields}&formatted=false`;
     try {
-      const json   = await fetchJProxy(url, PROXIES);
+      // FIX: pass a numeric proxy index (0), not the PROXIES array itself
+      const ps   = i % PROXIES.length;          // rotate proxy per batch
+      const json = await fetchJProxy(url, ps);
       const quotes = json?.quoteResponse?.result ?? [];
 
       for (const q of quotes) {
@@ -7299,15 +7302,39 @@ async function refreshLivePrices() {
         let extHours     = null;
         let extChangePct = null;
 
+        // Pre-market (4:00 AM – 9:29 AM ET): show pre-market price if fresh (within 4h)
         if (session === 'pre' && q.preMarketPrice && q.preMarketPrice > 0) {
-          displayPrice = q.preMarketPrice;
-          extHours     = 'pre';
-          extChangePct = q.preMarketChangePercent ?? null;
-        } else if ((session === 'after' || session === 'overnight') &&
-                   q.postMarketPrice && q.postMarketPrice > 0) {
-          displayPrice = q.postMarketPrice;
-          extHours     = 'after';
-          extChangePct = q.postMarketChangePercent ?? null;
+          const preFreshness = q.preMarketTime ? (Date.now() / 1000 - q.preMarketTime) : 0;
+          if (preFreshness < 4 * 3600) {          // within 4 hours
+            displayPrice = q.preMarketPrice;
+            extHours     = 'pre';
+            extChangePct = q.preMarketChangePercent ?? null;
+          }
+        }
+        // After-hours (4:00 PM – 8:00 PM ET): show post-market price if fresh (within 6h)
+        else if (session === 'after' && q.postMarketPrice && q.postMarketPrice > 0) {
+          const postFreshness = q.postMarketTime ? (Date.now() / 1000 - q.postMarketTime) : 0;
+          if (postFreshness < 6 * 3600) {         // within 6 hours
+            displayPrice = q.postMarketPrice;
+            extHours     = 'after';
+            extChangePct = q.postMarketChangePercent ?? null;
+          }
+        }
+        // Overnight / weekend: show most recent extended price if it came from TODAY
+        else if (session === 'overnight') {
+          const nowSec = Date.now() / 1000;
+          const todayStartET = (() => {
+            const d = new Date();
+            const et = new Date(d.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            et.setHours(0, 0, 0, 0);
+            return et.getTime() / 1000;
+          })();
+          if (q.postMarketPrice && q.postMarketPrice > 0 &&
+              q.postMarketTime && q.postMarketTime >= todayStartET) {
+            displayPrice = q.postMarketPrice;
+            extHours     = 'after';
+            extChangePct = q.postMarketChangePercent ?? null;
+          }
         }
 
         d.price          = displayPrice;
