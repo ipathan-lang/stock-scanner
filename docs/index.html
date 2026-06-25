@@ -3426,7 +3426,8 @@ async function fetchStock(ticker, { detail = false } = {}) {
     atrPct, atrRatio, todayRangePct, macdSlope,
     dayConviction, dcScore, dcReasons,
     vwapDevPct, suddenMove,
-    preMoveWatch
+    preMoveWatch,
+    hasHistory: histOK
   };
 }
 
@@ -6842,6 +6843,7 @@ function buildCard(d, rank, pinned) {
               ${d.extHours && d.extChangePct != null ? `<span class="ext-chg ${d.extChangePct >= 0 ? 'pos' : 'neg'}">${d.extChangePct >= 0 ? '+' : ''}${d.extChangePct.toFixed(2)}% ${d.extHours === 'after' ? 'after hrs' : 'pre-mkt'}</span>` : ''}
               ${d.isEarningsDay ? `&nbsp;&middot;&nbsp;<span class="age-badge" style="background:#fff3e0;color:#b45309;border:1px solid #fcd34d">&#128226; Earnings Day</span>` : ''}
               ${ageTxt ? `&nbsp;&middot;&nbsp;<span class="age-badge ${ageCls}">${ageTxt}</span>` : ''}
+              ${!d.hasHistory ? `&nbsp;&middot;&nbsp;<span class="age-badge" style="background:rgba(217,119,6,.12);color:#92400e;border:1px solid rgba(217,119,6,.35)" title="Finnhub has no daily candle history for this ticker. RSI, MACD, EMA, and WK Position are unavailable.">&#9888; Limited Data</span>` : ''}
             </div>
           </div>
         </div>
@@ -6880,7 +6882,7 @@ function buildCard(d, rank, pinned) {
         </div>
         <div class="ind-item">
           <div class="ind-label">RSI (14)</div>
-          <div class="ind-val" style="color:${rsiColor}">${d.rsi.toFixed(1)}</div>
+          <div class="ind-val" style="color:${d.hasHistory ? rsiColor : 'var(--muted)'}">${d.hasHistory ? d.rsi.toFixed(1) : '—'}</div>
         </div>
         <div class="ind-item">
           <div class="ind-label">Conviction</div>
@@ -6888,19 +6890,19 @@ function buildCard(d, rank, pinned) {
         </div>
         <div class="ind-item">
           <div class="ind-label">MACD Diff</div>
-          <div class="ind-val" style="color:${macdColor}">${d.macdDiff >= 0 ? '+' : ''}${d.macdDiff.toFixed(3)}</div>
+          <div class="ind-val" style="color:${d.hasHistory ? macdColor : 'var(--muted)'}">${d.hasHistory ? (d.macdDiff >= 0 ? '+' : '') + d.macdDiff.toFixed(3) : '—'}</div>
         </div>
         <div class="ind-item">
           <div class="ind-label">EMA 20</div>
-          <div class="ind-val" style="color:${emaColor}">$${d.ema20.toFixed(2)}</div>
+          <div class="ind-val" style="color:${d.hasHistory ? emaColor : 'var(--muted)'}">${d.hasHistory ? '$' + d.ema20.toFixed(2) : '—'}</div>
         </div>
         <div class="ind-item">
           <div class="ind-label">Wk Position</div>
-          <div class="ind-val" style="color:${wkColor}">${(d.position * 100).toFixed(0)}%</div>
+          <div class="ind-val" style="color:${d.hasHistory ? wkColor : 'var(--muted)'}">${d.hasHistory ? (d.livePos * 100).toFixed(0) + '%' : '—'}</div>
         </div>
         <div class="ind-item">
           <div class="ind-label">Bull / Bear</div>
-          <div class="ind-val" style="color:${bbColor}">${d.bullishScore} / ${d.bearishScore}</div>
+          <div class="ind-val" style="color:${bbColor}">${d.hasHistory ? d.bullishScore + ' / ' + d.bearishScore : '— / ' + d.bearishScore}</div>
         </div>
         <div class="ind-item">
           <div class="ind-label">Day Change</div>
