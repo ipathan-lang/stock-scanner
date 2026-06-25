@@ -2947,7 +2947,7 @@ async function fetchStock(ticker, { detail = false } = {}) {
   const closes  = histOK ? hist.c : [_fhLive.pc, _fhLive.c];
   const highs   = histOK ? hist.h : [_fhLive.pc, _fhLive.h || _fhLive.c];
   const lows    = histOK ? hist.l : [_fhLive.pc, _fhLive.l || _fhLive.c];
-  const dailyVols = histOK ? (hist.v ?? []) : [];
+  const dailyVols = histOK ? (hist.v ?? []).map(v => v ?? 0) : [];
 
   // 3. Detail mode (searched stock): fetch intraday volume + metrics + earnings + headlines
   let todayVol = null;
@@ -3018,9 +3018,12 @@ async function fetchStock(ticker, { detail = false } = {}) {
   let change    = _fhLive.d  ?? (price - prevClose);
   let changePct = _fhLive.dp ?? (prevClose > 0 ? (change / prevClose) * 100 : 0);
 
-  // 52-week range and 20-day return (base for relative strength vs SPY)
-  const yearHigh = highs.length ? Math.max(...highs) : null;
-  const yearLow  = lows.length  ? Math.min(...lows)  : null;
+  // 52-week range — last 252 TRADING days = exactly one year
+  // (full hist array is ~390 days; using all of it gives a wider range than true 52-week)
+  const _52wHighs = highs.slice(-252);
+  const _52wLows  = lows.slice(-252);
+  const yearHigh = _52wHighs.length ? Math.max(..._52wHighs) : null;
+  const yearLow  = _52wLows.length  ? Math.min(..._52wLows)  : null;
   const ret20    = closes.length >= 21
     ? ((closes[closes.length - 1] / closes[closes.length - 21]) - 1) * 100
     : null;
@@ -6896,6 +6899,49 @@ function buildCard(d, rank, pinned) {
     ? `<span style="font-size:1.1rem">&#128204;</span>`
     : `<div class="rank-no">#${rank}</div>`;
 
+  // ── DECISION BLOCK ──────────────────────────────────────────────────────────────
+  // Top-level "should I invest?" answer — shown before all technical detail
+  const decScore  = d.netScore;
+  const decLabel  = decScore >= 4  ? '🟢 INVEST NOW' : decScore <= -4 ? '🔴 AVOID' : '🟡 WAIT';
+  const decSub    = decScore >= 4  ? 'Bullish setup — entry conditions met'
+                  : decScore <= -4 ? 'Bearish — wait for conditions to improve'
+                  :                  'Neutral — no strong signal yet';
+  const decColor  = decScore >= 4  ? '#059669' : decScore <= -4 ? '#dc2626' : '#d97706';
+  const decBg     = decScore >= 4  ? 'rgba(5,150,105,.07)' : decScore <= -4 ? 'rgba(220,38,38,.07)' : 'rgba(217,119,6,.07)';
+  const decBorder = decScore >= 4  ? 'rgba(5,150,105,.3)' : decScore <= -4 ? 'rgba(220,38,38,.3)' : 'rgba(217,119,6,.3)';
+  // Top 3 reasons driving the decision
+  const topReasons = (decScore >= 0 ? (d.bullishDrivers || []) : (d.bearishDrivers || [])).slice(0, 3);
+  // Return metrics
+  const wkRet = d.ret5  != null ? `${d.ret5  > 0 ? '+' : ''}${d.ret5.toFixed(1)}%`  : '—';
+  const moRet = d.ret20 != null ? `${d.ret20 > 0 ? '+' : ''}${d.ret20.toFixed(1)}%` : '—';
+  const wkClr = d.ret5  == null ? 'var(--muted)' : d.ret5  > 0 ? '#059669' : '#dc2626';
+  const moClr = d.ret20 == null ? 'var(--muted)' : d.ret20 > 0 ? '#059669' : '#dc2626';
+  const aiId  = `ai-result-${esc(d.ticker)}`;
+
+  const decisionHtml = `
+    <div style="background:${decBg};border:1.5px solid ${decBorder};border-radius:12px;padding:14px 16px;margin:8px 0 10px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+        <div style="font-size:1.15rem;font-weight:800;color:${decColor}">${decLabel}</div>
+        <div style="font-size:.73rem;color:var(--muted)">${decSub} &nbsp;·&nbsp; Score <b>${d.netScore}</b> &nbsp;·&nbsp; ${d.conviction}% confidence</div>
+      </div>
+      ${topReasons.length ? `<div style="margin-bottom:10px">${topReasons.map(r =>
+        `<div style="font-size:.79rem;color:var(--ink);padding:2px 0;display:flex;gap:6px">
+          <span style="color:${decColor};flex-shrink:0">●</span><span>${esc(r)}</span>
+        </div>`).join('')}</div>` : ''}
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;padding-top:6px;border-top:1px solid ${decBorder}">
+        <div style="font-size:.76rem"><span style="color:var(--muted)">Today</span>&nbsp;<b style="color:${d.changePct >= 0 ? '#059669' : '#dc2626'}">${cs}${d.changePct.toFixed(2)}%</b></div>
+        <div style="font-size:.76rem"><span style="color:var(--muted)">1-Week</span>&nbsp;<b style="color:${wkClr}">${wkRet}</b></div>
+        <div style="font-size:.76rem"><span style="color:var(--muted)">1-Month</span>&nbsp;<b style="color:${moClr}">${moRet}</b></div>
+        <div style="font-size:.76rem"><span style="color:var(--muted)">vs SPY</span>&nbsp;<b style="color:${rsColor}">${rsTxt}</b></div>
+        ${d.nextEarnings ? `<div style="font-size:.76rem"><span style="color:var(--muted)">Earnings</span>&nbsp;<b style="color:var(--ink)">${d.nextEarnings.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</b></div>` : ''}
+      </div>
+      <button onclick="analyzeStockWithAI('${esc(d.ticker)}','${aiId}')"
+        style="font-size:.75rem;padding:5px 14px;border-radius:6px;border:1.5px solid ${decBorder};background:transparent;color:${decColor};cursor:pointer;font-weight:600;transition:.15s">
+        🤖 Get AI Analysis
+      </button>
+      <div id="${aiId}" style="margin-top:8px"></div>
+    </div>`;
+
   return `
     <div class="stock-card${pinned ? ' pinned' : ''}">
       <div class="card-head">
@@ -6916,6 +6962,8 @@ function buildCard(d, rank, pinned) {
         </div>
         <span class="badge ${sig.cls}">${sig.label}</span>
       </div>
+
+      ${decisionHtml}
 
       ${d.preMoveWatch ? `
       <div class="pre-move-banner${d.preMoveWatch.confidence === 'Low' ? ' pm-low' : ''}">
@@ -7022,6 +7070,67 @@ function toggleDetail(id) {
   if (btn) btn.innerHTML = el.classList.contains('open')
     ? '&#9650; Details &amp; News'
     : '&#9660; Details &amp; News';
+}
+
+// ── AI Stock Analysis (in-card) ──────────────────────────────────────────────
+// Called from the "Get AI Analysis" button in buildCard().
+// Uses the existing OpenAI chat infrastructure + live stock data for a plain-English verdict.
+async function analyzeStockWithAI(ticker, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const key = _getOAIKey();
+  if (!key) {
+    el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">
+      No OpenAI key set. Go to the <a href="#" onclick="setSortMode('ai');return false"
+        style="color:var(--blue)">🤖 AI Scanner tab</a> to enter your API key.
+    </div>`;
+    return;
+  }
+
+  const d = S.data[ticker];
+  if (!d || d.err) return;
+
+  el.innerHTML = '<div style="font-size:.78rem;color:var(--muted);padding:6px 0">🤖 Analyzing ' + esc(ticker) + '…</div>';
+
+  const spyD = S.data['SPY'];
+  const qqqD = S.data['QQQ'];
+  const rsSpy = (d.ret20 != null && spyD?.ret20 != null) ? (d.ret20 - spyD.ret20).toFixed(1) : 'n/a';
+  const news  = (d.headlines || []).map(h => h.title).slice(0, 4).join(' | ') || 'No recent news';
+  const signal = d.netScore >= 4 ? 'Bullish' : d.netScore <= -4 ? 'Bearish' : 'Neutral';
+
+  const prompt =
+    `Analyze ${ticker} for a buy/hold/avoid decision RIGHT NOW. Live data:\n` +
+    `Price: $${d.price.toFixed(2)} | Today: ${d.changePct > 0 ? '+' : ''}${d.changePct.toFixed(2)}% | ` +
+    `1-Week: ${d.ret5 != null ? (d.ret5 > 0 ? '+' : '') + d.ret5.toFixed(1) + '%' : 'n/a'} | ` +
+    `1-Month: ${d.ret20 != null ? (d.ret20 > 0 ? '+' : '') + d.ret20.toFixed(1) + '%' : 'n/a'}\n` +
+    `RSI(14): ${d.rsi.toFixed(0)} | MACD: ${d.macdDiff > 0 ? '+' : ''}${d.macdDiff.toFixed(3)} | ` +
+    `EMA20: $${d.ema20.toFixed(2)} | Week position: ${((d.livePos||d.position||0.5)*100).toFixed(0)}% (0=low, 100=high)\n` +
+    `Score: ${d.netScore} (${signal}) | Conviction: ${d.conviction}% | vs SPY(1mo): ${rsSpy}%\n` +
+    `Vol ratio: ${d.volumeRatio != null ? d.volumeRatio.toFixed(2) + 'x avg' : 'n/a'} | ` +
+    `52wk range: $${d.yearLow?.toFixed(2) ?? 'n/a'} – $${d.yearHigh?.toFixed(2) ?? 'n/a'}\n` +
+    `Recent news: ${news}\n\n` +
+    `In 3-4 sentences: Should I buy, hold, or avoid ${ticker} right now? Give a specific price context.`;
+
+  const ctx = {
+    date: new Date().toLocaleDateString(),
+    spyChg:   spyD ? `${spyD.changePct > 0 ? '+' : ''}${spyD.changePct.toFixed(2)}%` : 'n/a',
+    qqqChg:   qqqD ? `${qqqD.changePct > 0 ? '+' : ''}${qqqD.changePct.toFixed(2)}%` : 'n/a',
+    spyScore: spyD?.netScore ?? 'n/a',
+    qqqScore: qqqD?.netScore ?? 'n/a',
+    up: 0, dn: 0, total: 0, topBuys: '', highVol: '', gainers: '', losers: '',
+  };
+
+  try {
+    const result = await _callOpenAI(prompt, ctx, key);
+    el.innerHTML = result
+      ? `<div style="font-size:.8rem;line-height:1.65;padding:8px 0;color:var(--ink);border-top:1px solid rgba(0,0,0,.08);margin-top:4px">${
+          esc(result).replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>')
+        }</div>`
+      : '<div style="font-size:.78rem;color:var(--muted);padding:6px 0">No AI response. Try again.</div>';
+  } catch(e) {
+    el.innerHTML = `<div style="font-size:.78rem;color:var(--red);padding:6px 0">AI error: ${esc(e.message)}</div>`;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
