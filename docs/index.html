@@ -4367,7 +4367,7 @@ function renderPortfolio() {
                 ${s ? `<span class="port-sector">${esc(s)}</span>` : ''}
                 <span class="port-chevron">›</span>
               </div>
-              <div class="port-detail" id="port-detail-${t}" style="display:none"></div>
+              <div class="port-detail" id="port-detail-${t}" style="display:none" onclick="event.stopPropagation()"></div>
             </div>
           `).join('')}
         </div>
@@ -5622,7 +5622,7 @@ function renderTrends() {
           ${nameHtml}
           <span class="port-chevron">›</span>
         </div>
-        <div class="port-detail" id="trend-detail-${t}" style="display:none"></div>
+        <div class="port-detail" id="trend-detail-${t}" style="display:none" onclick="event.stopPropagation()"></div>
       </div>`;
     }).join('');
 }
