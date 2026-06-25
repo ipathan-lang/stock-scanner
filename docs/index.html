@@ -4401,6 +4401,7 @@ async function searchPanelStock() {
 
   if (tickerOnly) {
     result.innerHTML = `<div class="empty" style="padding:24px 0">Loading ${esc(compactTicker)}…</div>`;
+    stopFastPoll();   // cancel any previous fast poll before starting a new one
 
     // Clear any cached error so a fresh fetch is attempted
     if (S.data[compactTicker]?.err) delete S.data[compactTicker];
@@ -4415,6 +4416,8 @@ async function searchPanelStock() {
     }
     input.dataset.lastTicker = compactTicker;
     result.innerHTML = buildCard(d, 1, true);
+    // Start 3-second fast poll so the price updates in real-time
+    startFastPoll(compactTicker);
     return;
   }
 
@@ -7403,6 +7406,8 @@ function renderActivePanel() {
 }
 
 let _liveTimer = null;
+let _fastPollTimer  = null;   // 3-second focused-stock poll
+let _fastPollTicker = null;   // which ticker the fast poll is targeting
 
 async function rotateNext() {
   if (S.busy || _sortMode !== 'bullish') return;
@@ -7561,14 +7566,102 @@ function fhResubscribe() {
   );
 }
 
+// ══════════════════════════════════════════════════════════════
+//  FAST POLL — 3-second real-time price loop for focused stock
+//  Runs whenever a stock is searched/pinned.
+//  Falls back to Finnhub WebSocket when connected (true 0-delay ticks).
+//  Skips overnight (no data from Yahoo until pre-market 4 AM ET).
+// ══════════════════════════════════════════════════════════════
+function startFastPoll(ticker) {
+  if (!ticker) return;
+  stopFastPoll();
+  _fastPollTicker = ticker;
+  _fastPollOne(ticker);                           // immediate hit
+  _fastPollTimer  = setInterval(() => _fastPollOne(ticker), 3000);
+  // Subscribe to Finnhub WebSocket right away if it's up
+  if (_fhWS && _fhWS.readyState === WebSocket.OPEN && !/[-=]/.test(ticker))
+    _fhWS.send(JSON.stringify({ type: 'subscribe', symbol: ticker }));
+}
+
+function stopFastPoll() {
+  if (_fastPollTimer) { clearInterval(_fastPollTimer); _fastPollTimer = null; }
+  _fastPollTicker = null;
+}
+
+async function _fastPollOne(ticker) {
+  if (_fhConnected) return;           // Finnhub WebSocket already pushing ticks
+  const session = getMarketSession();
+  if (session === 'overnight') return; // nothing to poll before 4 AM ET
+
+  try {
+    const fields = 'regularMarketPrice,regularMarketChangePercent,regularMarketVolume,' +
+                   'regularMarketDayHigh,regularMarketDayLow,regularMarketPreviousClose,' +
+                   'postMarketPrice,postMarketChangePercent,postMarketTime,' +
+                   'preMarketPrice,preMarketChangePercent,preMarketTime';
+    const url = `https://query2.finance.yahoo.com/v7/finance/quote` +
+                `?symbols=${encodeURIComponent(ticker)}&fields=${fields}&formatted=false`;
+
+    // Try direct first (no proxy = sub-200ms when CORS allows)
+    let json = null;
+    try {
+      const r = await fetch(url + `&_t=${Date.now()}`, { cache: 'no-store', mode: 'cors' });
+      if (r.ok) json = await r.json();
+    } catch {}
+    // One proxy fallback (deterministic, avoids hammering one proxy repeatedly)
+    if (!json) json = await fetchJProxy(url, tickerProxyStart(ticker)).catch(() => null);
+
+    const q = json?.quoteResponse?.result?.[0];
+    if (!q) return;
+    const d = S.data[ticker];
+    if (!d || d.err) return;
+
+    const regPrice  = q.regularMarketPrice;
+    const prevClose = q.regularMarketPreviousClose || d.regularPrice || d.price;
+    if (!regPrice || regPrice <= 0) return;
+
+    let displayPrice = regPrice, extHours = null, extChangePct = null;
+
+    if (session === 'pre' && q.preMarketPrice > 0) {
+      const age = q.preMarketTime ? (Date.now() / 1000 - q.preMarketTime) : 0;
+      if (age < 14400) { displayPrice = q.preMarketPrice; extHours = 'pre'; extChangePct = q.preMarketChangePercent; }
+    } else if (session === 'after' && q.postMarketPrice > 0) {
+      const age = q.postMarketTime ? (Date.now() / 1000 - q.postMarketTime) : 0;
+      if (age < 21600) { displayPrice = q.postMarketPrice; extHours = 'after'; extChangePct = q.postMarketChangePercent; }
+    }
+
+    d.price        = displayPrice;
+    d.changePct    = extChangePct != null ? extChangePct : (q.regularMarketChangePercent ?? d.changePct);
+    d.change       = displayPrice - prevClose;
+    d.extHours     = extHours;
+    d.extChangePct = extChangePct;
+    d.regularPrice = regPrice;
+    d.dayHigh      = q.regularMarketDayHigh ?? d.dayHigh;
+    d.dayLow       = q.regularMarketDayLow  ?? d.dayLow;
+    d.fetchedAt    = Date.now();
+    if (q.regularMarketVolume && d.avgVol20 > 0)
+      d.volumeRatio = q.regularMarketVolume / d.avgVol20;
+    const wH = d.wHigh5, wL = d.wLow5;
+    if (wH && wL && wH !== wL)
+      d.livePos = Math.min(Math.max((regPrice - wL) / (wH - wL), 0), 1);
+    const sig = signal(d);
+    d.signalLabel = sig.label; d.signalCls = sig.cls;
+    d.conf = sig.conf; d.signalRank = sig.rank ?? 6;
+    renderActivePanel();
+  } catch {}
+}
+
 function startRolling() {
   if (_rotTimer) clearInterval(_rotTimer);
   _rotTimer = setInterval(rotateNext, 40000); // every 40 s — full indicator refresh
 
-  // Live price refresh: 15 s when Finnhub key set, 30 s otherwise (was 60 s)
+  // Live price refresh: session-aware interval
+  //   Market open / pre / after hours → 5 s (near real-time)
+  //   Overnight / weekend            → 30 s (no point hammering closed markets)
   if (_liveTimer) clearInterval(_liveTimer);
   updateLiveBadge();
-  _liveTimer = setInterval(refreshLivePrices, _fhKey ? 15000 : 30000);
+  const _liveSession = getMarketSession();
+  const _pollMs = (_liveSession === 'overnight') ? 30000 : 5000;
+  _liveTimer = setInterval(refreshLivePrices, _pollMs);
 
   // Connect Finnhub WebSocket for zero-delay trade-tick prices
   if (_fhKey && !_fhConnected) connectFinnhubWS();
