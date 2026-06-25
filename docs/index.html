@@ -6772,14 +6772,12 @@ function buildCard(d, rank, pinned) {
   const bearPills = (d.bearishDrivers || []).map(x =>
     `<span class="dpill bear">${esc(x)}</span>`).join('');
 
-  const newsHtml = d.headlines?.length
-    ? d.headlines.map(h =>
+  const newsHtml = (d.headlines || []).map(h =>
         `<div class="news-item"><b>${esc(h.publisher || 'News')}:</b> ` +
         (h.link
           ? `<a href="${esc(h.link)}" target="_blank" rel="noopener noreferrer">${esc(h.title)}</a>`
           : esc(h.title)) +
-        `</div>`).join('')
-    : `<div class="news-item">No recent headlines</div>`;
+        `</div>`).join('');
 
   const rankHtml = pinned
     ? `<span style="font-size:1.1rem">&#128204;</span>`
@@ -6920,19 +6918,12 @@ function buildCard(d, rank, pinned) {
 
       <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
 
-      ${buildHoldBar(d, atrTag)}
-
-      ${buildSentimentIndicator(d)}
-
-      ${buildInlineForecast(d)}
-
       ${buildEarningsRow(d)}
       ${buildFundamentalsRow(d)}
-      ${buildInsiderSection(d)}
 
       ${bullPills || bearPills ? `<div class="drivers" style="margin-top:8px">${bullPills}${bearPills}</div>` : ''}
 
-      ${d.yearHigh && d.yearLow ? `<div class="yr-range" style="margin-top:6px">
+      ${d.hasHistory && d.yearHigh && d.yearLow ? `<div class="yr-range" style="margin-top:6px">
         <div style="font-size:.67rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">52-Week Range</div>
         <div class="yr-bar-wrap"><div class="yr-bar-fill" style="width:${yrPct ?? 50}%"></div></div>
         <div class="yr-labels">
@@ -6942,10 +6933,10 @@ function buildCard(d, rank, pinned) {
         </div>
       </div>` : ''}
 
-      <div class="card-news">
+      ${d.headlines?.length ? `<div class="card-news">
         <div class="card-sec-title">&#128240; Latest News</div>
         ${newsHtml}
-      </div>
+      </div>` : ''}
     </div>`;
 }
 
