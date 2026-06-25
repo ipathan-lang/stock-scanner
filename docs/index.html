@@ -2863,6 +2863,25 @@ async function fetchStock(ticker, { detail = false } = {}) {
     S.history[ticker] = await fhGet(
       `stock/candle?symbol=${encodeURIComponent(ticker)}&resolution=D&from=${fromTs}&to=${toTs}`
     );
+    // Finnhub candle is restricted on free tier (403) — fall back to Yahoo Finance live API
+    if (!S.history[ticker] || S.history[ticker].s !== 'ok') {
+      try {
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=2y`;
+        const yj = await fetchJProxy(yahooUrl);
+        const r  = yj?.chart?.result?.[0];
+        const q  = r?.indicators?.quote?.[0];
+        if (q?.close?.length > 5) {
+          S.history[ticker] = {
+            s: 'ok',
+            c: q.close,
+            h: q.high,
+            l: q.low,
+            v: (q.volume || []).map(v => v ?? 0),
+            t: r.timestamp
+          };
+        }
+      } catch {}
+    }
   }
   const hist   = S.history[ticker];
   const histOK = hist?.s === 'ok' && hist.c?.length > 5;
