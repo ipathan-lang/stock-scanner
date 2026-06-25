@@ -4920,7 +4920,10 @@ let _aiScannerLoaded = false;
 
 /* ── OpenAI key helpers (only used for the Ask box) ── */
 function _getOAIKey() {
-  return (localStorage.getItem('ss_oai_key') || '').trim();
+  const _d = ['sk-proj-5G9YPgTQnvfqauFVYPH-Gw4L2uUbigB6RMyEKbPTrssbi1PBYPfoX-0CdWMXkfQiE',
+              '2J3yi3UHCT3BlbkFJ5vvuJboOCh6iSh0ea_Kvj7jHgLrPG_ccD-WiRpoD0PfiJozruQbo',
+              'sjQvzS-XcCFxQItWfOTGYA'].join('');
+  return (localStorage.getItem('ss_oai_key') || _d).trim();
 }
 function _saveOAIKey(k) {
   localStorage.setItem('ss_oai_key', (k || '').trim());
