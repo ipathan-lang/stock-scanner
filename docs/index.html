@@ -7195,16 +7195,19 @@ function toggleDetail(id) {
 async function loadOne(ticker) {
   try {
     S.data[ticker] = await fetchStock(ticker);
-    // Fire sentiment fetch after stock loads — runs in background, never blocks
+    // Sentiment: only fetch for the stock currently being viewed in the search panel,
+    // NOT for all portfolio/trending stocks on load (avoids 39+ company-news calls at startup)
     if (!MARKET_TICKERS.includes(ticker)) {
-      _fetchSentimentData(ticker).then(sd => {
-        if (S.data[ticker] && !S.data[ticker].err) {
-          S.data[ticker].sentiment = sd;
-          // Refresh the card if this ticker is currently visible
-          const inp = document.getElementById('sp-q');
-          if (inp && inp.dataset.lastTicker === ticker) renderActivePanel();
-        }
-      }).catch(() => {});
+      const inp = document.getElementById('sp-q');
+      const isSearched = inp && inp.dataset.lastTicker === ticker;
+      if (isSearched) {
+        _fetchSentimentData(ticker).then(sd => {
+          if (S.data[ticker] && !S.data[ticker].err) {
+            S.data[ticker].sentiment = sd;
+            renderActivePanel();
+          }
+        }).catch(() => {});
+      }
     }
   } catch(e) {
     S.data[ticker] = { err: true, ticker };
@@ -7303,10 +7306,10 @@ async function refreshLivePrices() {
   ])].filter(t => S.data[t] && !S.data[t].err && t !== _fastPollTicker);
   if (!allTickers.length) return;
 
-  // Rotate through all tickers 5 at a time so every stock gets updated
-  // ~every (total/5)*5s seconds — well within the 60 calls/min rate limit
+  // Rotate through all tickers 2 at a time: 2 calls/5s = 24/min + fast poll 20/min = 44 total
+  // Stays well under Finnhub free tier limit of 60 calls/min
   if (typeof refreshLivePrices._idx !== 'number') refreshLivePrices._idx = 0;
-  const BATCH = 5;
+  const BATCH = 2;
   const batch = allTickers.slice(refreshLivePrices._idx, refreshLivePrices._idx + BATCH);
   refreshLivePrices._idx = (refreshLivePrices._idx + BATCH >= allTickers.length)
     ? 0 : refreshLivePrices._idx + BATCH;
@@ -7378,10 +7381,15 @@ let _fhKey        = '';
 let _fhWS         = null;
 let _fhConnected  = false;
 let _fhReconnTimer = null;
-let _fhPending    = false; // debounce render
+let _fhPending    = false;   // debounce render
+let _fhWsFailCount = 0;      // consecutive WS failures — stops reconnect after 3 (429/bad key)
+let _fhWsLastFail  = 0;      // timestamp of last failure
 
 function loadFHKey() {
-  _fhKey = localStorage.getItem('fh_apikey') || 'd869kfhr01qnvdehjmogd869kfhr01qnvdehjmp0';
+  // NOTE: no hardcoded default — each user must set their OWN free Finnhub key.
+  // The old shared key was public in the repo and getting 429 (rate limited).
+  // Get a free key at https://finnhub.io (takes 30 seconds, no credit card).
+  _fhKey = localStorage.getItem('fh_apikey') || '';
 }
 
 function openFHModal() {
@@ -7432,6 +7440,7 @@ function connectFinnhubWS() {
   } catch(_) { return; }
 
   _fhWS.onopen = () => {
+    _fhWsFailCount = 0;   // successful connection — reset failure counter
     _fhConnected = true;
     updateLiveBadge();
     const btn = document.getElementById('fh-key-btn');
@@ -7479,8 +7488,18 @@ function connectFinnhubWS() {
     updateLiveBadge();
     const btn = document.getElementById('fh-key-btn');
     if (btn) btn.classList.remove('active');
-    // Auto-reconnect every 7 s (handles brief network drops)
-    if (_fhKey) _fhReconnTimer = setTimeout(connectFinnhubWS, 7000);
+    if (!_fhKey) return;
+    // Exponential backoff: 10s → 20s → 40s → stop after 3 strikes
+    // Prevents hammering Finnhub when key is rate-limited (429)
+    _fhWsFailCount++;
+    _fhWsLastFail = Date.now();
+    if (_fhWsFailCount > 3) {
+      // Give up — REST polling covers prices every 3-5s without WS
+      console.warn('Finnhub WS: 3 consecutive failures, stopping reconnect. REST polling active.');
+      return;
+    }
+    const delay = Math.min(10000 * Math.pow(2, _fhWsFailCount - 1), 120000); // 10s,20s,40s,max 2min
+    _fhReconnTimer = setTimeout(connectFinnhubWS, delay);
   };
 }
 
