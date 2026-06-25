@@ -2917,272 +2917,106 @@ function getFundamentalScore(fund) {
   return { score, bullish, bearish };
 }
 
-async function fetchStock(ticker) {
-  const ps       = tickerProxyStart(ticker);
-  const isETF    = MARKET_TICKERS.includes(ticker);
-  const _cKey    = `ss_chart_${ticker}`; // kept for write-only (no read — always fetch live)
-  const chartUrl  = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y&includePrePost=false&events=earnings`;
-  const newsUrl   = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=3`;
-  // Combined quoteSummary: one call instead of two (saves 1 proxy hit per stock)
-  const comboUrl  = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents,defaultKeyStatistics,financialData,insiderHolders,netSharePurchaseActivity&formatted=false`;
-  const nasdaqUrl = `https://api.nasdaq.com/api/company/${ticker}/earnings-surprise`;
+async function fetchStock(ticker, { detail = false } = {}) {
+  const isETF = MARKET_TICKERS.includes(ticker);
 
-  let chart, news, nasdaqData, comboData;
-
-  // ── Try same-origin static cache first (GitHub Actions fetches server-side, no CORS) ──
-  let _usedStatic = false;
-  try {
-    const _sr = await fetch(`./data/stocks/${ticker}.json`);
-    if (_sr.ok) {
-      const _sf = await _sr.json();
-      if (_sf.chart) { // use static file regardless of age — GitHub Actions keeps it fresh
-        chart      = _sf.chart;
-        comboData  = _sf.combo ?? null;
-        news       = _sf.news  ?? null;
-        nasdaqData = null;
-        _usedStatic = true;
-        try { localStorage.setItem(_cKey, JSON.stringify({ ts: _sf._fetched || Date.now(), data: chart })); } catch {}
-      }
-    }
-  } catch {}
-
-  if (!_usedStatic) {
-    // Always fetch live — no localStorage cache read
+  // ── All data from Finnhub — CORS: * — no proxies, no Yahoo, no stale cache ──
+  const fhGet = async path => {
+    if (!_fhKey) return null;
     try {
-      chart = await fetchJ(chartUrl, ps);
-      try { localStorage.setItem(_cKey, JSON.stringify({ ts: Date.now(), data: chart })); } catch {}
-    } catch {
-      // All proxies failed — try Finnhub candle as last resort
-      chart = await _fetchChartFromFinnhub(ticker).catch(() => null);
-    }
-
-    if (isETF) {
-      news = await fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null);
-      nasdaqData = null;
-      comboData  = null;
-    } else {
-      [news, nasdaqData, comboData] = await Promise.all([
-        fetchJ(newsUrl, (ps + 1) % PROXIES.length).catch(() => null),
-        fetchJProxy(nasdaqUrl, ps).catch(() => null),
-        fetchJProxy(comboUrl, (ps + 2) % PROXIES.length).catch(() => null)
-      ]);
-    }
-  }
-
-  // Aliases — rest of function unchanged
-  const calendarData = comboData;
-  const insiderData  = comboData;
-
-  const res = chart.chart?.result?.[0];
-  if (!res) throw new Error('No chart data for ' + ticker);
-
-  const meta = res.meta;
-
-  // Extract next earnings date from chart events.earnings (past dates) + meta fallback.
-  // v8/finance/chart includes historical earnings in events.earnings when &events=earnings
-  // is appended to the URL. We find the most recent past date and project forward ~91 days.
-  let nextEarnings = null;
-
-  // Extract fundamentals from the same quoteSummary response
-  const _calRes  = calendarData?.quoteSummary?.result?.[0] ?? {};
-  const _getNum  = v => (v != null && typeof v === 'object' ? (v.raw ?? null) : (v ?? null));
-  const _ks = _calRes.defaultKeyStatistics ?? {};
-  const _fd = _calRes.financialData ?? {};
-  const fundamentals = {
-    forwardPE:      _getNum(_ks.forwardPE),
-    pegRatio:       _getNum(_ks.pegRatio),
-    debtToEquity:   _getNum(_fd.debtToEquity),
-    revenueGrowth:  _getNum(_fd.revenueGrowth),
-    earningsGrowth: _getNum(_fd.earningsGrowth),
-    profitMargins:  _getNum(_fd.profitMargins),
-    returnOnEquity: _getNum(_fd.returnOnEquity),
+      const r = await fetch(`https://finnhub.io/api/v1/${path}&token=${_fhKey}`, { cache: 'no-store' });
+      return r.ok ? r.json() : null;
+    } catch { return null; }
   };
 
-  // ── Insider transactions ──────────────────────────────────────────────────────────
-  // ── Insider activity ─────────────────────────────────────────────────────────────
-  // Uses insiderHolders (most recent tx per person) + netSharePurchaseActivity (6-month
-  // aggregate). These modules are reliably available without auth, unlike insiderTransactions.
-  const _insRes  = insiderData?.quoteSummary?.result?.[0] ?? {};
-  const _holders = _insRes.insiderHolders?.holders ?? [];
-  const _netAct  = _insRes.netSharePurchaseActivity ?? {};
-  const _cutoff  = Date.now() - 365 * 86400000;   // last 12 months
+  // 1. Live quote — required (price, changePct, dayHigh/Low, open, prevClose)
+  const _fhLive = await _fhRestQuote(ticker);
+  if (!_fhLive || _fhLive.c <= 0) throw new Error('No live quote for ' + ticker);
 
-  // _getNum already handles both {raw:N} objects (formatted=true) and plain numbers (formatted=false)
-  const insiderTx = _holders
-    .filter(h => (_getNum(h.latestTransDate) * 1000) > _cutoff)
-    .map(h => {
-      const desc = (h.transactionDescription ?? '').toLowerCase();
-      const isSell = desc.includes('sale') || desc.includes('sell') || desc.includes('disposed');
-      const isBuy  = desc.includes('purchase') || desc.includes('acquisition') ||
-                     desc.includes('exercise') || desc.includes('award') || desc.includes('grant');
-      if (!isBuy && !isSell) return null;
-      const tsRaw = _getNum(h.latestTransDate);
-      const dateFmt = h.latestTransDate?.fmt
-        ?? (tsRaw ? new Date(tsRaw * 1000).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '');
-      return {
-        name:   h.name   ?? 'Insider',
-        role:   h.relation ?? '',
-        type:   isSell ? 'SELL' : 'BUY',
-        shares: _getNum(h.positionDirect) ?? 0,
-        value:  0,   // insiderHolders doesn't carry $ value; use netSharePurchaseActivity
-        date:   dateFmt,
-        text:   h.transactionDescription ?? '',
-      };
-    })
-    .filter(Boolean);
-
-  // Aggregate from netSharePurchaseActivity (6-month window)
-  const _buyShares  = _getNum(_netAct.buyInfoShares)  ?? 0;
-  const _sellShares = _getNum(_netAct.sellInfoShares) ?? 0;
-  const _buyCount   = _getNum(_netAct.buyInfoCount)   ?? 0;
-  const _sellCount  = _getNum(_netAct.sellInfoCount)  ?? 0;
-  const insiderNetShares = _buyShares - _sellShares;   // positive = net buying
-
-  const insiderActivity = {
-    transactions: insiderTx.slice(0, 6),
-    netValue:     insiderNetShares,   // shares instead of $; sign is what matters for scoring
-    buyCount:     _buyCount  || insiderTx.filter(t => t.type === 'BUY').length,
-    sellCount:    _sellCount || insiderTx.filter(t => t.type === 'SELL').length,
-    buyShares:    _buyShares,
-    sellShares:   _sellShares,
-  };
-
-  // SOURCE 1 — Yahoo calendarEvents module (most accurate: actual scheduled date)
-  const calEarnings = _calRes?.calendarEvents?.earnings?.earningsDate;
-  if (Array.isArray(calEarnings) && calEarnings.length > 0) {
-    const future = calEarnings
-      .map(e => new Date((e.raw ?? e) * 1000))
-      .filter(d => !isNaN(d) && d > new Date())
-      .sort((a, b) => a - b);
-    if (future.length > 0) nextEarnings = future[0];
+  // 2. Daily OHLCV candles — session-cached (historical closes never change during trading hours)
+  if (!S.history) S.history = {};
+  if (!S.history[ticker]) {
+    const toTs   = Math.floor(Date.now() / 1000);
+    const fromTs = toTs - 550 * 86400;   // ~1.5 calendar years → 260+ trading days
+    S.history[ticker] = await fhGet(
+      `stock/candle?symbol=${encodeURIComponent(ticker)}&resolution=D&from=${fromTs}&to=${toTs}`
+    );
   }
+  const hist   = S.history[ticker];
+  const histOK = hist?.s === 'ok' && hist.c?.length > 5;
+  const closes  = histOK ? hist.c : [_fhLive.pc, _fhLive.c];
+  const highs   = histOK ? hist.h : [_fhLive.pc, _fhLive.h || _fhLive.c];
+  const lows    = histOK ? hist.l : [_fhLive.pc, _fhLive.l || _fhLive.c];
+  const dailyVols = histOK ? (hist.v ?? []) : [];
 
-  // SOURCE 2 — Yahoo meta earningsTimestamp (occasionally live)
-  if (!nextEarnings) {
-    const ets = meta.earningsTimestampStart ?? meta.earningsTimestamp;
-    if (ets) {
-      const d = new Date(ets * 1000);
-      if (!isNaN(d) && d > new Date()) nextEarnings = d;
-    }
-  }
+  // 3. Detail mode (searched stock): fetch intraday volume + metrics + earnings + headlines
+  let todayVol = null;
+  let fundamentals = { forwardPE: null, pegRatio: null, debtToEquity: null,
+                       revenueGrowth: null, earningsGrowth: null, profitMargins: null, returnOnEquity: null };
+  let nextEarnings  = null;
+  const epsSurprise   = null;   // not available on Finnhub free tier
+  const isEarningsDay = false;
+  const nasdaqRows    = null;
+  const insiderActivity = { transactions: [], netValue: 0, buyCount: 0, sellCount: 0, buyShares: 0, sellShares: 0 };
+  let headlines = [];
 
-  // SOURCE 3 — NASDAQ earnings-surprise: fiscal-calendar-aware projection
-  // Uses company's own quarter-end dates + historical reporting lag instead of naive +91d
-  let epsSurprise = null;
-  const nasdaqRows = nasdaqData?.data?.earningsSurpriseTable?.rows;
-  if (!nextEarnings && nasdaqRows?.length > 0) {
-    // Parse "Dec 2025" → last day of that month
-    const parseQtrEnd = s => {
-      if (!s) return null;
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const parts = s.trim().split(/\s+/);
-      const mIdx = months.indexOf(parts[0]);
-      const yr   = parseInt(parts[1]);
-      if (mIdx < 0 || isNaN(yr)) return null;
-      return new Date(yr, mIdx + 1, 0); // last day of month
+  if (detail && !isETF) {
+    const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+    const intFrom    = Math.floor(todayMidnight.getTime() / 1000);
+    const intTo      = Math.floor(Date.now() / 1000);
+    const todayStr   = new Date().toISOString().slice(0, 10);
+    const earnFrom   = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const earnTo     = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+    const newsFrom   = new Date(Date.now() -  7 * 86400000).toISOString().slice(0, 10);
+
+    const [intraday, metrics, earnings, news] = await Promise.allSettled([
+      fhGet(`stock/candle?symbol=${encodeURIComponent(ticker)}&resolution=5&from=${intFrom}&to=${intTo}`),
+      fhGet(`stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all`),
+      fhGet(`calendar/earnings?symbol=${encodeURIComponent(ticker)}&from=${earnFrom}&to=${earnTo}`),
+      fhGet(`company-news?symbol=${encodeURIComponent(ticker)}&from=${newsFrom}&to=${todayStr}`),
+    ]).then(r => r.map(x => x.status === 'fulfilled' ? x.value : null));
+
+    // Real-time volume: sum all intraday 5-min bars traded so far today
+    if (intraday?.s === 'ok' && intraday.v?.length)
+      todayVol = intraday.v.reduce((a, b) => a + b, 0);
+
+    // Fundamentals from Finnhub metrics
+    const _m = metrics?.metric ?? {};
+    fundamentals = {
+      forwardPE:      _m['peExclExtraTTM']              ?? null,
+      pegRatio:       _m['pegyratio']                   ?? null,
+      debtToEquity:   _m['totalDebt2TotalEquityAnnual'] ?? null,
+      revenueGrowth:  _m['revenueGrowthTTMYoy']  != null ? _m['revenueGrowthTTMYoy']  / 100 : null,
+      earningsGrowth: _m['epsGrowthTTMYoy']       != null ? _m['epsGrowthTTMYoy']       / 100 : null,
+      profitMargins:  _m['netProfitMarginTTM']    != null ? _m['netProfitMarginTTM']    / 100 : null,
+      returnOnEquity: _m['roeRfy']                != null ? _m['roeRfy']                / 100 : null,
     };
 
-    // Calculate this company's average days from quarter-end → report date
-    const lags = [];
-    for (const row of nasdaqRows.slice(0, 4)) {
-      const rep = new Date(row.dateReported);
-      const qe  = parseQtrEnd(row.fiscalQtrEnd);
-      if (qe && !isNaN(rep) && rep > qe) lags.push(Math.round((rep - qe) / 86400000));
-    }
-    const avgLag = lags.length ? Math.round(lags.reduce((a, b) => a + b, 0) / lags.length) : 35;
+    // Next earnings date from Finnhub calendar
+    const futureEarns = (earnings?.earningsCalendar ?? [])
+      .filter(e => e.date && new Date(e.date) > new Date())
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (futureEarns.length) nextEarnings = new Date(futureEarns[0].date);
 
-    // Project: next quarter end = last quarter end + 91d, then add company lag
-    const lastQtrEnd = parseQtrEnd(nasdaqRows[0]?.fiscalQtrEnd);
-    if (lastQtrEnd) {
-      let projected = new Date(lastQtrEnd.getTime() + (91 + avgLag) * 86400000);
-      if (projected <= new Date()) {
-        projected = new Date(lastQtrEnd.getTime() + (182 + avgLag) * 86400000);
-      }
-      if (projected > new Date()) nextEarnings = projected;
-    }
+    // Headlines from company news
+    if (Array.isArray(news))
+      news.slice(0, 5).forEach(n => {
+        if (n.headline) headlines.push({ title: n.headline, link: n.url, publisher: n.source });
+      });
   }
 
-  // SOURCE 4 — Yahoo events.earnings historical dates: project using actual company intervals
-  if (!nextEarnings && res.events?.earnings) {
-    const earnTs = Object.values(res.events.earnings)
-      .map(e => (e.date ?? e.reportDate) * 1000)
-      .filter(t => !isNaN(t))
-      .sort((a, b) => a - b);
-    const past = earnTs.filter(t => t < Date.now());
-    if (past.length >= 2) {
-      const recent = past.slice(-4);
-      const intervals = [];
-      for (let i = 1; i < recent.length; i++) intervals.push(recent[i] - recent[i - 1]);
-      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      const projected = new Date(past[past.length - 1] + avgInterval);
-      if (projected > new Date()) nextEarnings = projected;
-    } else if (past.length === 1) {
-      const projected = new Date(past[0] + 91 * 86400000);
-      if (projected > new Date()) nextEarnings = projected;
-    }
-  }
-
-  // EPS surprise from most recently reported past quarter (NASDAQ rows)
-  if (nasdaqRows?.length > 0) {
-    const now = Date.now();
-    for (const row of nasdaqRows) {
-      const d = new Date(row.dateReported);
-      if (!isNaN(d) && d.getTime() <= now && row.percentageSurprise != null) {
-        const pct = parseFloat(String(row.percentageSurprise));
-        if (!isNaN(pct)) {
-          epsSurprise = { beat: pct >= 0, pct, quarter: row.fiscalQtrEnd ?? '' };
-        }
-        break;
-      }
-    }
-  }
-
-  const q    = res.indicators.quote[0];
-
-  const valid = [];
-  for (let i = 0; i < q.close.length; i++)
-    if (q.close[i] != null && q.high[i] != null && q.low[i] != null)
-      valid.push({ c: q.close[i], h: q.high[i], l: q.low[i] });
-
-  const closes    = valid.map(v => v.c);
-  const highs     = valid.map(v => v.h);
-  const lows      = valid.map(v => v.l);
-
-  // Volume data for catalyst/penalty modifiers
-  const rawVols     = (q.volume ?? []).filter(v => v != null && v > 0);
-  const currentVol  = meta.regularMarketVolume ?? (rawVols.length ? rawVols[rawVols.length - 1] : null);
-  const avgVol      = rawVols.length >= 21
-    ? rawVols.slice(-21, -1).reduce((a, b) => a + b, 0) / 20
-    : null;
+  // Volume: real-time today vol when available, else last daily bar
+  const rawVols    = [...dailyVols.slice(0, -1), ...(todayVol ? [todayVol] : dailyVols.slice(-1))].filter(v => v > 0);
+  const currentVol = todayVol ?? (dailyVols.length ? dailyVols[dailyVols.length - 1] : null);
+  const avgVol     = rawVols.length >= 21
+    ? rawVols.slice(-21, -1).reduce((a, b) => a + b, 0) / 20 : null;
   const volumeRatio = (currentVol && avgVol && avgVol > 0) ? currentVol / avgVol : null;
 
-  let price     = meta.regularMarketPrice ?? closes[closes.length - 1];
-  // regularMarketPreviousClose is Yahoo's canonical unadjusted prev-day close.
-  // NEVER use meta.chartPreviousClose — it is the split/dividend-adjusted 2-year baseline
-  // price (e.g. $109 for NVDA when current price is $224) and causes fake +50-200% readings.
-  // closes[-2] is the actual previous trading day's close from the OHLCV array.
-  const prevClose = meta.regularMarketPreviousClose ?? meta.previousClose ?? closes[closes.length - 2] ?? price;
-  let change    = meta.regularMarketChange ?? (price - prevClose);
-  // Use Yahoo's own calculated changePercent when available (decimal → ×100)
-  // Extra guard: if computed changePct is absurdly large (>50% daily swing) and we had to
-  // fall back to closes[-2], recompute directly so bad meta data never poisons the display.
-  const _rawPct = meta.regularMarketChangePercent != null
-    ? meta.regularMarketChangePercent * 100
-    : (prevClose > 0 ? (change / prevClose) * 100 : 0);
-  let changePct = (meta.regularMarketChangePercent == null && Math.abs(_rawPct) > 50 && closes.length >= 2)
-    ? ((price - closes[closes.length - 2]) / closes[closes.length - 2]) * 100
-    : _rawPct;
-
-  // ── Real-time price override ─────────────────────────────────────────────────────────
-  // Fetch Finnhub live quote immediately so ALL scoring uses the actual current market price,
-  // not the stale cached value (which can be 2h old from GitHub Actions).
-  // Historical OHLCV (closes/highs/lows) still comes from cache — needed for RSI/MACD/ATR.
-  const _fhLive = await _fhRestQuote(ticker).catch(() => null);
-  if (_fhLive) {
-    price     = _fhLive.c;
-    change    = _fhLive.d  ?? (price - prevClose);
-    changePct = _fhLive.dp ?? changePct;
-  }
+  // All price fields from live Finnhub quote — zero stale data
+  let price     = _fhLive.c;
+  const prevClose = _fhLive.pc;
+  let change    = _fhLive.d  ?? (price - prevClose);
+  let changePct = _fhLive.dp ?? (prevClose > 0 ? (change / prevClose) * 100 : 0);
 
   // 52-week range and 20-day return (base for relative strength vs SPY)
   const yearHigh = highs.length ? Math.max(...highs) : null;
@@ -3234,9 +3068,9 @@ async function fetchStock(ticker) {
   // % upside remaining to the 5-day high — the natural profit target for week-range trading
   const weekHighPct = wHigh5 > price ? ((wHigh5 - price) / price * 100) : 0;
 
-  // Intraday direction signals — prefer Finnhub live values (real-time) over cached Yahoo meta
-  const marketOpen    = (_fhLive?.o  > 0) ? _fhLive.o  : (meta.regularMarketOpen    ?? price);
-  const marketDayHigh = (_fhLive?.h  > 0) ? _fhLive.h  : (meta.regularMarketDayHigh ?? null);
+  // Intraday direction signals — all from Finnhub live quote
+  const marketOpen    = _fhLive.o > 0 ? _fhLive.o : price;
+  const marketDayHigh = _fhLive.h > 0 ? _fhLive.h : null;
   const openChangePct    = marketOpen > 0 ? ((price - marketOpen)    / marketOpen)    * 100 : 0;
   const dayHighRevertPct = (marketDayHigh && marketDayHigh > price)
     ? ((price - marketDayHigh) / marketDayHigh) * 100 : 0;
@@ -3382,12 +3216,7 @@ async function fetchStock(ticker) {
   bearishDrivers.push(...trendPenaltyDrivers);
 
   // ── Earnings day reaction: score the actual EPS result when stock just reported ──
-  // Detects if the most recent NASDAQ row was reported today or yesterday
-  const isEarningsDay = (() => {
-    if (!nasdaqRows?.length) return false;
-    const d = new Date(nasdaqRows[0]?.dateReported);
-    return !isNaN(d) && Math.abs((Date.now() - d.getTime()) / 86400000) <= 2;
-  })();
+  // (isEarningsDay and epsSurprise set in data-loading section above)
   if (isEarningsDay && epsSurprise) {
     const eps = epsSurprise.pct;
     if (eps > 15)      { catalystScore += 2; catalystDrivers.push(`EPS beat +${eps.toFixed(0)}% — strong earnings catalyst`); }
@@ -3522,7 +3351,7 @@ async function fetchStock(ticker) {
   // 3-factor confirmation: Volume spike + ATR breach + intraday VWAP deviation
   // A genuine sudden move needs at least 2 of 3 factors — eliminates low-liquidity noise.
   // VWAP approximation: (open + dayHigh + dayLow + price) / 4  (Typical Price variant)
-  const marketDayLow  = (_fhLive?.l  > 0) ? _fhLive.l  : (meta.regularMarketDayLow  ?? price);
+  const marketDayLow  = _fhLive.l > 0 ? _fhLive.l : price;
   const vwapApprox    = (marketOpen + (marketDayHigh ?? price) + marketDayLow + price) / 4;
   const vwapDevPct    = vwapApprox > 0 ? ((price - vwapApprox) / vwapApprox * 100) : 0;
 
@@ -3685,12 +3514,7 @@ async function fetchStock(ticker) {
     changePct, volumeRatio, gapAndFade });
   const signalRank = _sigTmp.rank ?? 6;
 
-  const headlines = [];
-  if (news?.news) {
-    news.news.slice(0, 3).forEach(n => {
-      if (n.title) headlines.push({ title: n.title, link: n.link, publisher: n.publisher });
-    });
-  }
+  // headlines already built in data-loading section above (detail mode = Finnhub news, quick = [])
 
   return {
     ticker, price, change, changePct,
@@ -4410,7 +4234,7 @@ async function searchPanelStock() {
     // Clear any cached error so a fresh fetch is attempted
     if (S.data[compactTicker]?.err) delete S.data[compactTicker];
 
-    await loadOne(compactTicker);
+    await loadOne(compactTicker, { detail: true });
     const d = S.data[compactTicker];
     if (!d || d.err) {
       result.innerHTML = `<div class="empty" style="color:var(--red);padding:24px 0">
@@ -7203,22 +7027,17 @@ function toggleDetail(id) {
 // ══════════════════════════════════════════════════════════════
 //  DATA LOADING
 // ══════════════════════════════════════════════════════════════
-async function loadOne(ticker) {
+async function loadOne(ticker, { detail = false } = {}) {
   try {
-    S.data[ticker] = await fetchStock(ticker);
-    // Sentiment: only fetch for the stock currently being viewed in the search panel,
-    // NOT for all portfolio/trending stocks on load (avoids 39+ company-news calls at startup)
-    if (!MARKET_TICKERS.includes(ticker)) {
-      const inp = document.getElementById('sp-q');
-      const isSearched = inp && inp.dataset.lastTicker === ticker;
-      if (isSearched) {
-        _fetchSentimentData(ticker).then(sd => {
-          if (S.data[ticker] && !S.data[ticker].err) {
-            S.data[ticker].sentiment = sd;
-            renderActivePanel();
-          }
-        }).catch(() => {});
-      }
+    S.data[ticker] = await fetchStock(ticker, { detail });
+    // Sentiment fetch (company news NLP) — only for the searched stock in detail mode
+    if (detail && !MARKET_TICKERS.includes(ticker)) {
+      _fetchSentimentData(ticker).then(sd => {
+        if (S.data[ticker] && !S.data[ticker].err) {
+          S.data[ticker].sentiment = sd;
+          renderActivePanel();
+        }
+      }).catch(() => {});
     }
   } catch(e) {
     S.data[ticker] = { err: true, ticker };
@@ -7625,6 +7444,7 @@ async function refreshAll() {
 
 async function manualRefresh() {
   S.data = {};
+  S.history = {};   // clear session-cached daily candles so fresh data is fetched
   await refreshAll();
 }
 
