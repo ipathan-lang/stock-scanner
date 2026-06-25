@@ -3681,13 +3681,6 @@ async function fetchStock(ticker) {
     });
   }
 
-  // ── Sentiment engine: parallel async fetch (non-blocking, never throws) ──────
-  // Fetches StockTwits social data + extra Yahoo headlines in background.
-  // Stored in sentimentData.extraHeadlines / sentimentData.social.
-  // ETFs skip social fetch (no StockTwits coverage).
-  const sentimentData = isETF ? null
-    : await _fetchSentimentData(ticker).catch(() => null);
-
   return {
     ticker, price, change, changePct,
     fetchedAt: Date.now(),
@@ -3699,7 +3692,7 @@ async function fetchStock(ticker) {
     sortScore: sortScoreFinal,
     signalRank,
     headlines,
-    sentiment: sentimentData,
+    sentiment: null,   // filled in by loadOne background fetch
     nextEarnings,
     epsSurprise,
     isEarningsDay,
@@ -6787,49 +6780,36 @@ function _sentimentKeywordScore(texts) {
 }
 
 // Fetch StockTwits public stream + extended Yahoo news headlines (no auth needed)
+// Fetch sentiment enrichment via Finnhub company news (CORS:* — direct browser, no proxy).
+// Returns { social, extraHeadlines } where social.source = 'news'.
 async function _fetchSentimentData(ticker) {
   const result = { social: null, extraHeadlines: [] };
+  if (!_fhKey) return result;
   try {
-    // StockTwits public API — free, no auth, covers retail trader sentiment
-    const stUrl   = `https://api.stocktwits.com/api/2/streams/symbol/${encodeURIComponent(ticker)}.json?limit=30`;
-    const proxyFn = PROXIES[tickerProxyStart(ticker) % PROXIES.length];
-    const resp    = await Promise.race([
-      fetch(proxyFn(stUrl)),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))
-    ]);
-    if (resp.ok) {
-      const data     = await resp.json();
-      const messages = data.messages ?? [];
-      let bulls = 0, bears = 0;
-      const texts = [];
-      for (const m of messages) {
-        const s = m.entities?.sentiment?.basic;
-        if (s === 'Bullish') bulls++;
-        else if (s === 'Bearish') bears++;
-        if (m.body) texts.push(m.body);
-      }
-      result.social = {
-        bulls, bears,
-        bullPct: (bulls + bears) > 0 ? Math.round((bulls / (bulls + bears)) * 100) : 50,
-        total: bulls + bears,
-        messageCount: messages.length
-      };
-      result.extraHeadlines = texts.slice(0, 12);
-    }
-  } catch {}
-  // Extended Yahoo news headlines (more than the 3 fetched by default)
-  try {
-    const moreNewsUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=8`;
-    const proxyFn2    = PROXIES[(tickerProxyStart(ticker) + 1) % PROXIES.length];
-    const resp2 = await Promise.race([
-      fetch(proxyFn2(moreNewsUrl)),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
-    ]);
-    if (resp2.ok) {
-      const nd = await resp2.json();
-      const extra = (nd.news ?? []).slice(3).map(n => n.title).filter(Boolean);
-      result.extraHeadlines = [...result.extraHeadlines, ...extra];
-    }
+    const today = new Date();
+    const from  = new Date(+today - 7 * 86400000).toISOString().split('T')[0];
+    const to    = today.toISOString().split('T')[0];
+    const url   = `https://finnhub.io/api/v1/company-news` +
+                  `?symbol=${encodeURIComponent(ticker)}&from=${from}&to=${to}&token=${_fhKey}`;
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) return result;
+    const articles = await r.json();
+    if (!Array.isArray(articles) || !articles.length) return result;
+    // Combine headline + summary text for keyword analysis (up to 30 articles)
+    result.extraHeadlines = articles.slice(0, 30).map(a =>
+      (a.headline || '') + ' ' + (a.summary || '')
+    ).filter(Boolean);
+    // Derive bull/bear signals from keywords on those articles
+    const corpus = result.extraHeadlines.join(' ').toLowerCase();
+    let bull = 0, bear = 0;
+    for (const w of SENTIMENT_BULLS) if (corpus.includes(w)) bull++;
+    for (const w of SENTIMENT_BEARS) if (corpus.includes(w)) bear++;
+    result.social = {
+      bulls: bull, bears: bear, total: bull + bear,
+      bullPct: (bull + bear) > 0 ? Math.round((bull / (bull + bear)) * 100) : 50,
+      messageCount: articles.length,
+      source: 'news'   // Finnhub articles, not social media
+    };
   } catch {}
   return result;
 }
@@ -6897,8 +6877,8 @@ function buildSentimentIndicator(d) {
   // Social blurb
   const soc = sent.social;
   const socialHtml = soc && soc.total > 0
-    ? `<span class="sent-social">&#128172; StockTwits: <b>${soc.bullPct}% bull</b> (${soc.bulls}↑ ${soc.bears}↓ of ${soc.total})</span>`
-    : `<span class="sent-sources">StockTwits: loading&hellip;</span>`;
+    ? `<span class="sent-social">&#128240; ${soc.messageCount} articles: <b>${soc.bullPct}% bullish signals</b> (${soc.bulls}↑ ${soc.bears}↓)</span>`
+    : `<span class="sent-sources">News analysis: loading&hellip;</span>`;
 
   // Sector label
   const secLabel = { SOXX:'Semis', QQQ:'Tech', XBI:'Biotech', XLF:'Financials', XLE:'Energy', XLV:'Healthcare' }[sent.sectorEtf] ?? sent.sectorEtf;
@@ -7215,6 +7195,17 @@ function toggleDetail(id) {
 async function loadOne(ticker) {
   try {
     S.data[ticker] = await fetchStock(ticker);
+    // Fire sentiment fetch after stock loads — runs in background, never blocks
+    if (!MARKET_TICKERS.includes(ticker)) {
+      _fetchSentimentData(ticker).then(sd => {
+        if (S.data[ticker] && !S.data[ticker].err) {
+          S.data[ticker].sentiment = sd;
+          // Refresh the card if this ticker is currently visible
+          const inp = document.getElementById('sp-q');
+          if (inp && inp.dataset.lastTicker === ticker) renderActivePanel();
+        }
+      }).catch(() => {});
+    }
   } catch(e) {
     S.data[ticker] = { err: true, ticker };
   }
