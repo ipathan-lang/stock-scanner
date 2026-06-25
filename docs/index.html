@@ -1587,16 +1587,11 @@
       <div style="font-size:.73rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Signal Badges — Best to Worst</div>
       <div class="score-visual" style="flex-wrap:wrap;gap:4px">
         <div class="sv-item sv-sb" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Buy Now</span><span class="sv-range">All gates: dip + conf ≥88% + score ≥6 + pos ≤35%</span></div>
-        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Good Entry</span><span class="sv-range">Dip confirmed · conf ≥65% · score ≥4 · pos ≤50%</span></div>
-        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">📈</span><span>Momentum Buy</span><span class="sv-range">Uptrend confirmed · score ≥5 · ret20 >1% · vol ≥1.2× · strong trend</span></div>
-        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🚀</span><span>Big Move</span><span class="sv-range">2.5%+ today · 1.8×+ volume · above week mid · AMD/QCOM/MU pattern</span></div>
-        <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Building</span><span class="sv-range">Score ≥4 but dip / conf not yet met</span></div>
-        <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch · Pullback Soon</span><span class="sv-range">Score ≥4 · pos 50–70% — wait for dip</span></div>
-        <div class="sv-item sv-ca" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">⏳</span><span>Wait · Overextended</span><span class="sv-range">Score ≥5 · pos ≥70% — don't chase</span></div>
-        <div class="sv-item sv-neu" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟡</span><span>Neutral</span><span class="sv-range">Score 2–4 · no clear edge</span></div>
-        <div class="sv-item sv-ora" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟠</span><span>Caution</span><span class="sv-range">Score 0–2 · slightly negative</span></div>
-        <div class="sv-item sv-w"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🔴</span><span>Avoid</span><span class="sv-range">Score -3–0 · sellers in control</span></div>
-        <div class="sv-item sv-br" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🔴</span><span>Selling</span><span class="sv-range">Score &lt; -3 · heavy selling pressure</span></div>
+        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟢</span><span>Buy</span><span class="sv-range">Dip confirmed · conf ≥65% · score ≥4 · pos ≤50%</span></div>
+        <div class="sv-item sv-b"  style="min-width:42%;flex:1 1 42%"><span class="sv-sig">📈</span><span>Momentum</span><span class="sv-range">Uptrend confirmed · score ≥5 · ret20 >3% · vol ≥1.2× OR breakout 2.5%+ on 1.8×+ vol</span></div>
+        <div class="sv-item sv-ba" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">👀</span><span>Watch</span><span class="sv-range">Score ≥4 — positive but entry timing isn't ideal yet</span></div>
+        <div class="sv-item sv-neu" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🟡</span><span>Neutral</span><span class="sv-range">Score 0–3 · no clear edge either way</span></div>
+        <div class="sv-item sv-br" style="min-width:42%;flex:1 1 42%"><span class="sv-sig">🔴</span><span>Avoid</span><span class="sv-range">Score &lt; 0 · bearish signals in control</span></div>
       </div>
 
       <!-- Indicator guide -->
@@ -2165,70 +2160,6 @@ function getCatalystBonus({ nextEarnings, changePct, position, volumeRatio, pric
 }
 
 // ══════════════════════════════════════════════════════════════
-//  TREND QUALITY PENALTY  — penalises falling-knife patterns
-//  Adds to bearishScore only; core scoring unchanged.
-// ══════════════════════════════════════════════════════════════
-function getTrendPenalty({ position, changePct, volumeRatio, price, ema20, closes, currentPrice }) {
-  let penalty = 0;
-  const drivers = [];
-  // Use today's live price where available — closes[] last element is yesterday during mkt hours
-  const todayPrice = currentPrice ?? closes[closes.length - 1];
-
-  // Falling knife: already below EMA20 support AND still declining today
-  if (todayPrice < ema20 * 0.99 && changePct < -0.5) {
-    penalty += 2;
-    drivers.push('Below EMA20 and still declining — falling knife risk');
-  }
-
-  // Distribution at week-low: price near low but selling on above-average volume
-  if (position < 0.25 && changePct < 0 && volumeRatio != null && volumeRatio > 1.3) {
-    penalty += 2;
-    drivers.push('Selling pressure at week-low on volume — distribution pattern');
-  }
-
-  // Fresh breakdown: today's live price is below the last 5 prior daily closes
-  if (closes && closes.length >= 6) {
-    const priorRangeLow = Math.min(...closes.slice(-6, -1));
-    if (todayPrice < priorRangeLow * 0.995) {
-      penalty += 2;
-      drivers.push('Fresh 5-day low breakdown — support failed');
-    }
-  }
-
-  // Position reversal: falling into lower range today — not a support bounce
-  if (position < 0.40 && changePct < -1.5) {
-    penalty += 2;
-    drivers.push('Falling into lower range — not a support bounce, a fresh breakdown');
-  }
-
-  // Consecutive declining closes — includes today's live price as the most recent bar
-  if (closes && closes.length >= 3) {
-    const n = closes.length;
-    if (todayPrice < closes[n-1] && closes[n-1] < closes[n-2] && closes[n-2] < closes[n-3]) {
-      penalty += 2;
-      drivers.push('4 consecutive lower closes (incl. today) — sustained distribution');
-    } else if (todayPrice < closes[n-1] && closes[n-1] < closes[n-2]) {
-      penalty += 1;
-      drivers.push('3 consecutive lower closes (incl. today) — selling pressure building');
-    } else if (closes[n-1] < closes[n-2] && closes[n-2] < closes[n-3] && closes[n-3] < closes[n-4]) {
-      penalty += 2;
-      drivers.push('4 consecutive lower historical closes — sustained distribution');
-    } else if (closes[n-1] < closes[n-2] && closes[n-2] < closes[n-3]) {
-      penalty += 1;
-      drivers.push('3 consecutive lower historical closes — selling pressure');
-    }
-  }
-
-  // Short-term slope: uses today's live price as endpoint
-  if (closes && closes.length >= 6) {
-    const ret5d = ((todayPrice / closes[closes.length - 6]) - 1) * 100;
-    if (ret5d < -4)      { penalty += 2; drivers.push(`Down ${Math.abs(ret5d).toFixed(1)}% over 5 days — momentum breakdown`); }
-    else if (ret5d < -2) { penalty += 1; drivers.push(`Down ${Math.abs(ret5d).toFixed(1)}% over 5 days — weakening trend`); }
-  }
-
-  return { penalty, drivers };
-}
-
 // ══════════════════════════════════════════════════════════════
 //  CONFIDENCE SCORE  (0–99%)
 //  Measures how well the current setup matches the dip-buying strategy.
@@ -2381,7 +2312,7 @@ function signal(d) {
       (conf >= 50 && pos <= 0.60 && r20 > 2)
     );
 
-  if (bullish) return { label: `🟢 Good Entry · ${pct}`,          cls: 'bg', conf, rank: 2 };
+  if (bullish) return { label: `🟢 Buy · ${pct}`,                    cls: 'bg', conf, rank: 2 };
 
   // ── MOMENTUM ENTRY (trending / rally-market play) ────────────────────────────────
   // Fires when the dip-buy gate doesn't apply but the stock is in a confirmed uptrend.
@@ -2401,21 +2332,17 @@ function signal(d) {
   const isHighVolBreakout = (d.volumeRatio ?? 1) >= 1.8 && (d.changePct ?? 0) >= 2.0;
   const momentumEntry =
     s >= 5 &&
-    r20 > 1 &&                                              // lowered from 5 → catches early breakouts
+    r20 > 3 &&                                              // confirmed uptrend (not just flat)
     pos >= 0.30 && pos <= 0.85 &&
     (d.rsi     ?? 50) >= 45 && (d.rsi ?? 50) < 73 &&
     (d.volumeRatio ?? 1) >= 1.2 &&
     (d.changePct   ?? 0) > -2 &&
     (isHighVolBreakout || (d.macdDiff ?? 0) > 0) &&        // bypass MACD on big-vol breakout day
-    trendConf >= 48;                                        // lowered from 55
+    trendConf >= 50;
 
-  if (momentumEntry) return { label: `📈 Momentum Buy · ${trendConf}%`, cls: 'bg', conf: trendConf, rank: 2 };
-
-  // ── BIG MOVE BREAKOUT (AMD / QCOM / MU pattern) ──────────────────────────────────
-  // Stock is at 40–88% of week range AND making a 2.5%+ move on strong institutional
-  // volume today. This is a confirmed momentum breakout above week mid — NOT chasing.
-  // The exit point is the 5-day high (weekHighPct shows remaining upside).
-  // Score based on: magnitude of move · volume confirmation · trend · score · RSI headroom
+  // ── MOMENTUM: confirmed uptrend + volume-backed move ──────────────────────────────
+  // Covers both steady uptrend plays and large breakout days.
+  // Uses trendConf for steady moves; bigMoveConf for 2.5%+ breakout days.
   const bigMovePts =
     ((d.changePct ?? 0) >= 6  ? 28 :
      (d.changePct ?? 0) >= 4  ? 22 :
@@ -2426,35 +2353,30 @@ function signal(d) {
     (r20 >= 5 ? 14 : r20 >= 1 ? 9 : r20 >= -2 ? 4 : 0) +
     (s >= 6  ? 18 : s >= 4 ? 12 : s >= 2 ? 6 : 0) +
     ((d.rsi ?? 50) <= 62 ? 10 : (d.rsi ?? 50) <= 72 ? 5 : 0) +
-    ((d.atrRatio ?? 1) >= 1.4 ? 4 : 0);   // ATR expansion = explosive move already in progress
+    ((d.atrRatio ?? 1) >= 1.4 ? 4 : 0);
   const bigMoveConf = Math.min(99, Math.max(1, bigMovePts));
   const bigMoveBreakout =
-    (d.changePct   ?? 0) >= 2.5 &&         // up 2.5%+ today
-    (d.volumeRatio ?? 1) >= 1.8 &&         // institutional buying confirmed
-    pos >= 0.40 && pos <= 0.88 &&           // above week mid, not at extreme extension
-    s >= 3 &&                               // positive score floor
-    r20 > -5 &&                             // not in severe downtrend
-    (d.rsi ?? 50) <= 76 &&                  // not overbought (room to continue)
-    !(d.gapAndFade) &&                      // not a fake gap — still holding gains
+    (d.changePct   ?? 0) >= 2.5 &&
+    (d.volumeRatio ?? 1) >= 1.8 &&
+    pos >= 0.40 && pos <= 0.88 &&
+    s >= 3 && r20 > -5 &&
+    (d.rsi ?? 50) <= 76 &&
+    !(d.gapAndFade) &&
     bigMoveConf >= 48;
 
-  if (bigMoveBreakout) return { label: `🚀 Big Move · ${bigMoveConf}%`, cls: 'bg', conf: bigMoveConf, rank: 2 };
+  if (momentumEntry || bigMoveBreakout) {
+    const mc = (bigMoveBreakout && bigMoveConf > trendConf) ? bigMoveConf : trendConf;
+    return { label: `📈 Momentum · ${mc}%`, cls: 'bg', conf: mc, rank: 2 };
+  }
 
-  // ── BALANCED  (conf ≥ 50%) ────────────────────────────────────────────────────────
-  // Score is positive and context is neutral — neither a clear buy nor avoid.
-  if (conf >= 50 && s >= 2)  return { label: `🟡 Neutral · ${pct}`,           cls: 'by', conf, rank: 6 };
+  // ── WATCH: positive score but entry timing isn't ideal ───────────────────────────
+  if (s >= 4)  return { label: `👀 Watch · ${pct}`,    cls: 'by', conf, rank: 3 };
 
-  // Score looks good but position is wrong (extended, near week high) — tell user WHY
-  if (s >= 7 && pos >= 0.80) return { label: `⏳ Wait · Near Top · ${pct}`,   cls: 'by', conf, rank: 5 };
-  if (s >= 5 && pos >= 0.70) return { label: `⏳ Wait · Overextended · ${pct}`,cls: 'by', conf, rank: 5 };
-  if (s >= 5 && pos >= 0.50) return { label: `👀 Watch · Pullback Soon · ${pct}`, cls: 'by', conf, rank: 4 };
-  if (s >= 4)                return { label: `👀 Watch · Building · ${pct}`,   cls: 'by', conf, rank: 3 };
-  if (s >= 2)                return { label: `🟡 Neutral · ${pct}`,            cls: 'by', conf, rank: 6 };
+  // ── NEUTRAL: no clear edge either way ────────────────────────────────────────────
+  if (s >= 0)  return { label: `🟡 Neutral · ${pct}`,  cls: 'by', conf, rank: 4 };
 
-  // ── CAUTIOUS / WEAK / BEARISH  ───────────────────────────────────────────────────
-  if (s >= 0)  return { label: `🟠 Caution · ${pct}`,   cls: 'by', conf, rank: 7 };
-  if (s >= -3) return { label: `🔴 Avoid · ${pct}`,     cls: 'br', conf, rank: 8 };
-  return               { label: `🔴 Selling · ${pct}`,  cls: 'br', conf, rank: 9 };
+  // ── AVOID: bearish signals outweigh bullish ───────────────────────────────────────
+  return               { label: `🔴 Avoid · ${pct}`,   cls: 'br', conf, rank: 5 };
 }
 
 function prediction(d) {
@@ -3211,52 +3133,12 @@ async function fetchStock(ticker, { detail = false } = {}) {
     bearishDrivers.push(`High-volume selloff (${volumeRatio.toFixed(1)}× avg vol) — institutional distribution, not a dip`);
   }
 
-  // ── Trend quality penalty: falling knife + distribution at lows ──
-  const { penalty: trendPenalty, drivers: trendPenaltyDrivers } = getTrendPenalty({
-    position: livePos, changePct, volumeRatio, price, ema20: ind.ema20, closes, currentPrice: price
-  });
-  bearishScore += trendPenalty;
-  bearishDrivers.push(...trendPenaltyDrivers);
-
-  // ── Earnings day reaction: score the actual EPS result when stock just reported ──
-  // (isEarningsDay and epsSurprise set in data-loading section above)
-  if (isEarningsDay && epsSurprise) {
-    const eps = epsSurprise.pct;
-    if (eps > 15)      { catalystScore += 2; catalystDrivers.push(`EPS beat +${eps.toFixed(0)}% — strong earnings catalyst`); }
-    else if (eps > 5)  { catalystScore += 1; catalystDrivers.push(`EPS beat +${eps.toFixed(0)}%`); }
-    else if (eps < -10){ bearishScore  += 3; bearishDrivers.push(`EPS miss −${Math.abs(eps).toFixed(0)}% — major earnings miss`); }
-    else if (eps < -3) { bearishScore  += 2; bearishDrivers.push(`EPS miss −${Math.abs(eps).toFixed(0)}%`); }
-    else if (eps < 0)  { bearishScore  += 1; bearishDrivers.push(`Slight EPS miss −${Math.abs(eps).toFixed(1)}%`); }
-  }
-
-  // ── Fundamental quality scoring ──
+  // ── Fundamental quality scoring (only active in detail mode; zero for watchlist cards) ──
   const { score: fundScore, bullish: fundBullD, bearish: fundBearD } = getFundamentalScore(fundamentals);
-  const fundBullAdj = Math.min(Math.max(0,  fundScore), 4);   // cap contribution at +4
-  const fundBearAdj = Math.min(Math.max(0, -fundScore), 4);   // cap contribution at +4
+  const fundBullAdj = Math.min(Math.max(0,  fundScore), 4);
+  const fundBearAdj = Math.min(Math.max(0, -fundScore), 4);
   if (fundBullAdj > 0) { ind.bullishDrivers.push(...fundBullD); }
   if (fundBearAdj > 0) { bearishDrivers.push(...fundBearD); }
-
-  // ── Insider activity scoring ──────────────────────────────────────────────────────
-  // Insiders (CEOs, CFOs, Directors) must file Form 4 with the SEC within 2 days of trading.
-  // They know the company better than any analyst. Net buying is one of the strongest
-  // non-technical signals for multi-day holds.
-  //
-  // netValue here is NET SHARES (buy - sell) from netSharePurchaseActivity (6-month window).
-  // Positive = more shares bought than sold. We use share counts since $ value isn't in insiderHolders.
-  const _ins = insiderActivity;
-  if (_ins.buyCount >= 3 && _ins.sellCount === 0) {
-    catalystScore += 3;
-    catalystDrivers.push(`${_ins.buyCount} insider buys, 0 sells (6mo) — executives bullish on own stock`);
-  } else if (_ins.buyCount >= 2 || (_ins.buyCount >= 1 && _ins.netValue > 0)) {
-    catalystScore += 2;
-    catalystDrivers.push(`Insider buying: ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''} vs ${_ins.sellCount} sell${_ins.sellCount > 1 ? 's' : ''} (6mo) — positive signal`);
-  } else if (_ins.buyCount >= 1) {
-    catalystScore += 1;
-    catalystDrivers.push(`Insider activity: ${_ins.buyCount} buy${_ins.buyCount > 1 ? 's' : ''} vs ${_ins.sellCount} sell${_ins.sellCount > 1 ? 's' : ''} (6mo)`);
-  } else if (_ins.sellCount >= 3 && _ins.buyCount === 0) {
-    bearishScore += 1;
-    bearishDrivers.push(`${_ins.sellCount} insider sells, 0 buys (6mo) — may indicate caution at current price`);
-  }
 
   // ── Market regime overlay — macro context from SPY + QQQ ──────────────────────────────
   // Root cause of false bullish (CEG/DELL/GILD/JPM): individual signals look fine but market
@@ -5365,7 +5247,7 @@ function _ruleBasedResponse(q, ctx) {
 
   // MACD
   if (lower.includes('macd')) {
-    return `<strong>📊 MACD Guide</strong><br><br>MACD = 12-day EMA minus 26-day EMA. Shows momentum direction and strength:<br><br>• <strong>MACD above 0:</strong> Bullish momentum<br>• <strong>MACD below 0:</strong> Bearish momentum<br>• <strong>Crosses above signal line:</strong> Buy signal<br>• <strong>Crosses below signal line:</strong> Sell signal<br><br><strong>In IntelliMarket:</strong> MACD above signal line is needed for Momentum Buy signals — unless volume is 1.8×+ average (breakout override). This prevents MACD lag from missing fast gap-ups like NVDA or AMD.<br><br><em>💡 Use MACD for direction confirmation, not entry timing. RSI + week position are better for exact entries.</em>`;
+    return `<strong>📊 MACD Guide</strong><br><br>MACD = 12-day EMA minus 26-day EMA. Shows momentum direction and strength:<br><br>• <strong>MACD above 0:</strong> Bullish momentum<br>• <strong>MACD below 0:</strong> Bearish momentum<br>• <strong>Crosses above signal line:</strong> Buy signal<br>• <strong>Crosses below signal line:</strong> Sell signal<br><br><strong>In IntelliMarket:</strong> MACD above signal line is needed for Momentum signals — unless volume is 1.8×+ average (breakout override). This prevents MACD lag from missing fast gap-ups like NVDA or AMD.<br><br><em>💡 Use MACD for direction confirmation, not entry timing. RSI + week position are better for exact entries.</em>`;
   }
 
   // Breakout strategy
@@ -5380,12 +5262,12 @@ function _ruleBasedResponse(q, ctx) {
 
   // IntelliMarket scoring system
   if (lower.match(/score|intellimarket|scoring system|how.*work|signal.*mean/)) {
-    return `<strong>⚙️ IntelliMarket Scoring System</strong><br><br>Every stock gets a <strong>Net Score from -15 to +15</strong>:<br><br><strong>✅ Bullish factors (add points):</strong><br>• Near 5-day low (best entry zone) · Strong 20d uptrend<br>• High-volume breakout · Insider buying<br>• Selling exhaustion · Earnings beat · Good fundamentals (P/E, growth)<br><br><strong>❌ Bearish factors (subtract points):</strong><br>• Near 5-day high (extended) · Below EMA20<br>• RSI above 65 · MACD below signal · Insider selling<br>• High-volume selloff<br><br><strong>Signal Thresholds:</strong><br>• Score ≥6 + conf ≥88% → 🟢 Buy Now (strongest)<br>• Score ≥4 + conf ≥65% → 🟢 Good Entry<br>• Score ≥5 + volume + uptrend → 📈 Momentum Buy<br>• Score ≤-2 → 🟠 Caution · Score ≤-4 → 🔴 Avoid<br><br><em>Week Position 0–100%: lower is better entry. 0% = at 5-day low (ideal). 100% = at 5-day high (avoid).</em>`;
+    return `<strong>⚙️ IntelliMarket Scoring System</strong><br><br>Every stock gets a <strong>Net Score from -15 to +15</strong>:<br><br><strong>✅ Bullish factors (add points):</strong><br>• Near 5-day low (best entry zone) · Strong 20d uptrend<br>• High-volume breakout · Selling exhaustion<br>• Relative strength vs SPY · Market tailwind<br><br><strong>❌ Bearish factors (subtract points):</strong><br>• Near 5-day high (extended) · Below EMA20<br>• RSI above 65 · MACD below signal · High-volume selloff<br>• Broad market weakness (SPY/QQQ bearish)<br><br><strong>Signal Thresholds:</strong><br>• Score ≥6 + conf ≥88% → 🟢 Buy Now (strongest)<br>• Score ≥4 + conf ≥65% → 🟢 Buy<br>• Score ≥5 + volume + uptrend (ret20 >3%) → 📈 Momentum<br>• Score ≥4 but not in buy zone → 👀 Watch<br>• Score ≥0 → 🟡 Neutral · Score &lt; 0 → 🔴 Avoid<br><br><em>Week Position 0–100%: lower is better entry. 0% = at 5-day low (ideal). 100% = at 5-day high (avoid).</em>`;
   }
 
   // Position sizing
   if (lower.match(/position size|how much|risk management|how many shares|allocat/)) {
-    return `<strong>⚖️ Position Sizing & Risk Management</strong><br><br><strong>General Rule: Never risk more than 1-2% of total portfolio on a single trade.</strong><br><br>Formula: <em>Position Size = (Portfolio × Risk%) ÷ Stop-Loss%</em><br><br>Example — $10,000 portfolio, 1% risk, -2% stop:<br>→ $10,000 × 1% = $100 max loss<br>→ $100 ÷ 2% = $5,000 position size<br>→ Buy $5,000 worth of shares<br><br><strong>IntelliMarket guidelines:</strong><br>• Buy Now signal, conf ≥80%: up to full size<br>• Good Entry, conf 65-80%: 75% of normal size<br>• Mixed/neutral market: 50% of normal size<br>• Score 4-5 only: 50% of normal, add if confirmed next day<br><br><em>💡 The biggest mistake investors make: full-size entries on low-conviction signals. Half size + confirmed entry = same profit potential, half the risk.</em>`;
+    return `<strong>⚖️ Position Sizing & Risk Management</strong><br><br><strong>General Rule: Never risk more than 1-2% of total portfolio on a single trade.</strong><br><br>Formula: <em>Position Size = (Portfolio × Risk%) ÷ Stop-Loss%</em><br><br>Example — $10,000 portfolio, 1% risk, -2% stop:<br>→ $10,000 × 1% = $100 max loss<br>→ $100 ÷ 2% = $5,000 position size<br>→ Buy $5,000 worth of shares<br><br><strong>IntelliMarket guidelines:</strong><br>• Buy Now signal, conf ≥80%: up to full size<br>• Buy signal, conf 65-80%: 75% of normal size<br>• Mixed/neutral market: 50% of normal size<br>• Score 4-5 only: 50% of normal, add if confirmed next day<br><br><em>💡 The biggest mistake investors make: full-size entries on low-conviction signals. Half size + confirmed entry = same profit potential, half the risk.</em>`;
   }
 
   // Specific ticker analysis
@@ -5496,12 +5378,12 @@ EXPERTISE: Technical analysis (RSI, MACD, EMA, volume, support/resistance, week-
 INTELLIMARKET SCORING SYSTEM:
 - Net Score: -15 to +15 (bullish factors minus bearish factors)
 - 🟢 Buy Now: score ≥6, confidence ≥88%, week-position ≤35%, RSI 25–65, confirmed dip
-- 🟢 Good Entry: score ≥4, confidence ≥65%, lower half of week range
-- 📈 Momentum Buy: score ≥5, 20d uptrend positive, volume ≥1.2× average
-- 🚀 Big Move: change ≥2.5%, volume ≥1.8×, mid-range position, not fading
-- 🟠 Caution: score ≤−2 | 🔴 Avoid: score ≤−4
+- 🟢 Buy: score ≥4, confidence ≥65%, lower half of week range
+- 📈 Momentum: score ≥5, 20d uptrend >3%, volume ≥1.2× avg — OR 2.5%+ breakout on 1.8×+ volume
+- 👀 Watch: score ≥4 but entry timing not ideal (position too high or dip not confirmed)
+- 🟡 Neutral: score ≥0, no clear edge | 🔴 Avoid: score < 0 (bearish)
 - Week Position 0–100%: 0% = at 5-day low (best entry), 100% = at 5-day high (avoid)
-- Confidence 0–99%: weighted by week position, selling exhaustion, volume character, 20d trend, RSI, fundamentals
+- Confidence 0–99%: weighted by week position, selling exhaustion, volume character, 20d trend, RSI
 
 LIVE MARKET DATA (${ctx.date}):
 - S&P 500 (SPY): ${ctx.spyChg} | Score: ${ctx.spyScore}
