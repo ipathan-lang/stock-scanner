@@ -2107,12 +2107,18 @@ function calcIndicators(closes, highs, lows) {
   let bullishScore = 0;
   const bullishDrivers = [];
 
-  if (pos < 0.4)                     { bullishScore += 2; bullishDrivers.push('Lower half of weekly range'); }
-  if (r > 35 && r < 60)              { bullishScore += 2; bullishDrivers.push('RSI in healthy recovery zone'); }
+  // MACD — momentum confirmation
   if (mc.diff > 0 && mc.diff > 0.5)  { bullishScore += 2; bullishDrivers.push('MACD above signal with momentum'); }
-  if (price >= ema20 * 0.99)         { bullishScore += 2; bullishDrivers.push('Holding EMA20 support'); }
-  if (pos < 0.30)                    { bullishScore += 1; bullishDrivers.push('Near recent support pocket'); }
-  if (r > 40 && r < 55)             { bullishScore += 1; bullishDrivers.push('Momentum balanced, not overheated'); }
+  else if (mc.diff > 0)              { bullishScore += 1; bullishDrivers.push('MACD above signal line'); }
+
+  // EMA20 — trend direction (reward being above, not just touching)
+  if (price >= ema20 * 1.02)         { bullishScore += 2; bullishDrivers.push('Above EMA20 — uptrend confirmed'); }
+  else if (price >= ema20 * 0.99)    { bullishScore += 1; bullishDrivers.push('Holding EMA20 support'); }
+
+  // RSI — momentum health (reward healthy momentum zone, not just dip zone)
+  if (r >= 50 && r < 65)             { bullishScore += 2; bullishDrivers.push('RSI in momentum zone — healthy trend'); }
+  else if (r >= 40 && r < 50)        { bullishScore += 1; bullishDrivers.push('RSI recovering — building momentum'); }
+  else if (r >= 35 && r < 40)        { bullishScore += 1; bullishDrivers.push('RSI near oversold — bounce potential'); }
 
   return { bullishScore, bullishDrivers, rsi: r, macdDiff: mc.diff, ema20, position: pos, price };
 }
@@ -2162,22 +2168,15 @@ function getCatalystBonus({ nextEarnings, changePct, position, volumeRatio, pric
 // ══════════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
 //  CONFIDENCE SCORE  (0–99%)
-//  Measures how well the current setup matches the dip-buying strategy.
-//  Six independent factors, each weighted by their real-world predictive value.
-//  NOT a linear mapping of netScore — each factor is checked independently.
-//  Max 100 pts → displayed as confidence %.
+//  Multi-factor signal quality score. Measures alignment of momentum, trend, volume,
+//  RSI, technicals and fundamentals — NOT a dip-buying metric any more.
 // ══════════════════════════════════════════════════════════════
 function computeConfidence(d) {
   if (!d || d.err) return 0;
   let pts = 0;
 
-  // Use the more favourable of live position (current price) and close-based position
-  // (yesterday's close). On a big rally day livePos can jump from 18% to 65%+ while
-  // the close-based position still reflects where the stock spent most of the week.
-  // Taking the minimum correctly identifies stocks that are still near their week low.
-  const pos    = Math.min(d.livePos ?? 0.5, d.position ?? 0.5);
   const r20    = d.ret20               ?? 0;
-  const nDown  = d.consecutiveDownDays ?? 0;
+  const r5     = d.ret5                ?? 0;
   const chg    = d.changePct           ?? 0;
   const vol    = d.volumeRatio         ?? 1;
   const rsi    = d.rsi                 ?? 50;
@@ -2187,65 +2186,45 @@ function computeConfidence(d) {
   const price  = d.price               ?? 0;
   const fScore = d.fundamentalScore    ?? 0;
 
-  // ── Factor 1: Week range position (0–30 pts) ──────────────────────────────────────
-  // Biggest predictor: stocks AT their 5-day low have maximum room to recover.
-  // Stocks at 5-day high have already recovered — the trade opportunity is gone.
-  if      (pos <= 0.15) pts += 30;
-  else if (pos <= 0.25) pts += 24;
-  else if (pos <= 0.35) pts += 16;
-  else if (pos <= 0.50) pts += 8;
-  else if (pos <= 0.65) pts += 3;
-  // above 0.65 → 0 pts (not an entry zone)
+  // ── Factor 1: Net score strength (0–30 pts) ──────────────────────────────────────
+  if      (s >= 10) pts += 30;
+  else if (s >= 8)  pts += 25;
+  else if (s >= 6)  pts += 20;
+  else if (s >= 4)  pts += 15;
+  else if (s >= 2)  pts += 10;
+  else if (s >= 0)  pts += 5;
+  else if (s >= -2) pts += 2;
 
-  // ── Factor 2: 20-day uptrend strength (0–25 pts) ──────────────────────────────────
-  // Confirms the stock has proven "legs" — it has recovered from past dips before.
-  // Without 20d support there is no floor; the stock can keep falling indefinitely.
-  if      (r20 > 12) pts += 25;
-  else if (r20 > 8)  pts += 21;
-  else if (r20 > 5)  pts += 17;
-  else if (r20 > 2)  pts += 12;
+  // ── Factor 2: 20-day trend strength (0–25 pts) ───────────────────────────────────
+  if      (r20 > 20) pts += 25;
+  else if (r20 > 12) pts += 21;
+  else if (r20 > 8)  pts += 17;
+  else if (r20 > 4)  pts += 12;
   else if (r20 > 0)  pts += 7;
-  else if (r20 >= -2) pts += 3;
-  // below -2 → 0 pts (trend is broken, avoid)
+  else if (r20 >= -3) pts += 3;
 
-  // ── Factor 3: Selling exhaustion / entry timing (0–20 pts) ────────────────────────
-  // The most actionable signal: is today's selling SLOWING at the week low?
-  // If sellers are running out of stock to sell, a bounce is imminent.
-  if      (pos <= 0.30 && nDown >= 2 && chg > 0)     pts += 20; // already bouncing — confirmed
-  else if (pos <= 0.30 && nDown >= 2 && chg > -0.5)  pts += 18; // pace slowing — enter now
-  else if (pos <= 0.30 && nDown >= 2)                 pts += 12; // dip still active — watch
-  else if (pos <= 0.35 && nDown >= 1 && chg > -0.5)  pts += 10; // stabilising near week low
-  else if (pos <= 0.50 && nDown >= 1)                 pts += 6;  // has dipped, lower range
-  else if (nDown >= 1)                                pts += 2;  // has dipped, but not at low
+  // ── Factor 3: Volume confirmation (0–20 pts) ─────────────────────────────────────
+  if      (vol >= 2.5 && chg > 0) pts += 20;  // institutional buying
+  else if (vol >= 1.8 && chg > 0) pts += 16;
+  else if (vol >= 1.4 && chg > 0) pts += 12;
+  else if (vol >= 1.2 && chg > 0) pts += 8;
+  else if (vol >= 1.0)             pts += 4;
+  if (chg < -2 && vol > 2.0)      pts -= 15;  // institutional distribution
 
-  // ── Factor 4: Volume character of today's move (−10 to +10 pts) ───────────────────
-  // Low-vol dip = weak hands only shaking out; institutions still holding → safe to buy.
-  // High-vol selloff = institutions distributing → don't catch the falling knife.
-  if      (chg < -0.5 && vol < 0.60) pts += 10;  // very light sell = weak hands only
-  else if (chg < -0.3 && vol < 0.80) pts += 7;
-  else if (Math.abs(chg) < 0.5)      pts += 4;   // flat/consolidating = neutral is OK
-  else if (chg > 0.5 && vol > 1.2)   pts += 3;   // buyers stepping in with real volume
-  if (chg < -2 && vol > 2.0)         pts -= 10;  // institutional distribution — danger signal
+  // ── Factor 4: RSI momentum health (0–15 pts) ─────────────────────────────────────
+  if      (rsi >= 50 && rsi < 65) pts += 15;  // momentum zone — ideal
+  else if (rsi >= 45 && rsi < 70) pts += 10;
+  else if (rsi >= 35 && rsi < 75) pts += 5;
+  else if (rsi >= 25 && rsi < 78) pts += 2;
 
-  // ── Factor 5: RSI zone suitability (0–10 pts) ────────────────────────────────────
-  // RSI 35–55 = oversold-to-neutral: sellers exhausted, not yet overbought → perfect entry.
-  // RSI < 25 = panic selling, floor may not hold. RSI > 65 = already recovered, late entry.
-  if      (rsi >= 35 && rsi <= 50) pts += 10;
-  else if (rsi >= 28 && rsi <= 58) pts += 7;
-  else if (rsi >= 25 && rsi <= 64) pts += 4;
-  // outside 25–64 → 0 pts
-
-  // ── Factor 6: Technical stack alignment (0–5 pts) ────────────────────────────────
-  // Bonus when multiple independent indicators agree: MACD, EMA20, net score, fundamentals.
+  // ── Factor 5: Technical stack alignment (0–10 pts) ───────────────────────────────
   let tech = 0;
-  if (mDiff > 0)                           tech++;   // MACD above signal line
-  if (ema20 > 0 && price >= ema20 * 0.98)  tech++;   // at or above 20-day EMA
-  if (s >= 8)                              tech += 2; // very high net score
-  else if (s >= 6)                         tech++;
-  if (fScore > 0)                          tech++;   // positive fundamentals
-  pts += Math.min(5, tech);
+  if (mDiff > 0)                           tech += 2;  // MACD bullish
+  if (ema20 > 0 && price >= ema20 * 0.98)  tech += 2;  // above EMA20
+  if (fScore > 0)                          tech++;      // good fundamentals
+  if (r5 > 0 && r20 > 0)                   tech++;      // both timeframes green
+  pts += Math.min(10, tech * 2);
 
-  // Clamp: never show 0 for a loaded stock, never show 100% (no trade is certain)
   return Math.min(99, Math.max(1, Math.round(pts)));
 }
 
@@ -2255,64 +2234,30 @@ function computeConfidence(d) {
 function signal(d) {
   if (!d || d.err) return { label: '—', cls: 'by', conf: 0 };
   const s   = d.netScore;
-  // Use the more favourable of live position and close-based position (see computeConfidence).
-  // Prevents a single big-up day from hiding a stock that spent the whole week near its low.
-  const pos = Math.min(d.livePos ?? 0.5, d.position ?? 0.5);
-  const r20 = d.ret20   ?? 0;
-
-  // Compute confidence FIRST — it gates what label we can show.
-  // This is a true multi-factor score, not a linear remap of netScore.
+  const r20 = d.ret20 ?? 0;
   const conf = computeConfidence(d);
   const pct  = `${conf}%`;
 
-  // ── GATE: has the stock ACTUALLY pulled back? ─────────────────────────────────────
-  // NVDA/COST/LLY straight up 5 days = at risk of correcting the moment you invest.
-  // Require at least one of: a red closing day, a weekly dip, a down day today,
-  // OR the stock is already near its 5-day low (structural dip, even after recovery day).
-  const hasDip =
-    (d.consecutiveDownDays ?? 0) >= 1 ||
-    (d.ret5     ?? 0) < -0.3 ||
-    (d.changePct ?? 0) < -0.5 ||
-    pos <= 0.30;  // near week low = structural dip, regardless of recent session direction
-
-  // ── STRONG BULLISH  ───────────────────────────────────────────────────────────────
-  // Requires ALL of: real dip occurred · at week low · 20d uptrend · clean RSI ·
-  // no institutional distribution · confidence ≥ 88%  (represents >90% quality)
-  //
-  // Confidence ≥ 88 means at least 4 of the 6 strategy factors are strongly aligned.
-  // Without this gate a stock could pass the qualitative gates but have low-confidence
-  // context (e.g. flat RSI, normal volume, weak 20d) — not safe for $200K+ positions.
+  // ── BUY NOW: strong multi-factor alignment — high score + high conviction ─────────
   const strongBullish =
-    conf >= 88 &&
-    hasDip &&
+    conf >= 78 &&
     s >= 6 &&
-    pos <= 0.35 &&
-    r20 > 2 &&
-    (d.rsi ?? 50) < 65 &&
+    (d.rsi ?? 50) < 75 &&
     (d.rsi ?? 50) > 25 &&
-    (d.fundamentalScore ?? 0) >= -2 &&
+    !(d.gapAndFade) &&
+    (d.fundamentalScore ?? 0) >= -2;
+
+  if (strongBullish) return { label: `🟢 Buy Now · ${pct}`, cls: 'bg', conf, rank: 1 };
+
+  // ── BUY: good score + confirmed direction ─────────────────────────────────────────
+  const bullish =
+    s >= 4 &&
+    conf >= 55 &&
+    r20 > -5 &&
+    (d.rsi ?? 50) < 76 &&
     !(d.changePct < -3 && (d.volumeRatio ?? 1) > 2.5);
 
-  if (strongBullish) return { label: `🟢 Buy Now · ${pct}`,        cls: 'bg', conf, rank: 1 };
-
-  // ── BULLISH  ──────────────────────────────────────────────────────────────────────
-  // Lower 50% of week range + real dip occurred + trend not broken.
-  // Two tiers:
-  //   Tier A (conf ≥ 65): classic dip-buy setup — deep exhaustion confirmed
-  //   Tier B (conf ≥ 50): post-rally first pullback — uptrend intact (r20>2), allowing
-  //                       a slightly higher position (≤0.60) so mid-range entries qualify
-  const bullish =
-    hasDip &&
-    s >= 4 &&
-    r20 > -3 &&
-    (d.rsi ?? 50) < 72 &&
-    !(d.gapAndFade) &&
-    (
-      (conf >= 65 && pos <= 0.50) ||
-      (conf >= 50 && pos <= 0.60 && r20 > 2)
-    );
-
-  if (bullish) return { label: `🟢 Buy · ${pct}`,                    cls: 'bg', conf, rank: 2 };
+  if (bullish) return { label: `🟢 Buy · ${pct}`, cls: 'bg', conf, rank: 2 };
 
   // ── MOMENTUM ENTRY (trending / rally-market play) ────────────────────────────────
   // Fires when the dip-buy gate doesn't apply but the stock is in a confirmed uptrend.
@@ -3025,62 +2970,39 @@ async function fetchStock(ticker, { detail = false } = {}) {
   // ── Bearish scoring ──
   let bearishScore = 0;
   const bearishDrivers = [];
-  if (ind.rsi >= 65)             { bearishScore += 2; bearishDrivers.push('RSI overheated — pullback risk'); }
+  if (ind.rsi >= 75)             { bearishScore += 2; bearishDrivers.push('RSI overbought — pullback risk'); }
   if (ind.macdDiff < 0)          { bearishScore += 2; bearishDrivers.push('MACD below signal line'); }
   if (price < ind.ema20 * 0.99)  { bearishScore += 2; bearishDrivers.push('Below EMA20 trend support'); }
-  // Use livePos (today's price vs historical range) — catches gap-ups beyond recent highs
-  // Week range position — at week high is a BAD entry for the dip-buying strategy
-  // EXCEPTION: suppress position penalty on a genuine high-volume breakout day.
-  // AMD/QCOM/MU moving 3%+ on 2×+ volume from mid-range IS the trade — don't penalise it.
-  const isBreakoutDay = changePct >= 2.5 && volumeRatio != null && volumeRatio >= 2.0
-    && livePos >= 0.40 && livePos <= 0.90;
-  if (isBreakoutDay) {
-    if (livePos > 0.90) { bearishScore += 1; bearishDrivers.push(`Breakout extended — at range top but volume-backed move`); }
-    // livePos 0.40–0.90 on a 2.5%+/2× vol day: no position penalty — institutional breakout signal
-  } else {
-    if (livePos > 0.90)      { bearishScore += 3; bearishDrivers.push(`At 5-day high · only ${weekHighPct.toFixed(1)}% upside left — wait for pullback to buy`); }
-    else if (livePos > 0.75) { bearishScore += 2; bearishDrivers.push(`Near 5-day high · ${weekHighPct.toFixed(1)}% upside — suboptimal entry, wait for dip`); }
-    else if (livePos > 0.65) { bearishScore += 1; bearishDrivers.push(`Upper 5-day range · ${weekHighPct.toFixed(1)}% to week high — better entry on next dip`); }
-  }
   if (livePos > 1.3 && changePct > 10) { bearishScore += 2; bearishDrivers.push('Price far above recent range — gap-up, highly extended'); }
-  // Daily decline penalties — POSITION-AWARE for dip-buying strategy.
-  // At week low in a 20d uptrend: a −1% or −2% day is NORMAL dip continuation — the entry zone.
-  // Penalising it would filter out exactly the stocks we want to buy.
-  // Only warn at −3%+ (dip still accelerating) or when NOT in the prime entry zone.
-  const atWeekLowInUptrend = livePos <= 0.30 && ret20 !== null && ret20 > 1;
-  if (changePct <= -1 && !atWeekLowInUptrend) { bearishScore += 2; bearishDrivers.push('Daily downside pressure'); }
-  if (changePct <= -2 && !atWeekLowInUptrend) { bearishScore += 1; bearishDrivers.push('Accelerating daily decline'); }
-  if (changePct <= -3) { bearishScore += 2; bearishDrivers.push('Strong daily decline — dip still active, wait for stabilisation'); }
+  // Daily decline penalties
+  if (changePct <= -1) { bearishScore += 2; bearishDrivers.push('Daily downside pressure'); }
+  if (changePct <= -2) { bearishScore += 1; bearishDrivers.push('Accelerating daily decline'); }
+  if (changePct <= -3) { bearishScore += 2; bearishDrivers.push('Strong daily decline — wait for stabilisation'); }
   if (changePct <= -5) { bearishScore += 2; bearishDrivers.push('Major selloff warning'); }
-  // Intraday reversal — context-aware: at week low a mild pullback from open is normal
-  if (openChangePct <= -1 && !atWeekLowInUptrend) { bearishScore += 2; bearishDrivers.push('Intraday selloff — price below open'); }
-  if (openChangePct <= -3)       { bearishScore += 2; bearishDrivers.push('Heavy intraday selling — sellers in full control'); }
-  if (openChangePct <= -5)       { bearishScore += 2; bearishDrivers.push('Severe intraday reversal — institutional distribution'); }
-  if (gapAndFade)                { bearishScore += 3; bearishDrivers.push('Gap-and-fade — opened strong on news, sellers taking over'); }
-  if (dayHighRevertPct < -3)     { bearishScore += 2; bearishDrivers.push(`Reversed ${Math.abs(dayHighRevertPct).toFixed(1)}% from day high — bearish intraday reversal`); }
-  if (dayHighRevertPct < -7)     { bearishScore += 2; bearishDrivers.push('Deep reversal from day high — strong distribution'); }
-  // 20-day medium-term trend
+  // Intraday reversal signals
+  if (openChangePct <= -1) { bearishScore += 2; bearishDrivers.push('Intraday selloff — price below open'); }
+  if (openChangePct <= -3) { bearishScore += 2; bearishDrivers.push('Heavy intraday selling — sellers in full control'); }
+  if (openChangePct <= -5) { bearishScore += 2; bearishDrivers.push('Severe intraday reversal — institutional distribution'); }
+  if (gapAndFade)          { bearishScore += 3; bearishDrivers.push('Gap-and-fade — opened strong on news, sellers taking over'); }
+  if (dayHighRevertPct < -3) { bearishScore += 2; bearishDrivers.push(`Reversed ${Math.abs(dayHighRevertPct).toFixed(1)}% from day high — bearish intraday reversal`); }
+  if (dayHighRevertPct < -7) { bearishScore += 2; bearishDrivers.push('Deep reversal from day high — strong distribution'); }
+  // 20-day trend breakdown
   if (ret20 !== null && ret20 < -8)  { bearishScore += 2; bearishDrivers.push(`Down ${Math.abs(ret20).toFixed(1)}% over 20 days — sustained downtrend`); }
   else if (ret20 !== null && ret20 < -4) { bearishScore += 1; bearishDrivers.push(`Down ${Math.abs(ret20).toFixed(1)}% over 20 days — medium-term weakness`); }
-  // 5-day trend: bidirectional for dip-buying strategy.
-  // A weekly dip WITHIN a 20-day uptrend is a BUY setup, not a warning.
-  // A weekly decline WITH a broken 20-day trend = avoid (no floor to bounce from).
-  const weeklyDipInUptrend = ret5 !== null && ret5 < -1.5 && ret20 !== null && ret20 > 2;
-  if      (ret5 !== null && ret5 < -6 && (ret20 === null || ret20 < 0)) {
-    bearishScore += 3; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week with no 20d support — broken downtrend, no floor`);
+  // Weekly decline in broken trend
+  if (ret5 !== null && ret5 < -6 && (ret20 === null || ret20 < 0)) {
+    bearishScore += 3; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week with no 20d support — broken trend`);
   } else if (ret5 !== null && ret5 < -4 && (ret20 === null || ret20 < -2)) {
     bearishScore += 2; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week — 20d trend also soft`);
   } else if (ret5 !== null && ret5 < -3 && (ret20 === null || ret20 < 0)) {
-    bearishScore += 1; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week — 20d trend weak`);
+    bearishScore += 1; bearishDrivers.push(`Down ${Math.abs(ret5).toFixed(1)}% this week — trend weak`);
   }
-  // Consecutive down days: for dip-buying, 2-3 red days near week low = healthy flush (buyers absorbing).
-  // Only penalise structural breakdowns: many red days + no 20d support = avoid.
+  // Consecutive down days structural breakdown
   if (consecutiveDownDays >= 6) {
     bearishScore += 3; bearishDrivers.push(`${consecutiveDownDays} consecutive down days — structural breakdown, avoid`);
   } else if (consecutiveDownDays >= 4 && (ret20 === null || ret20 < 0)) {
     bearishScore += 2; bearishDrivers.push(`${consecutiveDownDays} consecutive down days with no monthly support — bearish`);
   }
-  // 2-3 down days at week low within an uptrend = healthy flush → handled as entry catalyst below
 
   // ── Catalyst scoring ──
   let catalystScore = 0;
@@ -3100,11 +3022,7 @@ async function fetchStock(ticker, { detail = false } = {}) {
   // This is the setup: invest NOW before it recovers tomorrow/next day.
   // This is what you're looking for with NVDA/LLY/COST when they've pulled back 2-3 days.
   if (consecutiveDownDays >= 2 && livePos <= 0.30 && changePct > -0.5) {
-    catalystScore += 3; catalystDrivers.push(`Selling exhaustion — ${consecutiveDownDays} red days at week low, pace slowing · entry before bounce`);
-  } else if (consecutiveDownDays >= 2 && livePos <= 0.30) {
-    catalystScore += 1; catalystDrivers.push(`${consecutiveDownDays} red days at week low — dip active, watch for slowing`);
-  } else if (consecutiveDownDays >= 1 && livePos <= 0.20 && changePct > -0.3) {
-    catalystScore += 1; catalystDrivers.push(`Consolidating at week low after red day — sellers may be done`);
+    catalystScore += 1; catalystDrivers.push(`Selling slowing at week low — potential bounce`);
   }
 
   // ── Catalyst bonus: earnings proximity + volume-confirmed breakouts ──
@@ -3114,43 +3032,44 @@ async function fetchStock(ticker, { detail = false } = {}) {
   catalystScore += catBonus;
   catalystDrivers.push(...catBonusDrivers);
 
-  // ── Week range entry scoring — buy-at-low, sell-at-high strategy ──────────────────────
-  // Primary entry signal: near 5-day low + 20-day uptrend = dip-buying setup with legs.
-  // These directly reward the core strategy: invest $200-500K when stock has room to recover.
-  if (livePos <= 0.20 && ret20 !== null && ret20 > 3) {
-    catalystScore += 4;
-    catalystDrivers.push(`At 5-day low · ${weekHighPct.toFixed(1)}% upside to week high · 20d uptrend +${ret20.toFixed(1)}% — prime dip entry`);
-  } else if (livePos <= 0.20 && ret20 !== null && ret20 >= 0) {
-    catalystScore += 3;
-    catalystDrivers.push(`At 5-day low · ${weekHighPct.toFixed(1)}% upside to week high — entry zone`);
-  } else if (livePos <= 0.35 && ret20 !== null && ret20 > 2) {
-    catalystScore += 3;
-    catalystDrivers.push(`Near 5-day low · ${weekHighPct.toFixed(1)}% to week high · uptrend intact — buy zone`);
-  } else if (livePos <= 0.35) {
-    catalystScore += 2;
-    catalystDrivers.push(`Near 5-day low · ${weekHighPct.toFixed(1)}% upside to week high`);
-  } else if (livePos <= 0.50 && ret20 !== null && ret20 > 0) {
-    catalystScore += 1;
-    catalystDrivers.push(`Lower 5-day range · ${weekHighPct.toFixed(1)}% to week high`);
+  // ── MOMENTUM: strong monthly trend ─────────────────────────────────────────────────
+  // Stocks moving the market are UP strongly — reward confirmed uptrends, not dips.
+  if (ret20 !== null && ret20 > 20)     { catalystScore += 3; catalystDrivers.push(`Up ${ret20.toFixed(1)}% over 20 days — strong confirmed uptrend`); }
+  else if (ret20 !== null && ret20 > 10){ catalystScore += 2; catalystDrivers.push(`Up ${ret20.toFixed(1)}% over 20 days — solid momentum`); }
+  else if (ret20 !== null && ret20 > 4) { catalystScore += 1; catalystDrivers.push(`Up ${ret20.toFixed(1)}% over 20 days — uptrend intact`); }
+
+  // ── MOMENTUM: weekly trend (in context of monthly uptrend) ─────────────────────────
+  if (ret5 !== null && ret5 > 8 && ret20 !== null && ret20 > 0) {
+    catalystScore += 2; catalystDrivers.push(`Up ${ret5.toFixed(1)}% this week — strong weekly momentum`);
+  } else if (ret5 !== null && ret5 > 3 && ret20 !== null && ret20 > 0) {
+    catalystScore += 1; catalystDrivers.push(`Up ${ret5.toFixed(1)}% this week within monthly uptrend`);
   }
-  // Weekly dip within 20-day uptrend = classic buy-the-dip setup
-  if (weeklyDipInUptrend && livePos <= 0.55) {
-    catalystScore += 2;
-    catalystDrivers.push(`Weekly dip (${ret5.toFixed(1)}%) within 20d uptrend (+${ret20.toFixed(1)}%) — buy-the-dip setup`);
-  } else if (weeklyDipInUptrend) {
-    catalystScore += 1;
-    catalystDrivers.push(`Weekly pullback within monthly uptrend — watch for better entry`);
+
+  // ── INSTITUTIONAL VOLUME: price up + high volume = big money buying ─────────────────
+  if (changePct > 1 && volumeRatio !== null && volumeRatio >= 2.5) {
+    catalystScore += 3; catalystDrivers.push(`Institutional buying confirmed — ${volumeRatio.toFixed(1)}× average volume`);
+  } else if (changePct > 0.5 && volumeRatio !== null && volumeRatio >= 1.8) {
+    catalystScore += 2; catalystDrivers.push(`Strong volume on up day — ${volumeRatio.toFixed(1)}× avg (institutional interest)`);
+  } else if (changePct > 0.3 && volumeRatio !== null && volumeRatio >= 1.4) {
+    catalystScore += 1; catalystDrivers.push(`Above-average volume on up day`);
   }
-  // Low-volume pullback = weak hands flushing out, not institutional selling (healthy for multi-day)
-  if (changePct < -0.3 && volumeRatio !== null && volumeRatio < 0.75) {
-    catalystScore += 1;
-    catalystDrivers.push(`Low-volume dip (${volumeRatio.toFixed(2)}× avg) — weak-hand selling, not distribution`);
-  }
-  // High-volume selloff on significant down day = institutional distribution (bad for multi-day hold)
+  // High-volume selloff = institutional distribution (bad)
   if (changePct < -2 && volumeRatio !== null && volumeRatio > 2.0) {
-    bearishScore += 2;
-    bearishDrivers.push(`High-volume selloff (${volumeRatio.toFixed(1)}× avg vol) — institutional distribution, not a dip`);
+    bearishScore += 2; bearishDrivers.push(`High-volume selloff (${volumeRatio.toFixed(1)}× avg) — institutional distribution`);
   }
+
+  // ── NEWS CATALYST: headline keyword scoring ─────────────────────────────────────────
+  const _newsText = (headlines || []).map(h => (h.title || '').toLowerCase()).join(' ');
+  const _bullKw = ['upgrade', 'beat', 'beats', 'raised target', 'outperform', 'record', 'strong growth',
+    'data center', 'ai', 'partnership', 'acquisition', 'contract', 'buyback', 'dividend increase'];
+  const _bearKw = ['downgrade', 'miss', 'misses', 'lowered', 'cut target', 'warning', 'recall',
+    'lawsuit', 'investigation', 'bankruptcy', 'layoff', 'layoffs', 'debt downgrade'];
+  const _bullHits = _bullKw.filter(w => _newsText.includes(w));
+  const _bearHits = _bearKw.filter(w => _newsText.includes(w));
+  if (_bullHits.length >= 2) { catalystScore += 2; catalystDrivers.push(`News catalysts: ${_bullHits.slice(0,3).join(', ')}`); }
+  else if (_bullHits.length === 1) { catalystScore += 1; catalystDrivers.push(`Positive news: ${_bullHits[0]}`); }
+  if (_bearHits.length >= 2) { bearishScore += 2; bearishDrivers.push(`Negative news signals: ${_bearHits.slice(0,3).join(', ')}`); }
+  else if (_bearHits.length === 1) { bearishScore += 1; bearishDrivers.push(`Cautionary news: ${_bearHits[0]}`); }
 
   // ── Fundamental quality scoring (only active in detail mode; zero for watchlist cards) ──
   const { score: fundScore, bullish: fundBullD, bearish: fundBearD } = getFundamentalScore(fundamentals);
@@ -3160,10 +3079,6 @@ async function fetchStock(ticker, { detail = false } = {}) {
   if (fundBearAdj > 0) { bearishDrivers.push(...fundBearD); }
 
   // ── Market regime overlay — macro context from SPY + QQQ ──────────────────────────────
-  // Root cause of false bullish (CEG/DELL/GILD/JPM): individual signals look fine but market
-  // is falling. Without a macro filter, stocks score Bullish even in a down-tape session.
-  // Fix: when SPY+QQQ are weak/bearish, add a headwind penalty to ALL individual stocks.
-  //      When market is strongly bullish, give a tailwind bonus.
   if (ticker !== 'SPY' && ticker !== 'QQQ' && ticker !== 'IWM') {
     const spyScore = S.data['SPY']?.netScore ?? null;
     const qqqScore = S.data['QQQ']?.netScore ?? null;
@@ -3414,7 +3329,7 @@ async function fetchStock(ticker, { detail = false } = {}) {
   // Compute signal rank early so it can be stored on the record for sorting
   const _sigTmp = signal({ ...ind, bearishScore, netScore: netScoreFinal,
     conviction: convictionFinal, fundamentalScore: fundScore,
-    rsi: ind.rsi, livePos: livePos, ret20: ret20, hasDip: ind.hasDip,
+    rsi: ind.rsi, livePos: livePos, ret20: ret20,
     changePct, volumeRatio, gapAndFade });
   const signalRank = _sigTmp.rank ?? 6;
 
@@ -3554,9 +3469,6 @@ function renderStrategy() {
       const targetUpside = wHigh5 > price ? ((wHigh5 - price) / price * 100) : 0;
       const sharesCanBuy = price > 0 ? Math.floor(allocUsd / price) : 0;
 
-      // Entry price: current price if signal says enter, otherwise await dip
-      const hasDip = (d.consecutiveDownDays ?? 0) >= 1 || (d.ret5 ?? 0) < -0.3 || (d.changePct ?? 0) < -0.5;
-
       if (sig.label.startsWith('Strong Bullish')) {
         actionClass = 'enter-now';
         actionBadge = `<span class="strat-action sa-strong">🟢 ENTER NOW — Strong Signal</span>`;
@@ -3574,15 +3486,15 @@ function renderStrategy() {
       } else if (sig.label.startsWith('Balanced') || sig.label.startsWith('Watch')) {
         actionClass = 'watch-mode';
         actionBadge = `<span class="strat-action sa-watch">👁 WATCH — Wait for Better Entry</span>`;
-        entryPrice  = hasDip ? `Dip detected — enter if signal upgrades to Bullish` : `Wait for a pullback day (no dip yet)`;
+        entryPrice  = `Momentum confirmed — enter if signal upgrades to Buy`;
         exitTarget  = wHigh5 > price ? `Target: $${wHigh5.toFixed(2)} (+${targetUpside.toFixed(1)}%)` : '';
         holdNote    = 'Set a price alert at current price − 1.5%';
       } else if (sig.label.includes('Week High') || sig.label.includes('Extended')) {
         actionClass = 'wait-mode';
-        actionBadge = `<span class="strat-action sa-wait">⏸ WAIT — Near Week High</span>`;
-        entryPrice  = `Stock is near 5-day high (${(pos * 100).toFixed(0)}% of range) — poor entry`;
-        exitTarget  = `Ideal entry after 2–3% pullback from here`;
-        holdNote    = 'Watch for a dip to the 5-day low';
+        actionBadge = `<span class="strat-action sa-wait">⏸ WAIT — Overextended</span>`;
+        entryPrice  = `RSI or price extended — poor entry risk`;
+        exitTarget  = `Wait for RSI to cool below 70 or price to consolidate`;
+        holdNote    = 'Watch for volume-confirmed pullback before entering';
       } else if (sig.label.startsWith('Bearish') || sig.label.startsWith('Weak')) {
         actionClass = 'exit-now';
         actionBadge = `<span class="strat-action sa-exit">🔴 AVOID — Bearish Signal</span>`;
@@ -3591,18 +3503,21 @@ function renderStrategy() {
       } else {
         actionClass = 'watch-mode';
         actionBadge = `<span class="strat-action sa-watch">👁 WATCH</span>`;
-        entryPrice  = `Monitor for dip toward 5-day low`;
+        entryPrice  = `Monitor for improving score or volume confirmation`;
         holdNote    = '';
       }
 
       // ── Entry note text ──
       const nDown = d.consecutiveDownDays ?? 0;
-      if (nDown >= 2 && pos <= 0.30 && (d.changePct ?? 0) > -0.5) {
-        entryNote = `Selling exhaustion — ${nDown} red days at week low, pace slowing. Ideal entry.`;
-      } else if (nDown >= 1 && pos <= 0.35) {
-        entryNote = `Dip active — ${nDown} red day${nDown > 1 ? 's' : ''}, near week low. Entry zone.`;
-      } else if (!hasDip) {
-        entryNote = `No dip yet — wait for at least 1 red day before entering.`;
+      const r20_ = d.ret20 ?? 0;
+      const volR = d.volumeRatio ?? 1;
+      const chg_ = d.changePct ?? 0;
+      if (chg_ > 1 && volR >= 2.5) {
+        entryNote = `Institutional volume confirmed (${volR.toFixed(1)}×) — strong buying interest.`;
+      } else if (r20_ > 15) {
+        entryNote = `Strong 20-day momentum (+${r20_.toFixed(1)}%) — trend is your edge.`;
+      } else if (nDown >= 2 && (d.rsi ?? 50) < 55) {
+        entryNote = `${nDown}-day consolidation, RSI cooling — potential entry on next up day.`;
       }
 
       // ── Exit note ──
