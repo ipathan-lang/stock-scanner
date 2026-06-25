@@ -7262,120 +7262,68 @@ function updateLiveBadge() {
 }
 
 // ── Live Price Refresh (every 15 s, 24 h — always on) ───────────────────────
-// When Finnhub WebSocket is active: WS handles real-time ticks, this just updates
-// the badge. When WS is off: falls back to Yahoo Finance v7 (via CORS proxy,
-// ~15s poll). Extended hours (pre/after) uses preMarketPrice/postMarketPrice.
+// ── Finnhub REST quote — CORS: * — works directly from browser, NO proxy needed ──
+// Returns { c: price, d: change, dp: changePct%, h, l, o, pc } or null on failure.
+async function _fhRestQuote(ticker) {
+  if (!_fhKey) return null;
+  try {
+    const r = await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(ticker)}&token=${_fhKey}`,
+      { cache: 'no-store' }
+    );
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && j.c > 0) ? j : null;
+  } catch { return null; }
+}
+
+// Apply a Finnhub quote response to a stored stock record and recompute signals
+function _applyFhQuote(ticker, q) {
+  if (!q) return;
+  const d = S.data[ticker];
+  if (!d || d.err) return;
+  d.price        = q.c;
+  d.changePct    = q.dp ?? d.changePct;   // dp is already in % (e.g. -3.29)
+  d.change       = q.d  ?? d.change;
+  d.dayHigh      = Math.max(q.h || 0, d.dayHigh || 0) || q.c;
+  d.dayLow       = (q.l && q.l > 0) ? Math.min(q.l, d.dayLow || Infinity) : (d.dayLow || q.c);
+  d.regularPrice = q.c;
+  d.fetchedAt    = Date.now();
+  const wH = d.wHigh5, wL = d.wLow5;
+  if (wH && wL && wH !== wL)
+    d.livePos = Math.min(Math.max((q.c - wL) / (wH - wL), 0), 1);
+  const sig = signal(d);
+  d.signalLabel = sig.label; d.signalCls = sig.cls;
+  d.conf = sig.conf; d.signalRank = sig.rank ?? 6;
+}
+
+// Background refresh — rotates through all loaded tickers in batches of 5
+// Uses Finnhub REST (CORS:* — no proxy, no 403s) → max 60 calls/min on free tier
 async function refreshLivePrices() {
   updateLiveBadge();
-  if (_fhConnected) return; // WebSocket is active — no need to poll Yahoo
+  if (_fhConnected) return;  // WebSocket is streaming ticks — no polling needed
+  if (!_fhKey) return;
   const session = getMarketSession();
 
-  const allTickers = [...new Set([...S.watchlist, ...(S.pinnedTicker ? [S.pinnedTicker] : [])])];
-  const loaded = allTickers.filter(t => S.data[t] && !S.data[t].err);
-  if (!loaded.length) return;
+  const allTickers = [...new Set([
+    ...MARKET_TICKERS,
+    ...(S.watchlist || []),
+    ...(S.pinnedTicker ? [S.pinnedTicker] : [])
+  ])].filter(t => S.data[t] && !S.data[t].err && t !== _fastPollTicker);
+  if (!allTickers.length) return;
 
-  const BATCH = 20;
-  const fields = 'regularMarketPrice,regularMarketChangePercent,regularMarketVolume,' +
-                 'regularMarketDayHigh,regularMarketDayLow,regularMarketOpen,' +
-                 'regularMarketPreviousClose,' +
-                 'postMarketPrice,postMarketChangePercent,postMarketTime,' +
-                 'preMarketPrice,preMarketChangePercent,preMarketTime';
+  // Rotate through all tickers 5 at a time so every stock gets updated
+  // ~every (total/5)*5s seconds — well within the 60 calls/min rate limit
+  if (typeof refreshLivePrices._idx !== 'number') refreshLivePrices._idx = 0;
+  const BATCH = 5;
+  const batch = allTickers.slice(refreshLivePrices._idx, refreshLivePrices._idx + BATCH);
+  refreshLivePrices._idx = (refreshLivePrices._idx + BATCH >= allTickers.length)
+    ? 0 : refreshLivePrices._idx + BATCH;
 
-  for (let i = 0; i < loaded.length; i += BATCH) {
-    const batch   = loaded.slice(i, i + BATCH);
-    const symbols = batch.join(',');
-    // query2 is more reliable via CORS proxies than query1 (fewer 401s)
-    const url     = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=${fields}&formatted=false`;
-    try {
-      // FIX: pass a numeric proxy index (0), not the PROXIES array itself
-      const ps   = i % PROXIES.length;          // rotate proxy per batch
-      const json = await fetchJProxy(url, ps);
-      const quotes = json?.quoteResponse?.result ?? [];
-
-      for (const q of quotes) {
-        const d = S.data[q.symbol];
-        if (!d || d.err) continue;
-
-        const regPrice  = q.regularMarketPrice;
-        const prevClose = q.regularMarketPreviousClose || d.price;
-        if (!regPrice || regPrice <= 0) continue;
-
-        // Pick the best available price based on current session
-        let displayPrice = regPrice;
-        let extHours     = null;
-        let extChangePct = null;
-
-        // Pre-market (4:00 AM – 9:29 AM ET): show pre-market price if fresh (within 4h)
-        if (session === 'pre' && q.preMarketPrice && q.preMarketPrice > 0) {
-          const preFreshness = q.preMarketTime ? (Date.now() / 1000 - q.preMarketTime) : 0;
-          if (preFreshness < 4 * 3600) {          // within 4 hours
-            displayPrice = q.preMarketPrice;
-            extHours     = 'pre';
-            extChangePct = q.preMarketChangePercent ?? null;
-          }
-        }
-        // After-hours (4:00 PM – 8:00 PM ET): show post-market price if fresh (within 6h)
-        else if (session === 'after' && q.postMarketPrice && q.postMarketPrice > 0) {
-          const postFreshness = q.postMarketTime ? (Date.now() / 1000 - q.postMarketTime) : 0;
-          if (postFreshness < 6 * 3600) {         // within 6 hours
-            displayPrice = q.postMarketPrice;
-            extHours     = 'after';
-            extChangePct = q.postMarketChangePercent ?? null;
-          }
-        }
-        // Overnight / weekend: show most recent extended price if it came from TODAY
-        else if (session === 'overnight') {
-          const nowSec = Date.now() / 1000;
-          const todayStartET = (() => {
-            const d = new Date();
-            const et = new Date(d.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-            et.setHours(0, 0, 0, 0);
-            return et.getTime() / 1000;
-          })();
-          if (q.postMarketPrice && q.postMarketPrice > 0 &&
-              q.postMarketTime && q.postMarketTime >= todayStartET) {
-            displayPrice = q.postMarketPrice;
-            extHours     = 'after';
-            extChangePct = q.postMarketChangePercent ?? null;
-          }
-        }
-
-        d.price          = displayPrice;
-        d.changePct      = extChangePct !== null ? extChangePct : (q.regularMarketChangePercent ?? d.changePct);
-        d.change         = displayPrice - (session === 'after' ? regPrice : prevClose);
-        d.extHours       = extHours;           // 'pre' | 'after' | null
-        d.extChangePct   = extChangePct;       // extended-hours % change (shown separately)
-        d.regularPrice   = regPrice;           // always keep today's close for reference
-        d.dayHigh        = q.regularMarketDayHigh  ?? d.dayHigh;
-        d.dayLow         = q.regularMarketDayLow   ?? d.dayLow;
-        d.marketOpen     = q.regularMarketOpen     ?? d.marketOpen;
-        d.fetchedAt      = Date.now();
-
-        // Recompute volume ratio against stored 20d avg
-        if (q.regularMarketVolume && d.avgVol20 && d.avgVol20 > 0)
-          d.volumeRatio = q.regularMarketVolume / d.avgVol20;
-
-        // Recompute intraday VWAP approximation (uses regular session prices)
-        const o = d.marketOpen || regPrice;
-        const h = d.dayHigh   || regPrice;
-        const l = d.dayLow    || regPrice;
-        const vwap = (o + h + l + regPrice) / 4;
-        d.vwapDevPct = vwap > 0 ? ((regPrice - vwap) / vwap) * 100 : 0;
-
-        // Recompute week position from stored week high/low
-        const wH = d.wHigh5, wL = d.wLow5;
-        if (wH && wL && wH !== wL)
-          d.livePos = Math.min(Math.max((regPrice - wL) / (wH - wL), 0), 1);
-
-        // Refresh signal badge based on updated price/position
-        const sig = signal(d);
-        d.signalLabel = sig.label;
-        d.signalCls   = sig.cls;
-        d.conf        = sig.conf;
-        d.signalRank  = sig.rank ?? 6;
-      }
-    } catch (_) { /* silent — stale data is fine, full refresh will catch up */ }
-  }
+  await Promise.allSettled(batch.map(async ticker => {
+    const q = await _fhRestQuote(ticker).catch(() => null);
+    _applyFhQuote(ticker, q);
+  }));
   renderActivePanel();
 }
 
@@ -7589,65 +7537,12 @@ function stopFastPoll() {
 }
 
 async function _fastPollOne(ticker) {
-  if (_fhConnected) return;           // Finnhub WebSocket already pushing ticks
-  const session = getMarketSession();
-  if (session === 'overnight') return; // nothing to poll before 4 AM ET
-
-  try {
-    const fields = 'regularMarketPrice,regularMarketChangePercent,regularMarketVolume,' +
-                   'regularMarketDayHigh,regularMarketDayLow,regularMarketPreviousClose,' +
-                   'postMarketPrice,postMarketChangePercent,postMarketTime,' +
-                   'preMarketPrice,preMarketChangePercent,preMarketTime';
-    const url = `https://query2.finance.yahoo.com/v7/finance/quote` +
-                `?symbols=${encodeURIComponent(ticker)}&fields=${fields}&formatted=false`;
-
-    // Try direct first (no proxy = sub-200ms when CORS allows)
-    let json = null;
-    try {
-      const r = await fetch(url + `&_t=${Date.now()}`, { cache: 'no-store', mode: 'cors' });
-      if (r.ok) json = await r.json();
-    } catch {}
-    // One proxy fallback (deterministic, avoids hammering one proxy repeatedly)
-    if (!json) json = await fetchJProxy(url, tickerProxyStart(ticker)).catch(() => null);
-
-    const q = json?.quoteResponse?.result?.[0];
-    if (!q) return;
-    const d = S.data[ticker];
-    if (!d || d.err) return;
-
-    const regPrice  = q.regularMarketPrice;
-    const prevClose = q.regularMarketPreviousClose || d.regularPrice || d.price;
-    if (!regPrice || regPrice <= 0) return;
-
-    let displayPrice = regPrice, extHours = null, extChangePct = null;
-
-    if (session === 'pre' && q.preMarketPrice > 0) {
-      const age = q.preMarketTime ? (Date.now() / 1000 - q.preMarketTime) : 0;
-      if (age < 14400) { displayPrice = q.preMarketPrice; extHours = 'pre'; extChangePct = q.preMarketChangePercent; }
-    } else if (session === 'after' && q.postMarketPrice > 0) {
-      const age = q.postMarketTime ? (Date.now() / 1000 - q.postMarketTime) : 0;
-      if (age < 21600) { displayPrice = q.postMarketPrice; extHours = 'after'; extChangePct = q.postMarketChangePercent; }
-    }
-
-    d.price        = displayPrice;
-    d.changePct    = extChangePct != null ? extChangePct : (q.regularMarketChangePercent ?? d.changePct);
-    d.change       = displayPrice - prevClose;
-    d.extHours     = extHours;
-    d.extChangePct = extChangePct;
-    d.regularPrice = regPrice;
-    d.dayHigh      = q.regularMarketDayHigh ?? d.dayHigh;
-    d.dayLow       = q.regularMarketDayLow  ?? d.dayLow;
-    d.fetchedAt    = Date.now();
-    if (q.regularMarketVolume && d.avgVol20 > 0)
-      d.volumeRatio = q.regularMarketVolume / d.avgVol20;
-    const wH = d.wHigh5, wL = d.wLow5;
-    if (wH && wL && wH !== wL)
-      d.livePos = Math.min(Math.max((regPrice - wL) / (wH - wL), 0), 1);
-    const sig = signal(d);
-    d.signalLabel = sig.label; d.signalCls = sig.cls;
-    d.conf = sig.conf; d.signalRank = sig.rank ?? 6;
-    renderActivePanel();
-  } catch {}
+  if (_fhConnected) return;  // WebSocket handles it — 0-delay ticks
+  // Use Finnhub REST: CORS:* — no proxy, no 403, direct browser call in <200ms
+  const q = await _fhRestQuote(ticker).catch(() => null);
+  if (!q) return;
+  _applyFhQuote(ticker, q);
+  renderActivePanel();
 }
 
 function startRolling() {
