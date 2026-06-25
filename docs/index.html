@@ -268,6 +268,87 @@
     .fi-target{ font-size: 0.78rem; font-weight: 700; color: var(--ink); }
     .fi-sub   { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
 
+    /* ── Sentiment Indicator ── */
+    .sentiment-block {
+      margin: 8px 0;
+      border-radius: 10px;
+      padding: 11px 14px 9px;
+    }
+    .sent-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+      flex-wrap: wrap;
+    }
+    .sent-title {
+      font-size: 0.6rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+    }
+    .sent-label {
+      flex: 1;
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+    .sent-score {
+      font-size: 0.78rem;
+      font-weight: 700;
+      opacity: .85;
+    }
+    .sent-bar-wrap {
+      background: rgba(0,0,0,.09);
+      border-radius: 5px;
+      height: 9px;
+      margin-bottom: 9px;
+      overflow: hidden;
+    }
+    .sent-bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width .6s ease;
+    }
+    .sent-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 14px;
+      margin-bottom: 7px;
+    }
+    .sent-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+    }
+    .sent-item-label { color: var(--muted); }
+    .sent-item-val   { font-weight: 700; }
+    .sent-footer {
+      font-size: 0.69rem;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px 6px;
+      align-items: center;
+      border-top: 1px solid rgba(0,0,0,.06);
+      padding-top: 6px;
+      margin-top: 2px;
+    }
+    .sent-social  { color: var(--ink); font-weight: 600; }
+    .sent-predict {
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-top: 5px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+    .sent-sources {
+      font-size: 0.67rem;
+      color: var(--muted);
+      font-style: italic;
+    }
+
     /* ── Card section divider ── */
     .card-divider { height: 1px; background: rgba(19,43,67,.07); margin: 8px 0; }
     .card-sec-title {
@@ -1792,7 +1873,46 @@ const DEFAULT_WATCHLIST = [
 const MARKET_TICKERS = ['SPY','QQQ','IWM','XLK','XLF'];
 
 // ══════════════════════════════════════════════════════════════
-//  $500K ROBINHOOD STRATEGY PORTFOLIO
+//  SENTIMENT ENGINE — keyword lists + sector ETF map
+// ══════════════════════════════════════════════════════════════
+const SENTIMENT_BULLS = [
+  'upgrade','upgraded','outperform','overweight','buy','strong buy','bullish',
+  'beat','beats','exceeded','surpassed','record','all-time high','growth','gains',
+  'rally','surge','soar','raised target','price target raised','positive','upside',
+  'expansion','opportunity','partnership','contract','deal','award','win',
+  'buyback','dividend','raised guidance','above estimates','topped expectations',
+  'smashed','crushing','momentum','recovery','rebound','inflection','catalyst',
+  'favorable','better than expected','breakout','accelerat','strong demand',
+  'robust','approval','launch','hire','invest','innovation','breakthrough',
+  'market share gain','revenue beat','earnings beat','eps beat','analyst upgrade',
+  'double upgrade','price hike','competitive advantage','supply deal',
+  'AI','artificial intelligence','data center','cloud growth','order intake'
+];
+const SENTIMENT_BEARS = [
+  'downgrade','downgraded','underperform','underweight','sell','bearish','weak sell',
+  'miss','missed','below expectations','warning','risk','concern','decline','fall',
+  'layoff','layoffs','job cuts','restructure','investigation','fine','penalty',
+  'recall','lawsuit','bankrupt','default','cut','reduced','lowered guidance',
+  'headwinds','slowdown','contraction','recession','tariff','regulation','ban',
+  'supply chain','inventory','glut','oversupply','competition','losing','lost',
+  'fraud','scandal','disappointing','weak','selloff','plunge','crash','collapse',
+  'price target cut','analyst downgrade','double downgrade','below consensus',
+  'revenue miss','earnings miss','eps miss','margin compression','debt burden',
+  'trade war','geopolitical','sanction','export control','loss','writedown'
+];
+// Map ticker → sector ETF for sector context in sentiment scoring
+const SECTOR_ETF_MAP = {
+  AMD:'SOXX',QCOM:'SOXX',MU:'SOXX',NVDA:'SOXX',INTC:'SOXX',TSM:'SOXX',
+  AMAT:'SOXX',KLAC:'SOXX',LRCX:'SOXX',ASML:'SOXX',MRVL:'SOXX',AVGO:'SOXX',
+  ARM:'SOXX',ALAB:'SOXX',SMCI:'SOXX',MCHP:'SOXX',SWKS:'SOXX',QRVO:'SOXX',
+  AAPL:'QQQ',MSFT:'QQQ',GOOGL:'QQQ',GOOG:'QQQ',META:'QQQ',AMZN:'QQQ',
+  TSLA:'QQQ',NFLX:'QQQ',CRM:'QQQ',ADBE:'QQQ',ORCL:'QQQ',NOW:'QQQ',SNOW:'QQQ',
+  ABBV:'XBI',MRNA:'XBI',BNTX:'XBI',REGN:'XBI',GILD:'XBI',BIIB:'XBI',
+  PFE:'XLV',JNJ:'XLV',UNH:'XLV',LLY:'XLV',MRK:'XLV',ABT:'XLV',
+  JPM:'XLF',BAC:'XLF',GS:'XLF',MS:'XLF',V:'XLF',MA:'XLF',WFC:'XLF',
+  XOM:'XLE',CVX:'XLE',SLB:'XLE',COP:'XLE',
+};
+
 //  Selection criteria:
 //  - S&P 500 large-cap only (market cap > $200B)
 //  - Low volatility / high institutional ownership
@@ -3561,6 +3681,13 @@ async function fetchStock(ticker) {
     });
   }
 
+  // ── Sentiment engine: parallel async fetch (non-blocking, never throws) ──────
+  // Fetches StockTwits social data + extra Yahoo headlines in background.
+  // Stored in sentimentData.extraHeadlines / sentimentData.social.
+  // ETFs skip social fetch (no StockTwits coverage).
+  const sentimentData = isETF ? null
+    : await _fetchSentimentData(ticker).catch(() => null);
+
   return {
     ticker, price, change, changePct,
     fetchedAt: Date.now(),
@@ -3572,6 +3699,7 @@ async function fetchStock(ticker) {
     sortScore: sortScoreFinal,
     signalRank,
     headlines,
+    sentiment: sentimentData,
     nextEarnings,
     epsSurprise,
     isEarningsDay,
@@ -6636,6 +6764,184 @@ function buildForecastDrivers(d, stats) {
 }
 
 // ── Inline 24h plain-English forecast (same math as buildForecastSVG, no chart) ──
+// ══════════════════════════════════════════════════════════════
+//  SENTIMENT ENGINE
+//  Sources: Yahoo headline keywords + StockTwits social sentiment
+//           + technical signals + sector ETF context
+//  Score 0–100: 0–34 RED (Bearish) · 35–64 AMBER (Mixed) · 65–100 GREEN (Bullish)
+// ══════════════════════════════════════════════════════════════
+
+// Keyword score from an array of text strings → 0.0 (bearish) – 1.0 (bullish)
+function _sentimentKeywordScore(texts) {
+  if (!texts.length) return 0.5;
+  const joined = texts.join(' ').toLowerCase();
+  let bull = 0, bear = 0;
+  for (const w of SENTIMENT_BULLS) if (joined.includes(w)) bull++;
+  for (const w of SENTIMENT_BEARS) if (joined.includes(w)) bear++;
+  const net = bull - bear;
+  const scale = Math.max(bull + bear, 1);
+  return clamp(0.5 + (net / scale) * 0.5, 0, 1);   // centre on 0.5
+}
+
+// Fetch StockTwits public stream + extended Yahoo news headlines (no auth needed)
+async function _fetchSentimentData(ticker) {
+  const result = { social: null, extraHeadlines: [] };
+  try {
+    // StockTwits public API — free, no auth, covers retail trader sentiment
+    const stUrl   = `https://api.stocktwits.com/api/2/streams/symbol/${encodeURIComponent(ticker)}.json?limit=30`;
+    const proxyFn = PROXIES[tickerProxyStart(ticker) % PROXIES.length];
+    const resp    = await Promise.race([
+      fetch(proxyFn(stUrl)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))
+    ]);
+    if (resp.ok) {
+      const data     = await resp.json();
+      const messages = data.messages ?? [];
+      let bulls = 0, bears = 0;
+      const texts = [];
+      for (const m of messages) {
+        const s = m.entities?.sentiment?.basic;
+        if (s === 'Bullish') bulls++;
+        else if (s === 'Bearish') bears++;
+        if (m.body) texts.push(m.body);
+      }
+      result.social = {
+        bulls, bears,
+        bullPct: (bulls + bears) > 0 ? Math.round((bulls / (bulls + bears)) * 100) : 50,
+        total: bulls + bears,
+        messageCount: messages.length
+      };
+      result.extraHeadlines = texts.slice(0, 12);
+    }
+  } catch {}
+  // Extended Yahoo news headlines (more than the 3 fetched by default)
+  try {
+    const moreNewsUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=8`;
+    const proxyFn2    = PROXIES[(tickerProxyStart(ticker) + 1) % PROXIES.length];
+    const resp2 = await Promise.race([
+      fetch(proxyFn2(moreNewsUrl)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+    ]);
+    if (resp2.ok) {
+      const nd = await resp2.json();
+      const extra = (nd.news ?? []).slice(3).map(n => n.title).filter(Boolean);
+      result.extraHeadlines = [...result.extraHeadlines, ...extra];
+    }
+  } catch {}
+  return result;
+}
+
+// Compute a 0–100 sentiment score from all available sources
+function computeSentimentScore(d) {
+  // ── 1. News/headline keyword analysis (0–35 pts) ────────────────────────────
+  const allTexts = [
+    ...(d.headlines     || []).map(h => (h.title || '') + ' ' + (h.publisher || '')),
+    ...(d.sentiment?.extraHeadlines || [])
+  ];
+  const kwRatio   = _sentimentKeywordScore(allTexts);        // 0–1
+  const newsPoints = Math.round(kwRatio * 35);
+
+  // ── 2. Technical signals (0–30 pts) ─────────────────────────────────────────
+  const ns        = d.netScore ?? 0;
+  const netNorm   = clamp((ns + 15) / 30, 0, 1);            // -15…+15 → 0…1
+  const rsi       = d.rsi ?? 50;
+  const rsiAdj    = rsi > 70 ? -0.12 : rsi < 30 ? 0.12 : 0; // overbought pushes score down
+  const volAdj    = (d.volumeRatio ?? 1) >= 1.8 && ns > 0 ? 0.06 : 0;
+  const techScore = clamp(netNorm + rsiAdj + volAdj, 0, 1);
+  const techPoints = Math.round(techScore * 30);
+
+  // ── 3. Social sentiment — StockTwits (0–20 pts) ──────────────────────────────
+  let socialPoints = 10;   // neutral default when data not available
+  if (d.sentiment?.social?.total > 0) {
+    socialPoints = Math.round((d.sentiment.social.bullPct / 100) * 20);
+  }
+
+  // ── 4. Sector / market context (0–15 pts) ────────────────────────────────────
+  let sectorPoints = 7;    // neutral default
+  const sectorEtf  = SECTOR_ETF_MAP[d.ticker] ?? 'SPY';
+  const etfD       = S.data[sectorEtf] ?? S.data['SPY'];
+  if (etfD?.netScore != null) {
+    sectorPoints = Math.round(clamp((etfD.netScore + 15) / 30, 0, 1) * 15);
+  }
+
+  const total = clamp(newsPoints + techPoints + socialPoints + sectorPoints, 0, 100);
+  return { score: total, newsPoints, techPoints, socialPoints, sectorPoints,
+           sectorEtf, allTexts: allTexts.length, social: d.sentiment?.social ?? null };
+}
+
+// Render the Sentiment indicator block on the stock card
+function buildSentimentIndicator(d) {
+  const sent   = computeSentimentScore(d);
+  const score  = sent.score;
+
+  const isGreen = score >= 65;
+  const isRed   = score <  35;
+  const label   = isGreen ? '🟢 Bullish Sentiment' : isRed ? '🔴 Bearish Sentiment' : '🟡 Mixed Sentiment';
+  const color   = isGreen ? 'var(--green)' : isRed ? 'var(--red)' : '#d97706';
+  const bg      = isGreen ? 'rgba(16,185,129,.07)'  : isRed ? 'rgba(196,81,75,.07)'  : 'rgba(217,119,6,.07)';
+  const border  = isGreen ? 'rgba(16,185,129,.28)'  : isRed ? 'rgba(196,81,75,.28)'  : 'rgba(217,119,6,.28)';
+  const barClr  = isGreen ? '#10b981' : isRed ? '#c4514b' : '#d97706';
+
+  // Sentiment-adjusted next-day price target
+  const atrPct  = d.atrPct ?? 1.5;
+  const base    = (d.netScore ?? 0) / 15 * atrPct * 0.55;
+  const sentAdj = ((score - 50) / 50) * atrPct * 0.65;
+  const expPct  = clamp(base + sentAdj, -atrPct * 2, atrPct * 2);
+  const tgtPrice = d.price * (1 + expPct / 100);
+  const tgtColor = expPct >= 0 ? 'var(--green)' : 'var(--red)';
+  const tgtSign  = expPct >= 0 ? '+' : '';
+
+  // Social blurb
+  const soc = sent.social;
+  const socialHtml = soc && soc.total > 0
+    ? `<span class="sent-social">&#128172; StockTwits: <b>${soc.bullPct}% bull</b> (${soc.bulls}↑ ${soc.bears}↓ of ${soc.total})</span>`
+    : `<span class="sent-sources">StockTwits: loading&hellip;</span>`;
+
+  // Sector label
+  const secLabel = { SOXX:'Semis', QQQ:'Tech', XBI:'Biotech', XLF:'Financials', XLE:'Energy', XLV:'Healthcare' }[sent.sectorEtf] ?? sent.sectorEtf;
+
+  // Sub-score colour helper
+  const sc = (v, max, lo, hi) => v >= hi ? 'var(--green)' : v <= lo ? 'var(--red)' : 'var(--ink)';
+
+  return `
+    <div class="sentiment-block" data-sent-ticker="${esc(d.ticker)}"
+         style="background:${bg};border:1px solid ${border}">
+      <div class="sent-header">
+        <span class="sent-title">&#127755; Sentiment</span>
+        <span class="sent-label" style="color:${color}">${label}</span>
+        <span class="sent-score" style="color:${color}">${score} / 100</span>
+      </div>
+      <div class="sent-bar-wrap">
+        <div class="sent-bar-fill" style="width:${score}%;background:${barClr}"></div>
+      </div>
+      <div class="sent-grid">
+        <div class="sent-item">
+          <span class="sent-item-label">&#128240; News &amp; Headlines</span>
+          <span class="sent-item-val" style="color:${sc(sent.newsPoints,35,11,21)}">${sent.newsPoints} / 35</span>
+        </div>
+        <div class="sent-item">
+          <span class="sent-item-label">&#128200; Technical Signals</span>
+          <span class="sent-item-val" style="color:${sc(sent.techPoints,30,9,18)}">${sent.techPoints} / 30</span>
+        </div>
+        <div class="sent-item">
+          <span class="sent-item-label">&#128172; Social Buzz</span>
+          <span class="sent-item-val" style="color:${sc(sent.socialPoints,20,7,12)}">${sent.socialPoints} / 20</span>
+        </div>
+        <div class="sent-item">
+          <span class="sent-item-label">&#127968; Sector (${secLabel})</span>
+          <span class="sent-item-val" style="color:${sc(sent.sectorPoints,15,5,9)}">${sent.sectorPoints} / 15</span>
+        </div>
+      </div>
+      <div class="sent-footer">
+        ${socialHtml}
+        &nbsp;&middot;&nbsp;
+        <span class="sent-sources">${sent.allTexts} article${sent.allTexts !== 1 ? 's' : ''} analysed</span>
+        &nbsp;&middot;&nbsp;
+        <span>Sentiment target:&nbsp;<b style="color:${tgtColor}">${tgtSign}${expPct.toFixed(1)}% &rarr; ~$${tgtPrice.toFixed(2)}</b></span>
+      </div>
+    </div>`;
+}
+
 function buildInlineForecast(d) {
   const atrPct      = d.atrPct        ?? 1.5;
   const netScore    = clamp(d.netScore ?? 0, -15, 15);
@@ -6862,6 +7168,8 @@ function buildCard(d, rank, pinned) {
       <div class="pred-row" style="color:${pred.color}">&#9670; ${pred.text}</div>
 
       ${buildHoldBar(d, atrTag)}
+
+      ${buildSentimentIndicator(d)}
 
       ${buildInlineForecast(d)}
 
