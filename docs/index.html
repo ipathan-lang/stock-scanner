@@ -4386,8 +4386,8 @@ async function loadTrends() {
 
 /* ═══════════════════════════════════════════════════════════════════
    MORNING BRIEFING  —  Daily stock watchlist + AI predictions
-   Uses portfolio scoring data + OpenAI to rank which stocks to
-   buy, watch, or avoid each morning. Updated on each tab visit.
+   Uses portfolio scoring data to rank which stocks to buy,
+   watch, or avoid each morning. Updated on each tab visit.
 ═══════════════════════════════════════════════════════════════════ */
 let _morningAIData = null;
 
@@ -4496,9 +4496,9 @@ function _renderMorningSections() {
 
   html += `<div id="morning-ai-section">
     <div class="mbf-ai-card">
-      <div class="mbf-ai-title">🤖 AI Morning Brief — Powered by OpenAI</div>
+      <div class="mbf-ai-title">🤖 AI Morning Brief</div>
       <div>${Array(3).fill('<div class="mbf-skeleton" style="margin-bottom:6px"></div>').join('')}</div>
-      <div style="font-size:.75rem;color:var(--muted);margin-top:8px">Analyzing your portfolio + today's market news… (10–30 sec)</div>
+      <div style="font-size:.75rem;color:var(--muted);margin-top:8px">Analyzing your portfolio + today's market activity…</div>
     </div>
   </div>`;
 
@@ -4534,86 +4534,8 @@ function _mbfStockRow(d, type) {
     </div>`;
 }
 
-async function _callOpenAIMorning(portfolioSummary) {
-  const today = new Date().toLocaleDateString('en-US',
-    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const prompt =
-`Today is ${today}. I have a US stock portfolio. Here is the current technical snapshot (scored by indicators):
-
-${portfolioSummary}
-
-Search the web for today's pre-market news, earnings, macro events, and Fed signals, then return ONLY a raw JSON object (no markdown, no code fences) in this exact schema:
-
-{
-  "morningBrief": "3-4 sentence summary of what's happening in the market this morning and key themes to focus on",
-  "marketSentiment": "bullish",
-  "keyEvents": ["event 1", "event 2", "event 3"],
-  "stockPredictions": [
-    {
-      "symbol": "NVDA",
-      "direction": "up",
-      "confidence": "high",
-      "reason": "1 concise sentence based on technicals + today's news/catalyst",
-      "action": "Buy today"
-    }
-  ],
-  "weeklyWatchlist": [
-    { "symbol": "AMD", "thesis": "1 sentence on why to watch this week" }
-  ],
-  "avoidToday": ["INTC"],
-  "avoidReasons": { "INTC": "1 sentence reason to avoid today" }
-}
-
-Rules:
-- marketSentiment: exactly "bullish", "bearish", or "neutral"
-- direction: exactly "up", "down", or "neutral"
-- confidence: exactly "high", "medium", or "low"
-- action: one of "Buy today", "Watch for entry", "Hold", "Avoid", "Exit position"
-- stockPredictions: include ALL stocks from the portfolio summary, ordered by conviction highest first
-- weeklyWatchlist: 5-8 stocks most likely to move meaningfully this week
-- avoidToday: 3-5 stocks to stay away from today
-- Output must start with { and end with } — nothing else`;
-
-  const _key = _getOAIKey();
-  if (!_key || _key === 'PASTE_YOUR_OPENAI_KEY_HERE') throw new Error('NO_KEY');
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
-    body:    JSON.stringify({
-      model:    'gpt-4o-search-preview',
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    signal: AbortSignal.timeout(55000),
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    const msg = err?.error?.message || resp.statusText;
-    if (resp.status === 404 || (msg && msg.toLowerCase().includes('model'))) {
-      const resp2 = await fetch('https://api.openai.com/v1/chat/completions', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_key}` },
-        body:    JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }] }),
-        signal:  AbortSignal.timeout(55000),
-      });
-      if (!resp2.ok) {
-        const err2 = await resp2.json().catch(() => ({}));
-        throw new Error(`OpenAI ${resp2.status}: ${err2?.error?.message || resp2.statusText}`);
-      }
-      const data2 = await resp2.json();
-      const text2  = data2.choices?.[0]?.message?.content || '';
-      const clean2 = text2.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
-      const s2 = clean2.indexOf('{'), e2 = clean2.lastIndexOf('}');
-      if (s2 === -1 || e2 === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
-      return JSON.parse(clean2.slice(s2, e2 + 1));
-    }
-    throw new Error(`OpenAI ${resp.status}: ${msg}`);
-  }
-  const data = await resp.json();
-  const text  = data.choices?.[0]?.message?.content || '';
-  const clean = text.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
-  const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
-  if (s === -1 || e === -1) throw new Error('OpenAI did not return valid JSON. Try again.');
-  return JSON.parse(clean.slice(s, e + 1));
+async function _callOpenAIMorning() {
+  throw new Error('AI market brief is disabled because this project no longer stores external AI credentials.');
 }
 
 async function _runMorningAI() {
@@ -4635,23 +4557,14 @@ async function _runMorningAI() {
     const msg = String(err.message || err);
     const aiSection2 = document.getElementById('morning-ai-section');
     if (!aiSection2) return;
-    if (msg === 'NO_KEY') {
-      aiSection2.innerHTML = `<div class="mbf-ai-card">
-        <div class="mbf-ai-title">🤖 AI Morning Brief</div>
-        <div class="mbf-ai-body" style="color:var(--red)">
-          OpenAI key not set. Go to the <a href="#" onclick="setSortMode('ai');return false" style="color:var(--blue)">🤖 AI Scanner tab</a> to enter your API key.
-        </div>
-      </div>`;
-    } else {
-      aiSection2.innerHTML = `<div class="mbf-ai-card">
-        <div class="mbf-ai-title">🤖 AI Morning Brief</div>
-        <div class="mbf-ai-body" style="color:var(--red)">AI prediction failed: ${esc(msg)}</div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <button style="padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
-            onclick="_morningAIData=null;_runMorningAI()">🔄 Retry</button>
-        </div>
-      </div>`;
-    }
+    aiSection2.innerHTML = `<div class="mbf-ai-card">
+      <div class="mbf-ai-title">🤖 AI Morning Brief</div>
+      <div class="mbf-ai-body" style="color:var(--red)">AI prediction is unavailable because this project no longer stores external AI credentials.</div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <button style="padding:4px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
+          onclick="_morningAIData=null;_runMorningAI()">🔄 Retry</button>
+      </div>
+    </div>`;
   }
 }
 
@@ -4718,7 +4631,7 @@ function _renderMorningAISection(data) {
     html += `</div>`;
   }
 
-  html += `<div class="mbf-refresh-row">Powered by OpenAI web search &nbsp;·&nbsp;
+  html += `<div class="mbf-refresh-row">Powered by IntelliMarket scoring engine &nbsp;·&nbsp;
     <button style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:none;color:var(--muted)"
       onclick="_morningAIData=null;loadMorningBriefing()">🔄 Refresh AI</button>
   </div>`;
@@ -4735,15 +4648,12 @@ function _renderMorningAISection(data) {
 let _aiScannerTimer  = null;
 let _aiScannerLoaded = false;
 
-/* ── OpenAI key helpers (only used for the Ask box) ── */
+/* External AI credentials have been removed from this project. */
 function _getOAIKey() {
-  const _d = ['sk-proj-5G9YPgTQnvfqauFVYPH-Gw4L2uUbigB6RMyEKbPTrssbi1PBYPfoX-0CdWMXkfQiE',
-              '2J3yi3UHCT3BlbkFJ5vvuJboOCh6iSh0ea_Kvj7jHgLrPG_ccD-WiRpoD0PfiJozruQbo',
-              'sjQvzS-XcCFxQItWfOTGYA'].join('');
-  return (localStorage.getItem('ss_oai_key') || _d).trim();
+  return '';
 }
-function _saveOAIKey(k) {
-  localStorage.setItem('ss_oai_key', (k || '').trim());
+function _saveOAIKey() {
+  // Intentionally left blank: no external AI credentials are stored in the project.
 }
 
 /* ── Build scanner data from app's own S.data (no API call needed) ── */
@@ -4965,15 +4875,14 @@ function renderAIScanner(data) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   KEY MANAGEMENT (silent — no UI form)
-   To set key: localStorage.setItem('ss_oai_key','sk-...')
+   KEY MANAGEMENT DISABLED
+   This project no longer stores or uses external AI credentials.
 ───────────────────────────────────────────────────────── */
 function _renderAIKeyForm() { /* no-op */ }
 function saveAIKey() {
   const inp = document.getElementById('ai-key-input');
-  const key = (inp?.value || '').trim();
-  if (!key || !key.startsWith('sk-')) { if (inp) { inp.style.borderColor='var(--red)'; inp.focus(); } return; }
-  _saveOAIKey(key); _aiScannerLoaded = false; loadAIScanner(true);
+  if (inp) { inp.value = ''; inp.style.borderColor = 'var(--border)'; }
+  return;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -5304,58 +5213,9 @@ async function _loadAIChatCard(ticker, btn) {
   } catch { container.innerHTML=`<div class="empty" style="padding:8px;font-size:.78rem">Error loading ${esc(ticker)}</div>`; }
 }
 
-// ── OpenAI call with full conversation history ──
-async function _callOpenAI(q, ctx, key) {
-  const sysPrompt = `You are IntelliMarket AI — a professional stock market advisor built into the IntelliMarket Analyst platform. Today is ${ctx.date}.
-
-EXPERTISE: Technical analysis (RSI, MACD, EMA, volume, support/resistance, week-range positioning), fundamental analysis (P/E, PEG, debt-to-equity, revenue & earnings growth), trading strategies (momentum, dip-buying, breakout, swing trading), risk management (stop-loss placement, position sizing, diversification, sector rotation).
-
-INTELLIMARKET SCORING SYSTEM:
-- Net Score: -15 to +15 (bullish factors minus bearish factors)
-- 🟢 Buy Now: score ≥6, confidence ≥88%, week-position ≤35%, RSI 25–65, confirmed dip
-- 🟢 Buy: score ≥4, confidence ≥65%, lower half of week range
-- 📈 Momentum: score ≥5, 20d uptrend >3%, volume ≥1.2× avg — OR 2.5%+ breakout on 1.8×+ volume
-- 👀 Watch: score ≥4 but entry timing not ideal (position too high or dip not confirmed)
-- 🟡 Neutral: score ≥0, no clear edge | 🔴 Avoid: score < 0 (bearish)
-- Week Position 0–100%: 0% = at 5-day low (best entry), 100% = at 5-day high (avoid)
-- Confidence 0–99%: weighted by week position, selling exhaustion, volume character, 20d trend, RSI
-
-LIVE MARKET DATA (${ctx.date}):
-- S&P 500 (SPY): ${ctx.spyChg} | Score: ${ctx.spyScore}
-- Nasdaq (QQQ): ${ctx.qqqChg} | Score: ${ctx.qqqScore}
-- Market breadth: ${ctx.up} advancing · ${ctx.dn} declining (${ctx.total} tracked)
-- Top buy signals: ${ctx.topBuys}
-- Unusual volume (2×+): ${ctx.highVol}
-- Today's top gainers: ${ctx.gainers}
-- Today's notable losers: ${ctx.losers}
-${_aiChat.portfolioCtx ? `\nUSER PORTFOLIO CONTEXT: ${_aiChat.portfolioCtx}` : ''}
-
-RESPONSE RULES:
-- Be conversational, direct, and always actionable
-- Reference the live data above when relevant (scores, RSI, volume)
-- For stock questions: cover signal, score, RSI, week-position, and key risk
-- For portfolio questions: assess diversification, concentration, timing, what to add/hold/trim
-- For strategy questions: be specific, give real examples using the live data above
-- Keep responses under 220 words, use plain line breaks for readability
-- Do NOT use markdown ** bold or code fences — use plain text formatting`;
-
-  const messages = [
-    { role: 'system', content: sysPrompt },
-    ..._aiChat.history.slice(-10),
-    { role: 'user', content: q },
-  ];
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-    body: JSON.stringify({ model: 'gpt-4o', messages, max_tokens: 420 }),
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!resp.ok) {
-    if (resp.status === 401) throw new Error('Invalid OpenAI API key.');
-    return null;
-  }
-  const json = await resp.json();
-  return json.choices?.[0]?.message?.content || null;
+// External AI calls have been disabled; the app now relies on built-in market logic only.
+async function _callOpenAI() {
+  throw new Error('AI chat is disabled because this project no longer stores external AI credentials.');
 }
 
 // ── Format OpenAI plain-text response into HTML ──
@@ -5418,7 +5278,7 @@ async function sendAIChat(presetQ) {
         responseHtml = aiText ? _formatAIText(aiText, q) : _ruleBasedResponse(q, ctx);
       } catch (e) {
         responseHtml = _ruleBasedResponse(q, ctx) +
-          `<br><span style="color:var(--muted);font-size:.72rem">(OpenAI: ${esc(String(e.message||e))})</span>`;
+          `<br><span style="color:var(--muted);font-size:.72rem">(AI provider unavailable in this project)</span>`;
       }
     } else {
       responseHtml = _ruleBasedResponse(q, ctx);
@@ -6913,8 +6773,7 @@ function toggleDetail(id) {
 }
 
 // ── AI Stock Analysis (in-card) ──────────────────────────────────────────────
-// Called from the "Get AI Analysis" button in buildCard().
-// Uses the existing OpenAI chat infrastructure + live stock data for a plain-English verdict.
+// AI analysis is disabled in this project because no external AI credentials are used.
 async function analyzeStockWithAI(ticker, containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
@@ -6922,8 +6781,7 @@ async function analyzeStockWithAI(ticker, containerId) {
   const key = _getOAIKey();
   if (!key) {
     el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">
-      No OpenAI key set. Go to the <a href="#" onclick="setSortMode('ai');return false"
-        style="color:var(--blue)">🤖 AI Scanner tab</a> to enter your API key.
+      AI analysis is disabled in this project because no external AI credentials are configured.
     </div>`;
     return;
   }
@@ -7165,7 +7023,7 @@ let _fhWsFailCount = 0;      // consecutive WS failures — stops reconnect afte
 let _fhWsLastFail  = 0;      // timestamp of last failure
 
 function loadFHKey() {
-  _fhKey = localStorage.getItem('fh_apikey') || 'd8u9f09r01qinhugknugd8u9f09r01qinhugknv0';
+  _fhKey = '';
 }
 
 function openFHModal() {
@@ -7174,9 +7032,8 @@ function openFHModal() {
   const st  = document.getElementById('fh-status');
   if (!m) return;
   m.style.display = 'flex';
-  if (inp) inp.value = _fhKey;
-  if (st)  st.textContent = _fhConnected ? '✅ WebSocket connected — live data active'
-                          : (_fhKey ? '⚠️ Key saved but not connected yet' : '');
+  if (inp) inp.value = '';
+  if (st)  st.textContent = 'This project does not use external AI/data credentials.';
   setTimeout(() => inp && inp.focus(), 80);
 }
 
@@ -7186,20 +7043,13 @@ function closeFHModal() {
 }
 
 function applyFHKey() {
-  const inp = document.getElementById('fh-key-input');
-  const key = (inp ? inp.value : '').trim();
-  if (!key) return;
-  _fhKey = key;
-  localStorage.setItem('fh_apikey', _fhKey);
   const st = document.getElementById('fh-status');
-  if (st) st.textContent = '🔄 Connecting…';
-  connectFinnhubWS();
-  setTimeout(closeFHModal, 1200);
+  if (st) st.textContent = 'No external credential is configured in this project.';
+  closeFHModal();
 }
 
 function removeFHKey() {
   _fhKey = '';
-  localStorage.removeItem('fh_apikey');
   disconnectFinnhubWS();
   closeFHModal();
   updateLiveBadge();
